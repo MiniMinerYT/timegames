@@ -8,7 +8,7 @@ Rules:
 
 * Preserve Single Player.
 * Preserve Party Mode.
-* Preserve 10 Second Challenge.
+* Preserve Daily Challenge.
 * Preserve ranking system.
 * Preserve localStorage settings and stats.
 * Keep the fixed card layout.

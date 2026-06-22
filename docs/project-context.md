@@ -8,7 +8,7 @@ The game is based around testing how accurate a player's internal clock is.
 
 ### Single Player
 
-The app secretly chooses a random time. After the configured countdown (off, 3 seconds or 5 seconds), the hidden timer runs until the secret time has elapsed. The player then enters a guess for how much time passed.
+The app secretly chooses a random time. After the configured countdown (0 to 10 seconds), the hidden timer runs until the secret time has elapsed. The player then enters a guess for how much time passed.
 
 The result shows:
 - The secret time
@@ -19,11 +19,15 @@ The result shows:
 
 Single Player can be played as ranked or casual. Both variants update the general gameplay stats, but only ranked rounds affect Clock Rating.
 
-### 10 Second Challenge
+### Daily Challenge
 
-The player starts after the configured countdown and tries to stop a hidden stopwatch as close to exactly 10 seconds as possible.
+Each local calendar date has a deterministic secret target from 0.5 to 10 seconds. Every player receives the same target for the same date. After the configured countdown, the hidden clock runs for that target length and the player guesses how much time passed.
 
-This mode is casual only and does not affect Clock Rating. It updates the general gameplay stats and stores the closest 10-second attempt as a personal best.
+The player gets one official attempt at today's challenge. Once completed, the home-screen button displays how far the official guess was from the target. Selecting the challenge again shows the target, guess and score instead of allowing another official attempt.
+
+The Daily Challenge screen also offers the previous seven dates as unlimited practice challenges. Practice attempts do not replace official scores and do not update general stats or Clock Rating.
+
+The official Daily Challenge is casual and does not affect Clock Rating. A completed official attempt updates the general gameplay stats.
 
 ### Party Mode
 
@@ -65,7 +69,7 @@ Clock Rating:
 - Is stored in localStorage as part of `timegames-stats`
 - Only changes after a valid Single Player guess when ranked mode is enabled
 - Does not change in casual Single Player
-- Does not change in 10 Second Challenge
+- Does not change in Daily Challenge
 - Does not change in Party Mode
 - Cannot fall below 0
 
@@ -104,9 +108,8 @@ Current settings:
 - Ranked mode on/off from the home screen
 - Reduced motion on/off
 - High contrast on/off
-- Larger controls on/off
-- Countdown length: off, 3 seconds or 5 seconds
-- Result precision: 2 or 3 decimal places
+- Dark mode on/off
+- Countdown length slider: 0 to 10 seconds
 - Party timer range: Short, Standard or Long
 
 If ranked mode is off, Single Player is labelled as casual and does not affect Clock Rating. The operating system's reduced-motion preference is also respected independently of the saved setting.
@@ -120,24 +123,31 @@ Current stats:
 - Best accuracy
 - Average error
 - Spot Ons
-- Clock Rating
-- 10-second personal best
+- Clock Rating with the player's current rank
+- Points remaining to the next rank
 
-Games played, best accuracy, average error and Spot Ons aggregate completed Single Player and 10 Second Challenge rounds. Party rounds are excluded.
+Games played, best accuracy, average error and Spot Ons aggregate completed Single Player rounds and official Daily Challenge attempts. Daily practice and Party rounds are excluded.
 
-A Spot On is recorded when the absolute error is under 0.005 seconds. The 10-second personal best stores the elapsed time whose error from 10 seconds is smallest.
+A Spot On is recorded when the absolute error is under 0.005 seconds. Errors of 100 seconds or more are treated as accidental input and excluded from the average-error calculation, though the completed game still counts toward games played.
 
-Reset Statistics clears all saved stats, including Clock Rating and the 10-second personal best, after a confirmation prompt.
+Reset Statistics clears all general stats and Clock Rating after a confirmation prompt. It does not clear the separate Daily Challenge completion history.
 
 Streaks are not used.
 
 ## Persistence
 
 The app uses localStorage for:
-- `timegames-stats`: general stats, Clock Rating and the 10-second personal best
+- `timegames-stats`: general stats, Clock Rating and the internal average-error sample count
 - `timegames-settings`: all settings, including ranked mode
+- `timegames-daily-results`: official Daily Challenge results keyed by local date
 
 Party players and scores are held in React state and are not persisted across page reloads.
+
+## Input and Sound Behaviour
+
+Time guesses always use two decimal places. Guess fields request the mobile decimal keypad and accept at most two digits before and two digits after the decimal point.
+
+When sounds are enabled, countdowns and results use gameplay tones and navigation buttons provide brief menu feedback sounds.
 
 ## UI Requirements
 
@@ -166,7 +176,7 @@ Important:
 When editing the project:
 - Do not remove existing game modes.
 - Do not break Party Mode.
-- Do not break 10 Second Challenge.
+- Do not break Daily Challenge or its once-per-day official attempt.
 - Do not break Single Player results.
 - Preserve the ranking system.
 - Preserve localStorage-backed settings and stats.

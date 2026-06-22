@@ -11,6 +11,63 @@ body {
   margin: 0;
 }
 
+/* App-level dark theme */
+
+.dark-mode {
+  color-scheme: dark;
+  background: linear-gradient(to bottom, #020617, #0f172a);
+}
+
+.dark-mode .bg-white {
+  background-color: #0f172a;
+}
+
+.dark-mode .bg-slate-50 {
+  background-color: #111c30;
+}
+
+.dark-mode .bg-slate-100,
+.dark-mode .bg-slate-200\/70 {
+  background-color: #1e293b;
+}
+
+.dark-mode .bg-slate-200,
+.dark-mode .bg-slate-300 {
+  background-color: #334155;
+}
+
+.dark-mode .text-slate-800,
+.dark-mode .text-slate-700,
+.dark-mode .text-slate-600 {
+  color: #f1f5f9;
+}
+
+.dark-mode .text-slate-500,
+.dark-mode .text-slate-400,
+.dark-mode .text-slate-300 {
+  color: #94a3b8;
+}
+
+.dark-mode .border-slate-100,
+.dark-mode .border-slate-200,
+.dark-mode .border-slate-300 {
+  border-color: #334155;
+}
+
+.dark-mode .bg-indigo-50,
+.dark-mode .bg-teal-50,
+.dark-mode .bg-cyan-50,
+.dark-mode .bg-emerald-50,
+.dark-mode .bg-yellow-50,
+.dark-mode .bg-amber-50,
+.dark-mode .bg-rose-50 {
+  background-color: #172033;
+}
+
+.dark-mode input {
+  color: #f8fafc;
+}
+
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button {
   -webkit-appearance: none;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react';
 import {
   Clock,
   Users,
@@ -14,6 +14,7 @@ import {
   Volume2,
   Smartphone,
   Sparkles,
+  Moon,
 } from 'lucide-react';
 
 type GameMode = 'home' | 'single' | 'party' | 'challenge';
@@ -22,12 +23,12 @@ type GamePhase =
   | 'ready'
   | 'countdown'
   | 'playing'
-  | 'challengePlaying'
   | 'stopped'
   | 'reveal'
   | 'stats'
   | 'settings'
   | 'rankings'
+  | 'dailyHub'
   | 'partySetup'
   | 'partyGuesses'
   | 'partyResults';
@@ -39,7 +40,8 @@ interface GameState {
   playerGuess: string;
   countdownValue: number;
   timeRevealed: boolean;
-  challengeElapsed: number | null;
+  challengeDate: string | null;
+  dailyOfficial: boolean;
   ratingChange: number | null;
 }
 
@@ -49,7 +51,7 @@ interface StatsState {
   averageError: number | null;
   spotOns: number;
   clockRating: number;
-  challengeBestTime: number | null;
+  averageErrorSamples: number;
 }
 
 interface SettingsState {
@@ -57,11 +59,10 @@ interface SettingsState {
   haptics: boolean;
   rankedMode: boolean;
   reducedMotion: boolean;
-  countdownSeconds: 0 | 3 | 5;
-  decimalPrecision: 2 | 3;
+  countdownSeconds: number;
   partyTimerRange: 'short' | 'standard' | 'long';
   highContrast: boolean;
-  largeUI: boolean;
+  darkMode: boolean;
 }
 
 type ToggleSettingKey =
@@ -69,7 +70,7 @@ type ToggleSettingKey =
   | 'haptics'
   | 'reducedMotion'
   | 'highContrast'
-  | 'largeUI';
+  | 'darkMode';
 
 interface PartyPlayer {
   id: string;
@@ -78,8 +79,16 @@ interface PartyPlayer {
   guess: string;
 }
 
+interface DailyResult {
+  target: number;
+  guess: number;
+  error: number;
+}
+
+type DailyResults = Record<string, DailyResult>;
+
 const CARD_HEIGHT = 'h-[680px]';
-const CHALLENGE_TARGET = 10;
+const MAX_AVERAGE_ERROR = 100;
 
 const defaultStats: StatsState = {
   gamesPlayed: 0,
@@ -87,7 +96,7 @@ const defaultStats: StatsState = {
   averageError: null,
   spotOns: 0,
   clockRating: 0,
-  challengeBestTime: null,
+  averageErrorSamples: 0,
 };
 
 const defaultSettings: SettingsState = {
@@ -96,11 +105,39 @@ const defaultSettings: SettingsState = {
   rankedMode: true,
   reducedMotion: false,
   countdownSeconds: 3,
-  decimalPrecision: 2,
   partyTimerRange: 'standard',
   highContrast: false,
-  largeUI: false,
+  darkMode: false,
 };
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getDailyTarget(dateKey: string) {
+  let hash = 2166136261;
+  for (const character of `TimeGames:${dateKey}`) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  const normalized = (hash >>> 0) / 4294967295;
+  return Math.round((0.5 + normalized * 9.5) * 100) / 100;
+}
+
+function sanitizeTimeInput(value: string) {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const [whole = '', ...fractionParts] = normalized.split('.');
+  const limitedWhole = whole.slice(0, 2);
+  if (fractionParts.length === 0) return limitedWhole;
+  return `${limitedWhole}.${fractionParts.join('').slice(0, 2)}`;
+}
+
+function isValidTimeInput(value: string) {
+  return /^\d{1,2}(?:\.\d{1,2})?$/.test(value) && Number.isFinite(Number(value));
+}
 
 const rankDefinitions = [
   { min: 0, name: 'Bronze Clock', icon: '🥉' },
@@ -173,7 +210,8 @@ function App() {
     playerGuess: '',
     countdownValue: 3,
     timeRevealed: false,
-    challengeElapsed: null,
+    challengeDate: null,
+    dailyOfficial: false,
     ratingChange: null,
   });
 
@@ -181,15 +219,18 @@ function App() {
     try {
       const saved = localStorage.getItem('timegames-stats');
       const parsed = saved ? JSON.parse(saved) : {};
+      const savedAverage = typeof parsed.averageError === 'number' && parsed.averageError < MAX_AVERAGE_ERROR
+        ? parsed.averageError
+        : null;
       return {
         gamesPlayed: Number(parsed.gamesPlayed) || 0,
         bestAccuracy: typeof parsed.bestAccuracy === 'number' ? parsed.bestAccuracy : null,
-        averageError: typeof parsed.averageError === 'number' ? parsed.averageError : null,
+        averageError: savedAverage,
         spotOns: Number(parsed.spotOns) || 0,
         clockRating: Math.max(0, Number(parsed.clockRating) || 0),
-        challengeBestTime: typeof parsed.challengeBestTime === 'number'
-          ? parsed.challengeBestTime
-          : null,
+        averageErrorSamples: savedAverage === null
+          ? 0
+          : Number(parsed.averageErrorSamples) || Number(parsed.gamesPlayed) || 0,
       };
     } catch {
       return defaultStats;
@@ -199,9 +240,33 @@ function App() {
   const [settings, setSettings] = useState<SettingsState>(() => {
     try {
       const saved = localStorage.getItem('timegames-settings');
-      return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+      if (!saved) return defaultSettings;
+      const parsed = JSON.parse(saved);
+      return {
+        sounds: typeof parsed.sounds === 'boolean' ? parsed.sounds : defaultSettings.sounds,
+        haptics: typeof parsed.haptics === 'boolean' ? parsed.haptics : defaultSettings.haptics,
+        rankedMode: typeof parsed.rankedMode === 'boolean' ? parsed.rankedMode : defaultSettings.rankedMode,
+        reducedMotion: typeof parsed.reducedMotion === 'boolean' ? parsed.reducedMotion : defaultSettings.reducedMotion,
+        countdownSeconds: Number.isFinite(Number(parsed.countdownSeconds))
+          ? Math.max(0, Math.min(10, Math.round(Number(parsed.countdownSeconds))))
+          : defaultSettings.countdownSeconds,
+        partyTimerRange: ['short', 'standard', 'long'].includes(parsed.partyTimerRange)
+          ? parsed.partyTimerRange
+          : defaultSettings.partyTimerRange,
+        highContrast: typeof parsed.highContrast === 'boolean' ? parsed.highContrast : defaultSettings.highContrast,
+        darkMode: typeof parsed.darkMode === 'boolean' ? parsed.darkMode : defaultSettings.darkMode,
+      };
     } catch {
       return defaultSettings;
+    }
+  });
+
+  const [dailyResults, setDailyResults] = useState<DailyResults>(() => {
+    try {
+      const saved = localStorage.getItem('timegames-daily-results');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
     }
   });
 
@@ -210,7 +275,7 @@ function App() {
   const [newPlayerName, setNewPlayerName] = useState('');
 
   const timerRef = useRef<number | null>(null);
-  const challengeStartRef = useRef<number | null>(null);
+  const dailySubmissionRef = useRef<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem('timegames-stats', JSON.stringify(stats));
@@ -219,6 +284,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('timegames-settings', JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    localStorage.setItem('timegames-daily-results', JSON.stringify(dailyResults));
+  }, [dailyResults]);
 
   const playTone = useCallback((frequency = 440, duration = 0.08) => {
     if (!settings.sounds) return;
@@ -291,27 +360,41 @@ function App() {
     }
   }, []);
 
-  const startCountdown = useCallback((mode: GameMode) => {
+  const startCountdown = useCallback((
+    mode: GameMode,
+    dailyDate: string | null = null,
+    dailyOfficial = false
+  ) => {
     clearGameTimer();
     const countdownDisabled = settings.countdownSeconds === 0;
 
-    if (countdownDisabled && mode === 'challenge') {
-      challengeStartRef.current = performance.now();
-    }
-
     setGame({
       mode,
-      phase: countdownDisabled
-        ? mode === 'challenge' ? 'challengePlaying' : 'playing'
-        : 'countdown',
-      targetTime: mode === 'challenge' ? CHALLENGE_TARGET : generateTargetTime(mode),
+      phase: countdownDisabled ? 'playing' : 'countdown',
+      targetTime: mode === 'challenge' && dailyDate
+        ? getDailyTarget(dailyDate)
+        : generateTargetTime(mode),
       playerGuess: '',
       countdownValue: settings.countdownSeconds,
       timeRevealed: false,
-      challengeElapsed: null,
+      challengeDate: dailyDate,
+      dailyOfficial,
       ratingChange: null,
     });
   }, [clearGameTimer, generateTargetTime, settings.countdownSeconds]);
+
+  const openDailyChallenge = useCallback(() => {
+    const today = getLocalDateKey();
+    if (dailyResults[today]) {
+      setGame(prev => ({ ...prev, mode: 'home', phase: 'dailyHub' }));
+      return;
+    }
+    startCountdown('challenge', today, true);
+  }, [dailyResults, startCountdown]);
+
+  const playDailyReplay = useCallback((dateKey: string) => {
+    startCountdown('challenge', dateKey, false);
+  }, [startCountdown]);
 
   useEffect(() => {
     if (game.phase === 'countdown') {
@@ -331,19 +414,10 @@ function App() {
       playTone(720, 0.1);
       vibrate(40);
 
-      if (game.mode === 'challenge') {
-        challengeStartRef.current = performance.now();
-
-        setGame(prev => ({
-          ...prev,
-          phase: 'challengePlaying',
-        }));
-      } else {
-        setGame(prev => ({
-          ...prev,
-          phase: 'playing',
-        }));
-      }
+      setGame(prev => ({
+        ...prev,
+        phase: 'playing',
+      }));
     }
   }, [game.phase, game.countdownValue, game.mode, playTone, vibrate]);
 
@@ -380,8 +454,12 @@ function App() {
   const updateStats = useCallback((distance: number) => {
     setStats(prev => {
       const newGamesPlayed = prev.gamesPlayed + 1;
-      const previousTotal = (prev.averageError || 0) * prev.gamesPlayed;
-      const newAverageError = (previousTotal + distance) / newGamesPlayed;
+      const includeInAverage = distance < MAX_AVERAGE_ERROR;
+      const newAverageSamples = prev.averageErrorSamples + (includeInAverage ? 1 : 0);
+      const previousTotal = (prev.averageError || 0) * prev.averageErrorSamples;
+      const newAverageError = includeInAverage
+        ? (previousTotal + distance) / newAverageSamples
+        : prev.averageError;
 
       return {
         gamesPlayed: newGamesPlayed,
@@ -389,30 +467,36 @@ function App() {
         averageError: newAverageError,
         spotOns: distance < 0.005 ? prev.spotOns + 1 : prev.spotOns,
         clockRating: prev.clockRating,
-        challengeBestTime: prev.challengeBestTime,
+        averageErrorSamples: newAverageSamples,
       };
     });
   }, []);
 
-  const revealTime = useCallback(() => {
-    playTone(520, 0.08);
-    vibrate(30);
-
-    setGame(prev => ({
-      ...prev,
-      timeRevealed: true,
-    }));
-  }, [playTone, vibrate]);
-
   const submitGuess = useCallback(() => {
     const distance = Math.abs(parseFloat(game.playerGuess) - game.targetTime);
     if (!Number.isFinite(distance)) return;
+    if (game.dailyOfficial && game.challengeDate) {
+      if (dailyResults[game.challengeDate] || dailySubmissionRef.current === game.challengeDate) return;
+      dailySubmissionRef.current = game.challengeDate;
+    }
 
-    const ratingChange = settings.rankedMode
+    const ratingChange = game.mode === 'single' && settings.rankedMode
       ? calculateRatingChange(distance, stats.clockRating)
       : null;
 
-    updateStats(distance);
+    if (game.mode === 'single' || game.dailyOfficial) {
+      updateStats(distance);
+    }
+    if (game.mode === 'challenge' && game.dailyOfficial && game.challengeDate) {
+      setDailyResults(prev => ({
+        ...prev,
+        [game.challengeDate as string]: {
+          target: game.targetTime,
+          guess: parseFloat(game.playerGuess),
+          error: distance,
+        },
+      }));
+    }
     if (ratingChange !== null) {
       setStats(prev => ({
         ...prev,
@@ -427,42 +511,13 @@ function App() {
       timeRevealed: true,
       ratingChange,
     }));
-  }, [game.playerGuess, game.targetTime, settings.rankedMode, stats.clockRating, updateStats, playTone, vibrate]);
-
-  const stopChallenge = useCallback(() => {
-    if (!challengeStartRef.current) return;
-
-    const precisionFactor = 10 ** settings.decimalPrecision;
-    const elapsed = Math.round(
-      ((performance.now() - challengeStartRef.current) / 1000) * precisionFactor
-    ) / precisionFactor;
-    const distance = Math.abs(elapsed - CHALLENGE_TARGET);
-
-    updateStats(distance);
-    setStats(prev => {
-      const previousBestError = prev.challengeBestTime === null
-        ? Number.POSITIVE_INFINITY
-        : Math.abs(prev.challengeBestTime - CHALLENGE_TARGET);
-
-      return {
-        ...prev,
-        challengeBestTime: distance < previousBestError
-          ? elapsed
-          : prev.challengeBestTime,
-      };
-    });
-    playTone(distance < 0.5 ? 880 : 220, 0.12);
-    vibrate(distance < 0.5 ? [30, 40, 30] : [40, 30, 40]);
-
-    setGame(prev => ({
-      ...prev,
-      challengeElapsed: elapsed,
-      timeRevealed: true,
-      phase: 'reveal',
-    }));
-  }, [settings.decimalPrecision, updateStats, playTone, vibrate]);
+  }, [game, dailyResults, settings.rankedMode, stats.clockRating, updateStats, playTone, vibrate]);
 
   const playAgain = useCallback(() => {
+    if (game.mode === 'challenge') {
+      setGame(prev => ({ ...prev, mode: 'home', phase: 'dailyHub' }));
+      return;
+    }
     startCountdown(game.mode);
   }, [game.mode, startCountdown]);
 
@@ -476,7 +531,8 @@ function App() {
       playerGuess: '',
       countdownValue: 3,
       timeRevealed: false,
-      challengeElapsed: null,
+      challengeDate: null,
+      dailyOfficial: false,
       ratingChange: null,
     });
   }, [clearGameTimer]);
@@ -568,19 +624,19 @@ function App() {
   }, []);
 
   const formatPartyGuess = useCallback((id: string, guess: string) => {
-    if (!guess) return;
+    if (!isValidTimeInput(guess)) return;
 
     setPartyPlayers(prev =>
       prev.map(player =>
         player.id === id
           ? {
               ...player,
-              guess: Number(guess).toFixed(settings.decimalPrecision),
+              guess: Number(guess).toFixed(2),
             }
           : player
       )
     );
-  }, [settings.decimalPrecision]);
+  }, []);
 
   const startPartyRound = useCallback(() => {
     if (partyPlayers.length < 2) return;
@@ -597,7 +653,7 @@ function App() {
 
   const showPartyResults = useCallback(() => {
   const ranked = [...partyPlayers]
-    .filter(player => player.guess.trim() !== '')
+    .filter(player => isValidTimeInput(player.guess))
     .map(player => ({
       ...player,
       distance: Math.abs(parseFloat(player.guess) - game.targetTime),
@@ -632,27 +688,7 @@ function App() {
   }));
 }, [partyPlayers, game.targetTime, playTone, vibrate]);
 
-  const newPartyGame = useCallback(() => {
-    setPartyPlayers(prev =>
-      prev.map(player => ({
-        ...player,
-        score: 0,
-        guess: '',
-      }))
-    );
-
-    setGame(prev => ({
-      ...prev,
-      mode: 'party',
-      phase: 'partySetup',
-    }));
-  }, []);
-
   const guessDistance = (() => {
-    if (game.mode === 'challenge' && game.challengeElapsed !== null) {
-      return Math.abs(game.challengeElapsed - CHALLENGE_TARGET);
-    }
-
     if (game.playerGuess) {
       return Math.abs(parseFloat(game.playerGuess) - game.targetTime);
     }
@@ -660,17 +696,25 @@ function App() {
     return null;
   })();
 
+  const handleMenuClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (!(event.target as HTMLElement).closest('button')) return;
+    if (['ready', 'stats', 'settings', 'rankings', 'dailyHub', 'partySetup'].includes(game.phase)) {
+      playTone(620, 0.045);
+    }
+  }, [game.phase, playTone]);
+
   return (
-    <div className={`min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center p-4 ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.highContrast ? 'contrast-125' : ''} ${settings.largeUI ? '[&_button]:!text-lg [&_input]:!text-lg' : ''}`}>
+    <div onClickCapture={handleMenuClick} className={`min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center p-4 ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.highContrast ? 'contrast-125' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
       <div className="w-full max-w-md">
         {game.mode === 'home' && game.phase === 'ready' && (
           <HomeScreen
             stats={stats}
+            todayResult={dailyResults[getLocalDateKey()] ?? null}
             rankedMode={settings.rankedMode}
             onRankedModeChange={(value) => updateSetting('rankedMode', value)}
             onSinglePlayer={() => startCountdown('single')}
             onPartyMode={openPartySetup}
-            onChallengeMode={() => startCountdown('challenge')}
+            onChallengeMode={openDailyChallenge}
             onStats={showStats}
             onSettings={showSettings}
             onRankings={showRankings}
@@ -681,6 +725,14 @@ function App() {
           <RankingsScreen
             clockRating={stats.clockRating}
             onBack={hideRankings}
+          />
+        )}
+
+        {game.phase === 'dailyHub' && (
+          <DailyChallengeHub
+            results={dailyResults}
+            onPlayDate={playDailyReplay}
+            onBack={goHome}
           />
         )}
 
@@ -695,7 +747,6 @@ function App() {
         {game.phase === 'stats' && (
           <StatsScreen
             stats={stats}
-            decimalPrecision={settings.decimalPrecision}
             onBack={hideStats}
             onResetStats={resetStats}
           />
@@ -719,15 +770,10 @@ function App() {
 
         {game.phase === 'playing' && <PlayingScreen />}
 
-        {game.phase === 'challengePlaying' && (
-          <ChallengePlayingScreen onStop={stopChallenge} />
-        )}
-
         {game.phase === 'stopped' && <StoppedScreen />}
 
         {game.phase === 'partyGuesses' && (
           <PartyGuessesScreen
-            targetTime={game.targetTime}
             players={partyPlayers}
             onGuessChange={updatePartyGuess}
             onGuessBlur={formatPartyGuess}
@@ -740,9 +786,7 @@ function App() {
           <PartyResultsScreen
             targetTime={game.targetTime}
             players={partyPlayers}
-            decimalPrecision={settings.decimalPrecision}
             onNextRound={startPartyRound}
-            onNewGame={newPartyGame}
             onGoHome={goHome}
           />
         )}
@@ -751,17 +795,15 @@ function App() {
           <RevealScreen
             mode={game.mode}
             targetTime={game.targetTime}
-            challengeElapsed={game.challengeElapsed}
+            challengeDate={game.challengeDate}
+            dailyOfficial={game.dailyOfficial}
             timeRevealed={game.timeRevealed}
             playerGuess={game.playerGuess}
             guessDistance={guessDistance}
             ratingChange={game.ratingChange}
             clockRating={stats.clockRating}
-            challengeBestTime={stats.challengeBestTime}
-            decimalPrecision={settings.decimalPrecision}
             rankedMode={settings.rankedMode}
             onEnableRanked={() => updateSetting('rankedMode', true)}
-            onRevealTime={revealTime}
             onGuessChange={(value) =>
               setGame(prev => ({
                 ...prev,
@@ -780,6 +822,7 @@ function App() {
 
 function HomeScreen({
   stats,
+  todayResult,
   rankedMode,
   onRankedModeChange,
   onSinglePlayer,
@@ -790,6 +833,7 @@ function HomeScreen({
   onRankings,
 }: {
   stats: StatsState;
+  todayResult: DailyResult | null;
   rankedMode: boolean;
   onRankedModeChange: (value: boolean) => void;
   onSinglePlayer: () => void;
@@ -893,7 +937,9 @@ function HomeScreen({
 
         <button onClick={onChallengeMode} className="w-full bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-semibold py-3.5 px-5 rounded-2xl transition-all duration-200 flex items-center justify-center gap-3">
           <Target className="w-5 h-5" />
-          10 Second Challenge
+          {todayResult
+            ? `Daily Challenge: ${todayResult.error.toFixed(2)}s off`
+            : 'Daily Challenge'}
         </button>
 
         <button onClick={onPartyMode} className="w-full bg-rose-500 hover:bg-rose-600 active:scale-[0.98] text-white font-semibold py-3.5 px-5 rounded-2xl transition-all duration-200 flex items-center justify-center gap-3">
@@ -923,18 +969,87 @@ function HomeScreen({
   );
 }
 
+function DailyChallengeHub({
+  results,
+  onPlayDate,
+  onBack,
+}: {
+  results: DailyResults;
+  onPlayDate: (dateKey: string) => void;
+  onBack: () => void;
+}) {
+  const today = getLocalDateKey();
+  const todayResult = results[today];
+  const previousDates = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - index - 1);
+    return getLocalDateKey(date);
+  });
+
+  const formatDate = (dateKey: string) => new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(`${dateKey}T12:00:00`));
+
+  return (
+    <div className={`bg-white rounded-3xl shadow-xl p-7 text-center ${CARD_HEIGHT} flex flex-col`}>
+      <div className="space-y-2 mb-5">
+        <div className="w-14 h-14 mx-auto bg-indigo-500 rounded-2xl flex items-center justify-center">
+          <Target className="w-8 h-8 text-white" />
+        </div>
+        <h1 className="text-3xl font-black text-slate-800">Daily Challenge</h1>
+        <p className="text-slate-500">Today's official attempt is complete.</p>
+      </div>
+
+      {todayResult && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 mb-5">
+          <p className="text-xs uppercase tracking-[0.2em] font-bold text-indigo-500">Today's score</p>
+          <p className="text-4xl font-black text-indigo-700 mt-1">{todayResult.error.toFixed(2)}s off</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Guessed {todayResult.guess.toFixed(2)}s · Target {todayResult.target.toFixed(2)}s
+          </p>
+        </div>
+      )}
+
+      <div className="text-left mb-2">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Previous challenges</p>
+        <p className="text-xs text-slate-500 mt-1">Practice these as often as you like.</p>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+        {previousDates.map(dateKey => (
+          <button
+            key={dateKey}
+            type="button"
+            onClick={() => onPlayDate(dateKey)}
+            className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 flex items-center justify-between transition-colors"
+          >
+            <span className="font-bold text-slate-800">{formatDate(dateKey)}</span>
+            <span className="text-sm font-semibold text-indigo-600">Play again</span>
+          </button>
+        ))}
+      </div>
+
+      <button onClick={onBack} className="mt-5 w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2">
+        <ArrowLeft className="w-5 h-5" />
+        Back
+      </button>
+    </div>
+  );
+}
+
 function StatsScreen({
   stats,
-  decimalPrecision,
   onBack,
   onResetStats,
 }: {
   stats: StatsState;
-  decimalPrecision: 2 | 3;
   onBack: () => void;
   onResetStats: () => void;
 }) {
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
+  const rankInfo = getRank(stats.clockRating);
 
   const confirmReset = () => {
     onResetStats();
@@ -961,13 +1076,17 @@ function StatsScreen({
 
       <div className="flex-1 overflow-y-auto space-y-3 text-left pr-1">
         <ResultRow label="Games Played" value={stats.gamesPlayed.toString()} />
-        <ResultRow label="Best Accuracy" value={stats.bestAccuracy === null ? '-' : `${stats.bestAccuracy.toFixed(decimalPrecision)}s`} />
-        <ResultRow label="Average Error" value={stats.averageError === null ? '-' : `${stats.averageError.toFixed(decimalPrecision)}s`} />
+        <ResultRow label="Best Accuracy" value={stats.bestAccuracy === null ? '-' : `${stats.bestAccuracy.toFixed(2)}s`} />
+        <ResultRow label="Average Error" value={stats.averageError === null ? '-' : `${stats.averageError.toFixed(2)}s`} />
         <ResultRow label="Spot Ons" value={stats.spotOns.toString()} />
-        <ResultRow label="Clock Rating" value={stats.clockRating.toString()} accent />
         <ResultRow
-          label="10s Personal Best"
-          value={stats.challengeBestTime === null ? '-' : `${stats.challengeBestTime.toFixed(decimalPrecision)}s`}
+          label="Clock Rating"
+          value={`${rankInfo.rank.name} · ${stats.clockRating}`}
+          accent
+        />
+        <ResultRow
+          label="Next Rank"
+          value={rankInfo.next ? `${rankInfo.pointsNeeded} points away` : 'Highest rank reached'}
         />
       </div>
 
@@ -1049,7 +1168,7 @@ function SettingsScreen({
     { key: 'haptics', label: 'Haptic Feedback', description: 'Vibration on supported devices', icon: Smartphone },
     { key: 'reducedMotion', label: 'Reduced Motion', description: 'Disable animations and transitions', icon: Sparkles },
     { key: 'highContrast', label: 'High Contrast', description: 'Strengthen colours and definition', icon: BarChart3 },
-    { key: 'largeUI', label: 'Larger Controls', description: 'Increase button and input text', icon: Plus },
+    { key: 'darkMode', label: 'Dark Mode', description: 'Use a darker colour scheme', icon: Moon },
   ];
 
   const segmentClass = (active: boolean) =>
@@ -1108,39 +1227,20 @@ function SettingsScreen({
                 </div>
                 <Clock className="w-5 h-5 text-slate-400" />
               </div>
-              <div className="flex gap-1 bg-slate-200/70 rounded-xl p-1">
-                {([0, 3, 5] as const).map(value => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => onChange('countdownSeconds', value)}
-                    className={segmentClass(settings.countdownSeconds === value)}
-                  >
-                    {value === 0 ? 'Off' : `${value}s`}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="font-bold text-slate-800">Result Precision</p>
-                  <p className="text-xs text-slate-500">Digits shown after the decimal</p>
-                </div>
-                <BarChart3 className="w-5 h-5 text-slate-400" />
-              </div>
-              <div className="flex gap-1 bg-slate-200/70 rounded-xl p-1">
-                {([2, 3] as const).map(value => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => onChange('decimalPrecision', value)}
-                    className={segmentClass(settings.decimalPrecision === value)}
-                  >
-                    {value} decimals
-                  </button>
-                ))}
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="1"
+                  value={settings.countdownSeconds}
+                  onChange={(event) => onChange('countdownSeconds', Number(event.target.value))}
+                  aria-label="Countdown length"
+                  className="flex-1 accent-teal-500"
+                />
+                <span className="w-10 text-right font-black text-teal-700">
+                  {settings.countdownSeconds === 0 ? 'Off' : `${settings.countdownSeconds}s`}
+                </span>
               </div>
             </div>
 
@@ -1366,13 +1466,11 @@ function PartySetupScreen({
 }
 
 function CountdownScreen({ value }: { value: number }) {
-  const display = value === 0 ? 'GO' : value.toString();
-  const scale = value === 0 ? 'scale-125' : 'scale-100';
-  const color = value === 0 ? 'text-teal-500' : 'text-slate-800';
+  const display = value === 0 ? '' : value.toString();
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex items-center justify-center`}>
-      <div className={`text-8xl font-black ${color} transition-all duration-150 ${scale}`}>
+      <div className="text-8xl font-black text-slate-800 transition-all duration-150">
         {display}
       </div>
     </div>
@@ -1407,33 +1505,6 @@ function PlayingScreen() {
   );
 }
 
-function ChallengePlayingScreen({ onStop }: { onStop: () => void }) {
-  return (
-    <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex flex-col items-center justify-center space-y-8`}>
-      <div className="space-y-3">
-        <p className="text-slate-400 text-sm font-semibold uppercase tracking-[0.25em]">
-          Challenge Mode
-        </p>
-
-        <h2 className="text-3xl font-black text-slate-800">
-          Stop at 10 seconds
-        </h2>
-
-        <p className="text-slate-500">
-          No timer. Trust your instinct.
-        </p>
-      </div>
-
-      <button
-        onClick={onStop}
-        className="w-40 h-40 bg-teal-500 hover:bg-teal-600 active:scale-95 text-white rounded-full text-3xl font-black shadow-2xl shadow-teal-500/30 transition-all duration-200"
-      >
-        STOP
-      </button>
-    </div>
-  );
-}
-
 function StoppedScreen() {
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex items-center justify-center`}>
@@ -1445,21 +1516,19 @@ function StoppedScreen() {
 }
 
 function PartyGuessesScreen({
-  targetTime,
   players,
   onGuessChange,
   onGuessBlur,
   onShowResults,
   onGoHome,
 }: {
-  targetTime: number;
   players: PartyPlayer[];
   onGuessChange: (id: string, guess: string) => void;
   onGuessBlur: (id: string, guess: string) => void;
   onShowResults: () => void;
   onGoHome: () => void;
 }) {
-  const atLeastOneGuessEntered = players.some(player => player.guess.trim() !== '');
+  const atLeastOneGuessEntered = players.some(player => isValidTimeInput(player.guess));
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex flex-col`}>
@@ -1491,10 +1560,11 @@ function PartyGuessesScreen({
 
             <div className="relative">
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9]*[.,]?[0-9]{0,2}"
                 value={player.guess}
-                onChange={(e) => onGuessChange(player.id, e.target.value)}
+                onChange={(e) => onGuessChange(player.id, sanitizeTimeInput(e.target.value))}
                 onBlur={(e) => onGuessBlur(player.id, e.target.value)}
                 placeholder="Your guess"
                 className="w-full text-center text-2xl font-semibold py-3 px-5 pr-12 bg-white border-2 border-slate-200 rounded-2xl focus:border-teal-500 focus:outline-none transition-colors placeholder:text-slate-300"
@@ -1532,22 +1602,18 @@ function PartyGuessesScreen({
 function PartyResultsScreen({
   targetTime,
   players,
-  decimalPrecision,
   onNextRound,
-  onNewGame,
   onGoHome,
 }: {
   targetTime: number;
   players: PartyPlayer[];
-  decimalPrecision: 2 | 3;
   onNextRound: () => void;
-  onNewGame: () => void;
   onGoHome: () => void;
 }) {
   const [showScoreboard, setShowScoreboard] = useState(false);
 
   const rankedPlayers = [...players]
-    .filter(player => player.guess.trim() !== '')
+    .filter(player => isValidTimeInput(player.guess))
     .map(player => ({
       ...player,
       distance: Math.abs(parseFloat(player.guess) - targetTime),
@@ -1583,7 +1649,7 @@ function PartyResultsScreen({
               Secret Time
             </p>
             <p className="text-3xl font-black text-teal-600">
-              {targetTime.toFixed(decimalPrecision)}s
+              {targetTime.toFixed(2)}s
             </p>
           </div>
         )}
@@ -1624,14 +1690,14 @@ function PartyResultsScreen({
                     </p>
 
                     <p className="text-sm text-slate-400">
-                      Guessed {parseFloat(player.guess).toFixed(decimalPrecision)}s
+                      Guessed {parseFloat(player.guess).toFixed(2)}s
                     </p>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <p className={`font-black ${tiedWinner ? 'text-teal-600' : 'text-slate-800'}`}>
-                    {player.distance.toFixed(decimalPrecision)}s
+                    {player.distance.toFixed(2)}s
                   </p>
 
                   <p className="text-xs text-slate-400">
@@ -1696,17 +1762,15 @@ function PartyResultsScreen({
 function RevealScreen({
   mode,
   targetTime,
-  challengeElapsed,
+  challengeDate,
+  dailyOfficial,
   timeRevealed,
   playerGuess,
   guessDistance,
   ratingChange,
   clockRating,
-  challengeBestTime,
-  decimalPrecision,
   rankedMode,
   onEnableRanked,
-  onRevealTime,
   onGuessChange,
   onSubmitGuess,
   onPlayAgain,
@@ -1714,25 +1778,22 @@ function RevealScreen({
 }: {
   mode: GameMode;
   targetTime: number;
-  challengeElapsed: number | null;
+  challengeDate: string | null;
+  dailyOfficial: boolean;
   timeRevealed: boolean;
   playerGuess: string;
   guessDistance: number | null;
   ratingChange: number | null;
   clockRating: number;
-  challengeBestTime: number | null;
-  decimalPrecision: 2 | 3;
   rankedMode: boolean;
   onEnableRanked: () => void;
-  onRevealTime: () => void;
   onGuessChange: (value: string) => void;
   onSubmitGuess: () => void;
   onPlayAgain: () => void;
   onGoHome: () => void;
 }) {
-  const hasGuess = playerGuess.trim() !== '';
+  const hasGuess = isValidTimeInput(playerGuess);
   const isChallenge = mode === 'challenge';
-  const shownTime = isChallenge && challengeElapsed !== null ? challengeElapsed : targetTime;
   const resultRankInfo = getRank(clockRating);
 
   const resultMessage = (() => {
@@ -1778,33 +1839,35 @@ function RevealScreen({
       <div className="flip-scene h-full">
         <div className={`flip-card relative h-full ${timeRevealed ? 'is-flipped' : ''}`}>
           <div className="flip-face absolute inset-0 bg-slate-50 border border-slate-200 rounded-3xl p-6 flex flex-col">
-            <button
-              onClick={() => !timeRevealed && onRevealTime()}
-              className="h-[250px] flex flex-col items-center justify-center rounded-2xl transition-all duration-200 hover:bg-slate-100 active:scale-[0.98]"
-            >
+            <div className="h-[250px] flex flex-col items-center justify-center rounded-2xl">
               <div className="text-7xl font-black text-slate-700 tracking-widest">
                 ? ? ?
               </div>
 
               <p className="text-slate-400 text-sm mt-4">
-                Tap to reveal
+                {isChallenge
+                  ? dailyOfficial ? "Today's one official guess" : `Practice challenge · ${challengeDate}`
+                  : 'Enter your guess below'}
               </p>
-            </button>
+            </div>
 
-            {mode === 'single' && (
+            {(mode === 'single' || isChallenge) && (
               <div className="space-y-4 pt-5 border-t border-slate-200">
                 <p className="text-slate-600 font-medium">
-                  Enter your guess to {decimalPrecision} decimal places
+                  Enter your guess in seconds
                 </p>
 
                 <div className="relative">
                   <input
-                    type="number"
-                    step={decimalPrecision === 3 ? '0.001' : '0.01'}
+                    type="text"
+                    inputMode="decimal"
+                    pattern="[0-9]*[.,]?[0-9]{0,2}"
                     value={playerGuess}
-                    onChange={(e) => onGuessChange(e.target.value)}
+                    onChange={(e) => onGuessChange(sanitizeTimeInput(e.target.value))}
                     onBlur={(e) => {
-                      if (e.target.value) onGuessChange(Number(e.target.value).toFixed(decimalPrecision));
+                      if (isValidTimeInput(e.target.value)) {
+                        onGuessChange(Number(e.target.value).toFixed(2));
+                      }
                     }}
                     placeholder="Your guess"
                     className="w-full text-center text-3xl font-semibold py-4 px-6 pr-16 bg-white border-2 border-slate-200 rounded-2xl focus:border-teal-500 focus:outline-none transition-colors placeholder:text-slate-300"
@@ -1838,11 +1901,11 @@ function RevealScreen({
             <div className="space-y-5 relative z-10">
               <div>
                 <p className="text-slate-400 text-sm font-semibold uppercase tracking-[0.25em] mb-2">
-                  {isChallenge ? 'Your Time' : 'Secret Time'}
+                  {isChallenge ? 'Daily Target' : 'Secret Time'}
                 </p>
 
                 <div className="text-7xl font-black text-teal-600 tracking-tight">
-                  {shownTime.toFixed(decimalPrecision)}s
+                  {targetTime.toFixed(2)}s
                 </div>
               </div>
 
@@ -1856,8 +1919,8 @@ function RevealScreen({
                 <div className="space-y-3">
                   {hasGuess && guessDistance !== null ? (
                     <>
-                      <ResultRow label="Your Guess" value={`${parseFloat(playerGuess).toFixed(decimalPrecision)}s`} />
-                      <ResultRow label="You were off by" value={`${guessDistance.toFixed(decimalPrecision)}s`} accent />
+                      <ResultRow label="Your Guess" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
+                      <ResultRow label="You were off by" value={`${guessDistance.toFixed(2)}s`} accent />
                       {rankedMode && ratingChange !== null ? (
                         <div className="bg-white rounded-2xl px-4 py-3 border border-slate-200 text-left">
                           <div className="flex items-center gap-3 mb-2">
@@ -1926,12 +1989,8 @@ function RevealScreen({
 
               {mode === 'challenge' && guessDistance !== null && (
                 <div className="space-y-3">
-                  <ResultRow label="Target" value={`${CHALLENGE_TARGET.toFixed(decimalPrecision)}s`} />
-                  <ResultRow
-                    label="Personal Best"
-                    value={challengeBestTime === null ? '-' : `${challengeBestTime.toFixed(decimalPrecision)}s`}
-                    accent
-                  />
+                  <ResultRow label="Your Guess" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
+                  <ResultRow label="You were off by" value={`${guessDistance.toFixed(2)}s`} accent />
                 </div>
               )}
             </div>
@@ -1942,7 +2001,7 @@ function RevealScreen({
                 className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
               >
                 <RotateCcw className="w-5 h-5" />
-                Play Again
+                {isChallenge ? 'Daily Challenges' : 'Play Again'}
               </button>
 
               <button
@@ -1983,4 +2042,3 @@ function ResultRow({
 }
 
 export default App;
-
