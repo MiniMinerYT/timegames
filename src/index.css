@@ -1,0 +1,278 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* General fade-in */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+/* Result flip card */
+
+.flip-scene {
+  perspective: 1200px;
+}
+
+.flip-card {
+  transform-style: preserve-3d;
+  transition: transform 0.65s cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.flip-card.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flip-back {
+  transform: rotateY(180deg);
+}
+
+/* Hidden-timer shimmer */
+
+.shimmer-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(45px);
+  opacity: 0.45;
+  animation: shimmer-float 6s ease-in-out infinite;
+}
+
+.shimmer-blob-1 {
+  width: 240px;
+  height: 240px;
+  top: 8%;
+  left: -18%;
+  background: rgb(45 212 191 / 55%);
+}
+
+.shimmer-blob-2 {
+  width: 280px;
+  height: 280px;
+  right: -25%;
+  bottom: 4%;
+  background: rgb(99 102 241 / 42%);
+  animation-delay: -2s;
+}
+
+.shimmer-blob-3 {
+  width: 180px;
+  height: 180px;
+  top: 38%;
+  left: 35%;
+  background: rgb(56 189 248 / 38%);
+  animation-delay: -4s;
+}
+
+@keyframes shimmer-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(24px, -20px, 0) scale(1.12);
+  }
+}
+
+/* Spot-on result glow */
+
+.spoton-glow {
+  animation: spoton-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes spoton-glow {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 rgb(250 204 21 / 0%);
+  }
+
+  50% {
+    box-shadow:
+      inset 0 0 45px rgb(250 204 21 / 18%),
+      0 0 28px rgb(250 204 21 / 18%);
+  }
+}
+
+/* Result confetti */
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.confetti-piece {
+  --drift: 0px;
+
+  position: absolute;
+  top: -20px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confetti-fall 1.8s ease-out forwards;
+}
+
+.confetti-piece:nth-child(1) {
+  left: 5%;
+  background: #14b8a6;
+  --drift: 35px;
+}
+
+.confetti-piece:nth-child(2) {
+  left: 12%;
+  background: #f43f5e;
+  --drift: -25px;
+  animation-delay: 0.12s;
+}
+
+.confetti-piece:nth-child(3) {
+  left: 20%;
+  background: #facc15;
+  --drift: 30px;
+  animation-delay: 0.05s;
+}
+
+.confetti-piece:nth-child(4) {
+  left: 28%;
+  background: #6366f1;
+  --drift: -40px;
+  animation-delay: 0.2s;
+}
+
+.confetti-piece:nth-child(5) {
+  left: 36%;
+  background: #38bdf8;
+  --drift: 22px;
+  animation-delay: 0.08s;
+}
+
+.confetti-piece:nth-child(6) {
+  left: 44%;
+  background: #fb923c;
+  --drift: -30px;
+  animation-delay: 0.26s;
+}
+
+.confetti-piece:nth-child(7) {
+  left: 51%;
+  background: #22c55e;
+  --drift: 40px;
+  animation-delay: 0.14s;
+}
+
+.confetti-piece:nth-child(8) {
+  left: 59%;
+  background: #e879f9;
+  --drift: -24px;
+  animation-delay: 0.02s;
+}
+
+.confetti-piece:nth-child(9) {
+  left: 66%;
+  background: #facc15;
+  --drift: 32px;
+  animation-delay: 0.22s;
+}
+
+.confetti-piece:nth-child(10) {
+  left: 73%;
+  background: #14b8a6;
+  --drift: -36px;
+  animation-delay: 0.1s;
+}
+
+.confetti-piece:nth-child(11) {
+  left: 80%;
+  background: #f43f5e;
+  --drift: 26px;
+  animation-delay: 0.3s;
+}
+
+.confetti-piece:nth-child(12) {
+  left: 87%;
+  background: #6366f1;
+  --drift: -30px;
+  animation-delay: 0.16s;
+}
+
+.confetti-piece:nth-child(13) {
+  left: 93%;
+  background: #38bdf8;
+  --drift: 20px;
+  animation-delay: 0.06s;
+}
+
+.confetti-piece:nth-child(14) {
+  left: 97%;
+  background: #fb923c;
+  --drift: -42px;
+  animation-delay: 0.24s;
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -20px, 0) rotate(0deg);
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--drift), 650px, 0) rotate(720deg);
+  }
+}
+
+/* Respect operating-system reduced-motion preferences too */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
