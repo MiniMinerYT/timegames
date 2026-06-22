@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, Lock, RotateCcw, ShieldAlert, Skull, Sparkles } from 'lucide-react';
 
 const CARD_HEIGHT = 'h-[680px]';
 
-export type HardcoreDifficulty = 'easy' | 'medium' | 'hard' | 'expert' | 'god';
+export type HardcoreDifficulty = 'easy' | 'medium' | 'hard' | 'expert' | 'god' | 'literal';
 export type HardcoreScores = Record<HardcoreDifficulty, number>;
 
 type HardcorePhase = 'select' | 'target' | 'playing' | 'result' | 'gameOver';
@@ -16,14 +17,16 @@ interface DifficultyDefinition {
   panel: string;
   button: string;
   accent: string;
+  exact?: boolean;
 }
 
 const difficulties: DifficultyDefinition[] = [
-  { id: 'easy', name: 'Easy', threshold: 0.5, unlockText: 'Unlocked', panel: 'bg-teal-100 border-teal-400 text-teal-950', button: 'bg-teal-500 hover:bg-teal-600', accent: 'text-teal-600' },
-  { id: 'medium', name: 'Medium', threshold: 0.25, unlockText: 'Score 3 on Easy', panel: 'bg-amber-100 border-amber-400 text-amber-950', button: 'bg-amber-500 hover:bg-amber-600', accent: 'text-amber-600' },
-  { id: 'hard', name: 'Hard', threshold: 0.1, unlockText: 'Score 3 on Medium', panel: 'bg-red-700 border-red-400 text-white', button: 'bg-red-600 hover:bg-red-700', accent: 'text-red-400' },
-  { id: 'expert', name: 'Expert', threshold: 0.05, unlockText: 'Score 3 on Hard', panel: 'bg-purple-950 border-red-800 text-white', button: 'bg-red-800 hover:bg-red-900', accent: 'text-red-400' },
-  { id: 'god', name: 'GOD', threshold: 0, unlockText: 'Score 3 on Expert', panel: 'hardcore-god-panel border-yellow-500 text-white', button: 'bg-yellow-500 hover:bg-yellow-400 !text-black', accent: 'text-yellow-400' },
+  { id: 'easy', name: 'Easy', threshold: 1, unlockText: 'Unlocked', panel: 'bg-teal-100 border-teal-400 text-teal-950', button: 'bg-teal-500 hover:bg-teal-600', accent: 'text-teal-600' },
+  { id: 'medium', name: 'Medium', threshold: 0.5, unlockText: 'Score 3 on Easy', panel: 'bg-amber-100 border-amber-400 text-amber-950', button: 'bg-amber-500 hover:bg-amber-600', accent: 'text-amber-600' },
+  { id: 'hard', name: 'Hard', threshold: 0.25, unlockText: 'Score 3 on Medium', panel: 'bg-red-700 border-red-400 text-white', button: 'bg-red-600 hover:bg-red-700', accent: 'text-red-400' },
+  { id: 'expert', name: 'Expert', threshold: 0.1, unlockText: 'Score 3 on Hard', panel: 'bg-purple-950 border-red-800 text-white', button: 'bg-red-800 hover:bg-red-900', accent: 'text-red-400' },
+  { id: 'god', name: 'GOD', threshold: 0.5, unlockText: 'Score 3 on Expert', panel: 'hardcore-god-panel border-yellow-500 text-white', button: 'bg-yellow-500 hover:bg-yellow-400 !text-black', accent: 'text-yellow-400' },
+  { id: 'literal', name: 'LITERAL CLOCK', threshold: 0, unlockText: 'Score 3 on GOD', panel: 'bg-black border-white text-white', button: 'bg-white hover:bg-slate-200 !text-black', accent: 'text-white', exact: true },
 ];
 
 function isUnlocked(difficulty: HardcoreDifficulty, scores: HardcoreScores) {
@@ -31,7 +34,8 @@ function isUnlocked(difficulty: HardcoreDifficulty, scores: HardcoreScores) {
   if (difficulty === 'medium') return scores.easy >= 3;
   if (difficulty === 'hard') return scores.medium >= 3;
   if (difficulty === 'expert') return scores.hard >= 3;
-  return scores.expert >= 3;
+  if (difficulty === 'god') return scores.expert >= 3;
+  return scores.god >= 3;
 }
 
 function generateTarget(score: number) {
@@ -43,12 +47,16 @@ export default function HardcoreMode({
   bestScores,
   sounds,
   haptics,
+  reducedMotion,
+  onTimingChange,
   onBestScoreChange,
   onBack,
 }: {
   bestScores: HardcoreScores;
   sounds: boolean;
   haptics: boolean;
+  reducedMotion: boolean;
+  onTimingChange: (active: boolean) => void;
   onBestScoreChange: (difficulty: HardcoreDifficulty, score: number) => void;
   onBack: () => void;
 }) {
@@ -72,7 +80,7 @@ export default function HardcoreMode({
       const oscillator = context.createOscillator();
       const gain = context.createGain();
       oscillator.frequency.value = frequency;
-      oscillator.type = difficulty === 'god' ? 'sawtooth' : 'sine';
+      oscillator.type = difficulty === 'god' || difficulty === 'literal' ? 'sawtooth' : 'sine';
       gain.gain.setValueAtTime(0.06, context.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + duration);
       oscillator.connect(gain);
@@ -96,6 +104,7 @@ export default function HardcoreMode({
   const beginTimer = () => {
     startRef.current = performance.now();
     setPhase('playing');
+    onTimingChange(true);
     playTone(760, 0.08);
     if (haptics && 'vibrate' in navigator) navigator.vibrate(35);
   };
@@ -106,7 +115,8 @@ export default function HardcoreMode({
     const shownElapsed = Math.round(rawElapsed * 100) / 100;
     const rawError = Math.abs(rawElapsed - target);
     const shownError = Math.round(Math.abs(shownElapsed - target) * 100) / 100;
-    const success = difficulty === 'god' ? shownError === 0 : rawError <= definition.threshold;
+    const success = definition.exact ? shownError === 0 : rawError <= definition.threshold;
+    onTimingChange(false);
     const nextScore = success ? score + 1 : score;
     const nextLives = success ? lives : lives - 1;
 
@@ -115,6 +125,10 @@ export default function HardcoreMode({
     setScore(nextScore);
     setLives(nextLives);
     playTone(success ? 900 : 180, 0.12);
+    if (!success && nextLives === 0) {
+      window.setTimeout(() => playTone(145, 0.16), 110);
+      window.setTimeout(() => playTone(95, 0.24), 230);
+    }
     if (shownError === 0) {
       window.setTimeout(() => playTone(1120, 0.1), 90);
       window.setTimeout(() => playTone(1380, 0.18), 180);
@@ -124,8 +138,8 @@ export default function HardcoreMode({
     if (success && nextScore > bestScores[difficulty]) {
       onBestScoreChange(difficulty, nextScore);
     }
-    if (success && nextScore >= 3 && bestScores[difficulty] < 3 && difficulty !== 'god') {
-      const nextName = difficulty === 'easy' ? 'Medium' : difficulty === 'medium' ? 'Hard' : difficulty === 'hard' ? 'Expert' : 'GOD';
+    if (success && nextScore >= 3 && bestScores[difficulty] < 3 && difficulty !== 'literal') {
+      const nextName = difficulty === 'easy' ? 'Medium' : difficulty === 'medium' ? 'Hard' : difficulty === 'hard' ? 'Expert' : difficulty === 'expert' ? 'GOD' : 'LITERAL CLOCK';
       setUnlockNotice(`${nextName} difficulty unlocked!`);
     }
     setPhase(nextLives === 0 ? 'gameOver' : 'result');
@@ -142,11 +156,12 @@ export default function HardcoreMode({
       if (event.code !== 'Space' || event.repeat) return;
       const activeTag = document.activeElement?.tagName;
       if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'BUTTON') return;
-      if (phase !== 'target' && phase !== 'playing' && phase !== 'result') return;
+      if (phase !== 'target' && phase !== 'playing' && phase !== 'result' && phase !== 'gameOver') return;
       event.preventDefault();
       if (phase === 'target') beginTimer();
       else if (phase === 'playing') stopTimer();
-      else nextRound();
+      else if (phase === 'result') nextRound();
+      else startRun(difficulty);
     };
     window.addEventListener('keydown', handleSpace);
     return () => window.removeEventListener('keydown', handleSpace);
@@ -164,9 +179,13 @@ export default function HardcoreMode({
     return () => window.clearTimeout(timer);
   }, [lockedNotice]);
 
+  useEffect(() => () => onTimingChange(false), [onTimingChange]);
+
   const shownError = elapsed === null ? null : Math.round(Math.abs(elapsed - target) * 100) / 100;
   const visibleDifficulties = difficulties;
-  const screenTheme = difficulty === 'god'
+  const screenTheme = difficulty === 'literal'
+    ? 'bg-black text-white'
+    : difficulty === 'god'
     ? 'hardcore-god-screen'
     : difficulty === 'expert'
       ? 'bg-gradient-to-b from-slate-950 to-purple-950'
@@ -194,15 +213,18 @@ export default function HardcoreMode({
           <div className="grid grid-cols-2 gap-2">
             {visibleDifficulties.map(item => {
               const unlocked = isUnlocked(item.id, bestScores);
-              const mysterious = item.id === 'god' && !unlocked;
+              const mysterious = (item.id === 'god' || item.id === 'literal') && !unlocked;
+              const unlockText = item.id === 'literal' && !isUnlocked('god', bestScores)
+                ? 'Score 3 on ????'
+                : item.unlockText;
               return (
-                <button key={item.id} aria-disabled={!unlocked} onClick={() => unlocked ? startRun(item.id) : setLockedNotice(`${mysterious ? 'The mystery difficulty' : item.name} is locked. ${item.unlockText} to unlock it.`)} className={`w-full rounded-2xl border p-2 text-center transition-colors ${item.id === 'god' ? 'col-span-2' : ''} ${item.panel} ${unlocked ? 'hover:brightness-110' : 'border-dashed ring-2 ring-slate-400/40'}`}>
+                <button key={item.id} aria-disabled={!unlocked} onClick={() => unlocked ? startRun(item.id) : setLockedNotice(`${mysterious ? 'The mystery difficulty' : item.name} is locked. ${unlockText} to unlock it.`)} className={`w-full rounded-2xl border p-2 text-center transition-colors ${item.panel} ${unlocked ? 'hover:brightness-110' : 'border-dashed ring-2 ring-slate-400/40'}`}>
                   <div className="flex flex-col items-center justify-center gap-1">
                     <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">{mysterious ? <span className="font-black text-lg">?</span> : unlocked ? <ShieldAlert className="w-4 h-4" /> : <Lock className="w-4 h-4" />}</div>
                     <div>
                       <p className="font-black text-lg">{mysterious ? '????' : item.name}</p>
-                      <p className="text-xs opacity-90">{mysterious ? 'A mysterious difficulty awaits' : item.id === 'god' ? 'Exact to 2 decimal places' : `Within ±${item.threshold.toFixed(2)}s`}</p>
-                      <p className={`text-xs font-black mt-1 ${unlocked ? '' : 'inline-block bg-slate-950 text-white rounded-full px-2 py-0.5'}`}>{unlocked ? `Best ${bestScores[item.id]}` : `LOCKED · ${item.unlockText}`}</p>
+                      <p className="text-xs opacity-90">{mysterious ? 'A mysterious difficulty awaits' : item.exact ? 'Perfect to 2 decimal places' : `Within ±${item.threshold.toFixed(2)}s`}</p>
+                      <p className={`text-xs font-black mt-1 ${unlocked ? '' : 'inline-block bg-slate-950 text-white rounded-full px-2 py-0.5'}`}>{unlocked ? `Best ${bestScores[item.id]}` : `LOCKED · ${unlockText}`}</p>
                     </div>
                   </div>
                 </button>
@@ -212,10 +234,32 @@ export default function HardcoreMode({
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col">
-          <div className="flex items-center justify-between bg-white/10 border border-white/10 rounded-2xl px-4 py-2 mb-2">
-            <p className="font-black">Score {score}</p>
-            <div className="flex gap-1" aria-label={`${lives} lives remaining`}>
-              {Array.from({ length: 3 }, (_, index) => <Heart key={index} className={`w-6 h-6 ${index < lives ? 'fill-red-500 text-red-500' : 'text-slate-600'}`} />)}
+          <div className="grid grid-cols-2 gap-6 px-4 mb-2">
+            <div className="text-left">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60">Score</p>
+              <motion.p key={score} initial={reducedMotion || score === 0 ? false : { scale: 1.18 }} animate={{ scale: 1 }} transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }} className="text-4xl leading-none font-black mt-1">{score}</motion.p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60">Lives</p>
+              <div className="flex justify-end gap-1.5 mt-1" aria-label={`${lives} lives remaining`}>
+                {Array.from({ length: 3 }, (_, index) => {
+                  const active = index < lives;
+                  return (
+                    <motion.div
+                      key={index}
+                      initial={false}
+                      animate={active
+                        ? { scale: 1, rotate: 0, y: 0, opacity: 1 }
+                        : reducedMotion
+                          ? { scale: 0.78, rotate: 0, y: 0, opacity: 0.24 }
+                          : { scale: [1.15, 0.55, 0.78], rotate: [0, -14, 9, 0], y: [0, -5, 3], opacity: 0.24 }}
+                      transition={{ duration: reducedMotion ? 0 : active ? 0.35 : 0.55, ease: 'easeInOut' }}
+                    >
+                      <Heart className={`w-8 h-8 ${active ? 'fill-red-500 text-red-500 drop-shadow-sm' : 'text-slate-500'}`} />
+                    </motion.div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -224,7 +268,7 @@ export default function HardcoreMode({
               <p className={`text-sm uppercase tracking-[0.25em] font-black ${definition.accent}`}>Your target</p>
               <p className="text-5xl font-black">{target.toFixed(2)}s</p>
               <p className="text-sm opacity-80">Memorise it, then press Start or use Space.</p>
-              <button onClick={beginTimer} className={`w-44 h-44 rounded-full ${definition.button} text-white text-4xl font-black shadow-2xl transition-all active:scale-95`}>START</button>
+              <button onClick={beginTimer} className={`relative z-20 pointer-events-auto w-44 h-44 rounded-full ${definition.button} text-white text-4xl font-black shadow-2xl transition-all active:scale-95`}>START</button>
             </div>
           )}
 
@@ -233,7 +277,7 @@ export default function HardcoreMode({
               <p className="invisible text-sm uppercase tracking-[0.25em] font-black" aria-hidden="true">Your target</p>
               <p className="invisible text-5xl font-black" aria-hidden="true">00.00s</p>
               <p className="font-bold opacity-80">Target hidden. Press STOP or Space.</p>
-              <button onClick={stopTimer} className="w-44 h-44 rounded-full bg-red-600 hover:bg-red-700 text-white text-4xl font-black shadow-2xl shadow-red-900/30 transition-all active:scale-95">STOP</button>
+              <button onClick={stopTimer} className="relative z-20 pointer-events-auto w-44 h-44 rounded-full bg-red-600 hover:bg-red-700 text-white text-4xl font-black shadow-2xl shadow-red-900/30 transition-all active:scale-95">STOP</button>
             </div>
           )}
 
@@ -257,7 +301,7 @@ export default function HardcoreMode({
                 <p className="text-sm opacity-70">Best {definition.name} score: {bestScores[difficulty]}</p>
               </div>
               <button onClick={() => startRun(difficulty)} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl flex items-center justify-center gap-2`}><RotateCcw className="w-5 h-5" />Play Again</button>
-              <button onClick={() => setPhase('select')} className="w-full bg-white/10 border border-white/10 font-black py-3 rounded-2xl">Change Difficulty</button>
+              <button onClick={() => setPhase('select')} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-500 text-white font-black py-3 rounded-2xl transition-colors">Change Difficulty</button>
             </div>
           )}
         </div>
@@ -277,6 +321,9 @@ export default function HardcoreMode({
           <p className="text-sm text-slate-300 mt-1">{lockedNotice}</p>
           <button onClick={() => setLockedNotice(null)} className="mt-3 bg-teal-500 hover:bg-teal-400 border border-teal-300 text-white font-black px-5 py-2 rounded-xl transition-colors">Got it</button>
         </div>
+      )}
+      {(phase === 'result' || phase === 'gameOver') && shownError === 0 && (
+        <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
       )}
       <button onClick={onBack} className="mt-3 w-full bg-white/10 hover:bg-white/20 border border-slate-300/30 text-slate-700 font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
         <ArrowLeft className="w-5 h-5" />
