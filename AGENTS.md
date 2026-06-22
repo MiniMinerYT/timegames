@@ -17,3 +17,31 @@ Rules:
 * Prefer creating new components instead of making App.tsx larger.
 * Run npm run build before finishing any task.
 * Fix any TypeScript errors introduced by changes.
+
+## Build Verification
+
+After making any code changes:
+
+1. Run:
+
+```bash
+npm run build
+```
+
+2. If the build fails:
+
+   * Fix all errors.
+   * Re-run the build.
+   * Continue until the build succeeds.
+
+3. Do not consider the task complete until:
+
+```bash
+npm run build
+```
+
+finishes successfully.
+
+4. Include the build result in your final response.
+
+5. If build execution is unavailable in the current environment, explicitly state that build verification could not be performed.
