@@ -25,6 +25,7 @@ import TimeLadder from './TimeLadder';
 import HardcoreMode, { type HardcoreDifficulty, type HardcoreScores } from './HardcoreMode';
 import AmbientMusic from './AmbientMusic';
 import LadderIcon from './LadderIcon';
+import HelpOverlay, { type HelpContent } from './HelpOverlay';
 
 type GameMode = 'home' | 'single' | 'party' | 'challenge';
 
@@ -111,6 +112,69 @@ interface DailyRetentionState {
 
 const CARD_HEIGHT = 'h-[680px]';
 const MAX_AVERAGE_ERROR = 100;
+
+function getHelpContent(game: GameState): HelpContent {
+  if (game.phase === 'ladder') return {
+    title: 'Time Ladder',
+    intro: 'Climb from 1.00 to 20.00 seconds by stopping the hidden timer accurately at every level.',
+    items: ['Press the large circle or Space to start, then press it again to stop.', 'You must finish within ±0.25 seconds of the target. One miss ends the run.', 'Passed levels move the tower upward. Time Ladder does not affect Clock Rating.'],
+  };
+  if (game.phase === 'hardcore') return {
+    title: 'Hardcore Mode',
+    intro: 'An endless three-life timing game with increasingly demanding unlockable difficulties.',
+    items: ['Choose a difficulty, memorise the target, then use START and STOP or Space.', 'A hit adds one point. A miss costs one heart, and losing all three ends the run.', 'Score 3 on each difficulty to reveal the next. Hardcore scores never affect Clock Rating.'],
+  };
+  if (game.phase === 'guesserHub') return {
+    title: 'Time Guesser',
+    intro: 'Estimate how long a hidden clock was running, then enter your answer in seconds.',
+    items: ['Ranked Single Player changes Clock Rating; Casual Single Player does not.', 'Daily Challenge offers one official attempt and a once-per-day Clock Rating participation bonus.', 'Party Mode compares friends locally and never changes Clock Rating.'],
+  };
+  if (game.phase === 'dailyHub') return {
+    title: 'Daily Challenge',
+    intro: 'Everyone gets one deterministic hidden-time challenge for the current local calendar day.',
+    items: ['You receive one official attempt today—enter carefully.', 'Completing it protects your streak and awards the displayed Clock Rating bonus once.', 'Challenge Archive is view-only. A new challenge arrives at local midnight.'],
+  };
+  if (game.phase === 'dailyHistory') return {
+    title: 'Challenge Archive',
+    intro: 'Review recent Daily Challenge outcomes without replaying revealed targets.',
+    items: ['Played days show the secret time, best official error and simulated placement.', 'Missed dates are marked Not played.', 'Placements are local simulations until a real online leaderboard is added.'],
+  };
+  if (game.phase === 'rankings') return {
+    title: 'Clock Ranks',
+    intro: 'Clock Rating measures your performance in ranked Time Guesser rounds.',
+    items: ['More accurate ranked guesses award more rating.', 'Higher ranks require progressively larger rating totals.', 'Party, Ladder and Hardcore performance never changes this rating.'],
+  };
+  if (game.phase === 'stats') return {
+    title: 'Statistics',
+    intro: 'A summary of progress across every TimeGames mode.',
+    items: ['Time Guesser tracks rating, accuracy, average error and Spot Ons.', 'Daily, Ladder and Hardcore records appear in their own sections.', 'Reset only clears Time Guesser accuracy statistics and Clock Rating.'],
+  };
+  if (game.phase === 'settings') return {
+    title: 'Settings',
+    intro: 'Adjust feedback, accessibility, appearance and Party Mode timing ranges.',
+    items: ['Sounds and ambient music have separate controls.', 'Reduced Motion removes or shortens movement effects.', 'Dark Mode, haptics and Party timer range persist on this device.'],
+  };
+  if (game.mode === 'party' || ['partySetup', 'partyGuesses', 'partyResults'].includes(game.phase)) return {
+    title: 'Party Mode',
+    intro: 'Pass the device around and compete to make the closest hidden-time guess.',
+    items: ['Add at least two players, then start a shared hidden timer round.', 'Enter guesses in order; Enter moves focus to the next player.', 'Closest guesses score a point. Ties and Spot Ons are celebrated.'],
+  };
+  if (game.mode === 'challenge') return {
+    title: 'Daily Challenge Attempt',
+    intro: 'This is today’s single official hidden-time guess.',
+    items: ['Wait through the countdown and estimate the hidden clock.', 'Enter your answer to see error, simulated global placement, streak and rating bonus.', 'The current challenge cannot be replayed after submission.'],
+  };
+  if (game.mode === 'single') return {
+    title: 'Single Player',
+    intro: 'Build your internal clock by estimating a randomly generated hidden duration.',
+    items: ['Wait through the countdown, then remember how long the hidden clock runs.', 'Enter a guess with up to two decimal places and press Enter or Submit.', 'Ranked rounds affect Clock Rating; Casual rounds preserve it.'],
+  };
+  return {
+    title: 'Welcome to TimeGames',
+    intro: 'TimeGames is a collection of focused games for training and testing your internal sense of time.',
+    items: ['Time Guesser is the ranked core game, with Casual, Party and Daily variants.', 'Time Ladder challenges you to clear targets from 1 to 20 seconds without missing.', 'Hardcore Mode is an endless three-life high-score challenge. Stats and Settings support every mode.'],
+  };
+}
 
 const defaultStats: StatsState = {
   gamesPlayed: 0,
@@ -893,10 +957,13 @@ function App() {
     }
   }, [game.phase, playTone]);
 
+  const helpContent = getHelpContent(game);
+
   return (
     <div onClickCapture={handleMenuClick} className={`min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center p-4 ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
       <AmbientMusic enabled={settings.music} paused={game.phase === 'playing' || standaloneTimingActive} />
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md relative">
+        <HelpOverlay content={helpContent} />
         {game.mode === 'home' && game.phase === 'ready' && (
           <HomeScreen
             bestLadderLevel={bestLadderLevel}
@@ -1073,7 +1140,6 @@ function HomeScreen({
   bestLadderLevel,
   bestHardcoreScore,
   rankedMode,
-  reducedMotion,
   onTimeGuesser,
   onTimeLadder,
   onHardcore,
@@ -1083,7 +1149,6 @@ function HomeScreen({
   bestLadderLevel: number;
   bestHardcoreScore: number;
   rankedMode: boolean;
-  reducedMotion: boolean;
   onTimeGuesser: () => void;
   onTimeLadder: () => void;
   onHardcore: () => void;

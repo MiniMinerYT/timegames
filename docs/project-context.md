@@ -22,6 +22,8 @@ Shared game-menu cards use a fixed icon column, centered text column and matchin
 
 All primary screens use the fixed 680px card layout. Long content scrolls inside cards without reserving a permanent scrollbar gutter or scrolling the whole page.
 
+Every screen exposes the same contextual question-mark button in the card's top-left corner. It opens a reusable help dialog over the current screen with page-specific rules and explanations. The dialog stays inside the fixed card, keeps its X close control visible in the top-right, scrolls its body internally when necessary, closes from the backdrop or Escape key and supports light/dark themes.
+
 ## Game 1: Time Guesser
 
 Time Guesser is the original hidden-clock game. A hidden clock runs for a secret length of time and the player guesses how long it ran.
