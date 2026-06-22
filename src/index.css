@@ -78,6 +78,31 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
+/* Keep scroll affordances visible inside fixed-height game cards. */
+
+.always-scrollbar {
+  overflow-y: scroll;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+.always-scrollbar::-webkit-scrollbar {
+  width: 7px;
+}
+
+.always-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.always-scrollbar::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 9999px;
+}
+
+.dark-mode .always-scrollbar {
+  scrollbar-color: #475569 transparent;
+}
+
 /* General fade-in */
 
 @keyframes fade-in {

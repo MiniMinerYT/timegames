@@ -9,6 +9,8 @@ Rules:
 * Preserve Single Player.
 * Preserve Party Mode.
 * Preserve Daily Challenge.
+* Preserve Time Ladder.
+* Keep Clock Rating limited to ranked Time Guesser Single Player.
 * Preserve ranking system.
 * Preserve localStorage settings and stats.
 * Keep the fixed card layout.
