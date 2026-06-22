@@ -15,6 +15,9 @@ import {
   Smartphone,
   Sparkles,
   Moon,
+  Skull,
+  CalendarDays,
+  ArrowRight,
 } from 'lucide-react';
 import TimeLadder from './TimeLadder';
 import HardcoreMode, { type HardcoreDifficulty, type HardcoreScores } from './HardcoreMode';
@@ -34,6 +37,7 @@ type GamePhase =
   | 'ladder'
   | 'hardcore'
   | 'dailyHub'
+  | 'dailyHistory'
   | 'partySetup'
   | 'partyGuesses'
   | 'partyResults';
@@ -86,10 +90,18 @@ interface DailyResult {
   target: number;
   guess: number;
   error: number;
+  simulatedRank?: number;
+  simulatedPlayers?: number;
+  simulatedPercentile?: number;
 }
 
 type DailyResults = Record<string, DailyResult>;
-type DailyPracticeBests = Record<string, number>;
+
+interface DailyRetentionState {
+  streak: number;
+  lastCompletedDate: string | null;
+  claimedDates: string[];
+}
 
 const CARD_HEIGHT = 'h-[680px]';
 const MAX_AVERAGE_ERROR = 100;
@@ -120,6 +132,12 @@ const defaultHardcoreScores: HardcoreScores = {
   god: 0,
 };
 
+const defaultDailyRetention: DailyRetentionState = {
+  streak: 0,
+  lastCompletedDate: null,
+  claimedDates: [],
+};
+
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -135,6 +153,20 @@ function getDailyTarget(dateKey: string) {
   }
   const normalized = (hash >>> 0) / 4294967295;
   return Math.round((0.5 + normalized * 9.5) * 100) / 100;
+}
+
+function getDailyReward(streak: number) {
+  return streak >= 10 ? 60 : Math.max(10, streak * 5 + 5);
+}
+
+function getTimeUntilNextDay(now: Date) {
+  const nextDay = new Date(now);
+  nextDay.setHours(24, 0, 0, 0);
+  const totalSeconds = Math.max(0, Math.floor((nextDay.getTime() - now.getTime()) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':');
 }
 
 // Placeholder leaderboard simulation. Replace with backend leaderboard data when available.
@@ -286,14 +318,23 @@ function App() {
     }
   });
 
-  const [dailyPracticeBests, setDailyPracticeBests] = useState<DailyPracticeBests>(() => {
+  const [dailyRetention, setDailyRetention] = useState<DailyRetentionState>(() => {
     try {
-      const saved = localStorage.getItem('timegames-daily-practice-bests');
-      return saved ? JSON.parse(saved) : {};
+      const saved = localStorage.getItem('timegames-daily-retention');
+      const parsed = saved ? JSON.parse(saved) : {};
+      return {
+        streak: Math.max(0, Number(parsed.streak) || 0),
+        lastCompletedDate: typeof parsed.lastCompletedDate === 'string' ? parsed.lastCompletedDate : null,
+        claimedDates: Array.isArray(parsed.claimedDates)
+          ? parsed.claimedDates.filter((date: unknown): date is string => typeof date === 'string')
+          : [],
+      };
     } catch {
-      return {};
+      return defaultDailyRetention;
     }
   });
+
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   const [bestLadderLevel, setBestLadderLevel] = useState(() => {
     const saved = Number(localStorage.getItem('timegames-ladder-best')) || 0;
@@ -322,6 +363,15 @@ function App() {
 
   const timerRef = useRef<number | null>(null);
   const dailySubmissionRef = useRef<string | null>(null);
+  const todayKey = getLocalDateKey(currentTime);
+  const yesterday = new Date(currentTime);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = getLocalDateKey(yesterday);
+  const activeDailyStreak = dailyRetention.lastCompletedDate === todayKey || dailyRetention.lastCompletedDate === yesterdayKey
+    ? dailyRetention.streak
+    : 0;
+  const nextDailyReward = getDailyReward(activeDailyStreak + 1);
+  const dailyCountdown = getTimeUntilNextDay(currentTime);
 
   useEffect(() => {
     localStorage.setItem('timegames-stats', JSON.stringify(stats));
@@ -336,8 +386,31 @@ function App() {
   }, [dailyResults]);
 
   useEffect(() => {
-    localStorage.setItem('timegames-daily-practice-bests', JSON.stringify(dailyPracticeBests));
-  }, [dailyPracticeBests]);
+    const missingPlacement = Object.entries(dailyResults).filter(([, result]) => result.simulatedRank === undefined);
+    if (missingPlacement.length === 0) return;
+    setDailyResults(prev => {
+      const next = { ...prev };
+      for (const [dateKey, result] of missingPlacement) {
+        const standing = getSimulatedDailyStanding(result.error, dateKey);
+        next[dateKey] = {
+          ...result,
+          simulatedRank: standing.rank,
+          simulatedPlayers: standing.players,
+          simulatedPercentile: standing.percentile,
+        };
+      }
+      return next;
+    });
+  }, [dailyResults]);
+
+  useEffect(() => {
+    localStorage.setItem('timegames-daily-retention', JSON.stringify(dailyRetention));
+  }, [dailyRetention]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('timegames-ladder-best', bestLadderLevel.toString());
@@ -375,6 +448,12 @@ function App() {
       navigator.vibrate(pattern);
     }
   }, [settings.haptics]);
+
+  const playCelebration = useCallback(() => {
+    playTone(880, 0.1);
+    window.setTimeout(() => playTone(1100, 0.1), 90);
+    window.setTimeout(() => playTone(1320, 0.18), 180);
+  }, [playTone]);
 
   const generateTargetTime = useCallback((mode: GameMode) => {
     if (mode === 'party' && settings.partyTimerRange !== 'standard') {
@@ -448,10 +527,6 @@ function App() {
     }
     startCountdown('challenge', today, true);
   }, [dailyResults, startCountdown]);
-
-  const playDailyReplay = useCallback((dateKey: string) => {
-    startCountdown('challenge', dateKey, false);
-  }, [startCountdown]);
 
   useEffect(() => {
     if (game.phase === 'countdown') {
@@ -545,22 +620,36 @@ function App() {
       updateStats(distance);
     }
     if (game.mode === 'challenge' && game.dailyOfficial && game.challengeDate) {
+      const dateKey = game.challengeDate;
+      const standing = getSimulatedDailyStanding(distance, dateKey);
       setDailyResults(prev => ({
         ...prev,
-        [game.challengeDate as string]: {
+        [dateKey]: {
           target: game.targetTime,
           guess: parseFloat(game.playerGuess),
           error: distance,
+          simulatedRank: standing.rank,
+          simulatedPlayers: standing.players,
+          simulatedPercentile: standing.percentile,
         },
       }));
-    }
-    if (game.mode === 'challenge' && !game.dailyOfficial && game.challengeDate) {
-      setDailyPracticeBests(prev => ({
-        ...prev,
-        [game.challengeDate as string]: prev[game.challengeDate as string] === undefined
-          ? distance
-          : Math.min(prev[game.challengeDate as string], distance),
-      }));
+      // The participation reward belongs only to today's official challenge.
+      // A challenge left open across midnight may still save its result, but cannot claim an archived-day bonus.
+      if (dateKey === getLocalDateKey() && !dailyRetention.claimedDates.includes(dateKey)) {
+        const completionDate = new Date(`${dateKey}T12:00:00`);
+        completionDate.setDate(completionDate.getDate() - 1);
+        const previousDateKey = getLocalDateKey(completionDate);
+        const newStreak = dailyRetention.lastCompletedDate === previousDateKey
+          ? dailyRetention.streak + 1
+          : 1;
+        const dailyBonus = getDailyReward(newStreak);
+        setDailyRetention(prev => ({
+          streak: newStreak,
+          lastCompletedDate: dateKey,
+          claimedDates: [...prev.claimedDates, dateKey],
+        }));
+        setStats(prev => ({ ...prev, clockRating: prev.clockRating + dailyBonus }));
+      }
     }
     if (ratingChange !== null) {
       setStats(prev => ({
@@ -568,7 +657,8 @@ function App() {
         clockRating: Math.max(0, prev.clockRating + ratingChange),
       }));
     }
-    playTone(distance < 0.5 ? 880 : 520, 0.12);
+    if (distance < 0.005) playCelebration();
+    else playTone(distance < 0.5 ? 880 : 520, 0.12);
     vibrate(distance < 0.5 ? [30, 40, 30] : 30);
 
     setGame(prev => ({
@@ -576,11 +666,11 @@ function App() {
       timeRevealed: true,
       ratingChange,
     }));
-  }, [game, dailyResults, settings.rankedMode, stats.clockRating, updateStats, playTone, vibrate]);
+  }, [game, dailyResults, dailyRetention, settings.rankedMode, stats.clockRating, updateStats, playTone, playCelebration, vibrate]);
 
   const playAgain = useCallback(() => {
     if (game.mode === 'challenge') {
-      setGame(prev => ({ ...prev, mode: 'home', phase: 'dailyHub' }));
+      setGame(prev => ({ ...prev, mode: 'home', phase: 'dailyHistory' }));
       return;
     }
     startCountdown(game.mode);
@@ -609,6 +699,10 @@ function App() {
 
   const showDailyHistory = useCallback(() => {
     setGame(prev => ({ ...prev, mode: 'home', phase: 'dailyHub' }));
+  }, []);
+
+  const showPreviousDailyHistory = useCallback(() => {
+    setGame(prev => ({ ...prev, mode: 'home', phase: 'dailyHistory' }));
   }, []);
 
   const showTimeLadder = useCallback(() => {
@@ -651,10 +745,6 @@ function App() {
 
   const showRankings = useCallback(() => {
     setGame(prev => ({ ...prev, mode: 'home', phase: 'rankings' }));
-  }, []);
-
-  const hideRankings = useCallback(() => {
-    setGame(prev => ({ ...prev, mode: 'home', phase: 'ready' }));
   }, []);
 
   const updateSetting = useCallback(<K extends keyof SettingsState,>(
@@ -767,14 +857,15 @@ function App() {
     )
   );
 
-  playTone(780, 0.12);
+  if (winningDistance < 0.005) playCelebration();
+  else playTone(780, 0.12);
   vibrate([30, 40, 30]);
 
   setGame(prev => ({
     ...prev,
     phase: 'partyResults',
   }));
-}, [partyPlayers, game.targetTime, playTone, vibrate]);
+}, [partyPlayers, game.targetTime, playTone, playCelebration, vibrate]);
 
   const guessDistance = (() => {
     if (game.playerGuess) {
@@ -798,6 +889,7 @@ function App() {
           <HomeScreen
             bestLadderLevel={bestLadderLevel}
             bestHardcoreScore={Math.max(...Object.values(hardcoreScores))}
+            rankedMode={settings.rankedMode}
             onTimeGuesser={showTimeGuesser}
             onTimeLadder={showTimeLadder}
             onHardcore={showHardcoreMode}
@@ -809,13 +901,15 @@ function App() {
         {game.phase === 'guesserHub' && (
           <TimeGuesserHub
             stats={stats}
-            todayResult={dailyResults[getLocalDateKey()] ?? null}
+            todayResult={dailyResults[todayKey] ?? null}
             rankedMode={settings.rankedMode}
+            dailyStreak={activeDailyStreak}
+            nextDailyReward={nextDailyReward}
+            dailyCountdown={dailyCountdown}
             onRankedModeChange={(value) => updateSetting('rankedMode', value)}
             onSinglePlayer={() => startCountdown('single')}
             onPartyMode={openPartySetup}
-            onChallengeMode={openDailyChallenge}
-            onPreviousDailies={showDailyHistory}
+            onChallengeMode={showDailyHistory}
             onBack={goHome}
             onRankings={showRankings}
           />
@@ -844,16 +938,26 @@ function App() {
         {game.phase === 'rankings' && (
           <RankingsScreen
             clockRating={stats.clockRating}
-            onBack={hideRankings}
+            onBack={showTimeGuesser}
           />
         )}
 
         {game.phase === 'dailyHub' && (
           <DailyChallengeHub
             results={dailyResults}
-            practiceBests={dailyPracticeBests}
-            onPlayDate={playDailyReplay}
+            dailyStreak={activeDailyStreak}
+            nextDailyReward={nextDailyReward}
+            dailyCountdown={dailyCountdown}
+            onPlayToday={openDailyChallenge}
+            onPrevious={showPreviousDailyHistory}
             onBack={showTimeGuesser}
+          />
+        )}
+
+        {game.phase === 'dailyHistory' && (
+          <PreviousDailyChallengesScreen
+            results={dailyResults}
+            onBack={showDailyHistory}
           />
         )}
 
@@ -937,8 +1041,9 @@ function App() {
             }
             onSubmitGuess={submitGuess}
             onPlayAgain={playAgain}
-            onReplayDaily={() => game.challengeDate && playDailyReplay(game.challengeDate)}
-            dailyPracticeBest={game.challengeDate ? dailyPracticeBests[game.challengeDate] ?? null : null}
+            dailyStreak={activeDailyStreak}
+            nextDailyReward={nextDailyReward}
+            dailyCountdown={dailyCountdown}
             onGoHome={showTimeGuesser}
           />
         )}
@@ -950,6 +1055,7 @@ function App() {
 function HomeScreen({
   bestLadderLevel,
   bestHardcoreScore,
+  rankedMode,
   onTimeGuesser,
   onTimeLadder,
   onHardcore,
@@ -958,6 +1064,7 @@ function HomeScreen({
 }: {
   bestLadderLevel: number;
   bestHardcoreScore: number;
+  rankedMode: boolean;
   onTimeGuesser: () => void;
   onTimeLadder: () => void;
   onHardcore: () => void;
@@ -978,12 +1085,12 @@ function HomeScreen({
         <div className="w-11" />
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto always-scrollbar space-y-3 pr-1">
-        <GameMenuCard color="teal" icon={<Clock className="w-7 h-7" />} title="Time Guesser" description="Guess how long the hidden clock ran." onClick={onTimeGuesser} />
+      <div className="flex-1 min-h-0 overflow-y-auto card-scroll space-y-3 pr-1">
+        <GameMenuCard color="teal" icon={<Clock className="w-7 h-7" />} title="Time Guesser" description={`${rankedMode ? 'Ranked' : 'Casual'} · Hidden-clock guessing`} onClick={onTimeGuesser} />
         <GameMenuCard color="indigo" icon={<Trophy className="w-7 h-7" />} title="Time Ladder" description={`Climb from 1s to 20s · Best level ${bestLadderLevel}`} onClick={onTimeLadder} />
-        <GameMenuCard color="red" icon={<Target className="w-7 h-7" />} title="Hardcore Mode" description={`Three lives · Endless score · Best ${bestHardcoreScore}`} onClick={onHardcore} />
+        <GameMenuCard color="red" icon={<Skull className="w-7 h-7" />} title="Hardcore Mode" description={`Three lives · Endless score · Best ${bestHardcoreScore}`} onClick={onHardcore} />
         <GameMenuCard color="rose" icon={<BarChart3 className="w-7 h-7" />} title="Stats" description="See your progress across TimeGames." onClick={onStats} />
-        <GameMenuCard color="slate" icon={<Settings className="w-7 h-7" />} title="Settings" description="Sound, haptics, ranked play and display." onClick={onSettings} />
+        <GameMenuCard color="slate" icon={<Settings className="w-7 h-7" />} title="Settings" description="Sound, haptics and display." onClick={onSettings} />
       </div>
     </div>
   );
@@ -1004,9 +1111,10 @@ function GameMenuCard({ color, icon, title, description, onClick }: {
     slate: 'bg-slate-700 hover:bg-slate-800 shadow-slate-700/20',
   }[color];
   return (
-    <button onClick={onClick} className={`w-full ${colorClasses} text-white rounded-3xl p-4 flex items-center gap-4 text-left shadow-lg transition-all active:scale-[0.98]`}>
+    <button onClick={onClick} className={`w-full ${colorClasses} text-white rounded-3xl p-4 grid grid-cols-[48px_1fr_48px] items-center text-center shadow-lg transition-all active:scale-[0.98]`}>
       <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">{icon}</div>
       <div><p className="text-lg font-black">{title}</p><p className="text-sm text-white/80">{description}</p></div>
+      <span className="w-12" aria-hidden="true" />
     </button>
   );
 }
@@ -1015,22 +1123,26 @@ function TimeGuesserHub({
   stats,
   todayResult,
   rankedMode,
+  dailyStreak,
+  nextDailyReward,
+  dailyCountdown,
   onRankedModeChange,
   onSinglePlayer,
   onPartyMode,
   onChallengeMode,
-  onPreviousDailies,
   onBack,
   onRankings,
 }: {
   stats: StatsState;
   todayResult: DailyResult | null;
   rankedMode: boolean;
+  dailyStreak: number;
+  nextDailyReward: number;
+  dailyCountdown: string;
   onRankedModeChange: (value: boolean) => void;
   onSinglePlayer: () => void;
   onPartyMode: () => void;
   onChallengeMode: () => void;
-  onPreviousDailies: () => void;
   onBack: () => void;
   onRankings: () => void;
 }) {
@@ -1061,7 +1173,7 @@ function TimeGuesserHub({
             type="button"
             onClick={onRankings}
             aria-label="View all Clock Ranks"
-            className="w-full h-full hover:bg-slate-100 px-4 text-left transition-colors flex items-center gap-3"
+            className="w-full h-full hover:bg-slate-100 px-4 text-center transition-colors flex items-center justify-center gap-3"
           >
             <span className="text-3xl shrink-0" aria-hidden="true">{rankInfo.rank.icon}</span>
             <div className="min-w-0 flex-1">
@@ -1083,7 +1195,7 @@ function TimeGuesserHub({
             <div className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center shrink-0">
               <Target className="w-5 h-5 text-slate-500" />
             </div>
-            <div className="text-left min-w-0">
+            <div className="text-center min-w-0">
               <p className="font-bold text-slate-800">Casual mode</p>
               <p className="text-xs text-slate-500">Clock Rating is paused</p>
             </div>
@@ -1118,39 +1230,23 @@ function TimeGuesserHub({
       </div>
 
       <div className="space-y-2.5">
-        <button
-          onClick={onSinglePlayer}
-          className="w-full bg-teal-500 hover:bg-teal-600 active:scale-[0.98] text-white font-semibold py-3.5 px-5 rounded-2xl transition-all duration-200 flex items-center justify-center gap-3"
-        >
-          <Clock className="w-5 h-5" />
-          Single Player ({rankedMode ? 'Ranked' : 'Casual'})
-        </button>
-
-        <button onClick={onChallengeMode} className="w-full bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-semibold py-3.5 px-5 rounded-2xl transition-all duration-200 flex items-center justify-center gap-3">
-          <Target className="w-5 h-5" />
-          {todayResult
-            ? `Daily Challenge: ${todayResult.error.toFixed(2)}s off`
-            : 'Daily Challenge'}
-        </button>
-
-        <button onClick={onPartyMode} className="w-full bg-rose-500 hover:bg-rose-600 active:scale-[0.98] text-white font-semibold py-3.5 px-5 rounded-2xl transition-all duration-200 flex items-center justify-center gap-3">
-          <Users className="w-5 h-5" />
-          Party Mode
-        </button>
+        <GameMenuCard color="teal" icon={<Clock className="w-6 h-6" />} title={`Single Player ${rankedMode ? 'Ranked' : 'Casual'}`} description={rankedMode ? 'Build your Clock Rating.' : 'Practice without rating pressure.'} onClick={onSinglePlayer} />
+        <GameMenuCard
+          color="indigo"
+          icon={<Target className="w-6 h-6" />}
+          title="Daily Challenge"
+          description={todayResult
+            ? `🔥 ${dailyStreak} day streak · Tomorrow +${nextDailyReward} · New in ${dailyCountdown}`
+            : `${dailyStreak > 0 ? `🔥 ${dailyStreak} day streak · ` : ''}Reward +${nextDailyReward} · Next in ${dailyCountdown}`}
+          onClick={onChallengeMode}
+        />
+        <GameMenuCard color="rose" icon={<Users className="w-6 h-6" />} title="Party Mode" description="Compete to be closest with friends." onClick={onPartyMode} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={onPreviousDailies}
-          className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold py-3.5 px-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
-        >
-          <RotateCcw className="w-5 h-5" />
-          <span>Previous</span>
-        </button>
-
+      <div>
         <button
           onClick={onBack}
-          className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold py-3.5 px-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
+          className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold py-3.5 px-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>All Games</span>
@@ -1162,29 +1258,24 @@ function TimeGuesserHub({
 
 function DailyChallengeHub({
   results,
-  practiceBests,
-  onPlayDate,
+  dailyStreak,
+  nextDailyReward,
+  dailyCountdown,
+  onPlayToday,
+  onPrevious,
   onBack,
 }: {
   results: DailyResults;
-  practiceBests: DailyPracticeBests;
-  onPlayDate: (dateKey: string) => void;
+  dailyStreak: number;
+  nextDailyReward: number;
+  dailyCountdown: string;
+  onPlayToday: () => void;
+  onPrevious: () => void;
   onBack: () => void;
 }) {
   const today = getLocalDateKey();
   const todayResult = results[today];
   const standing = todayResult ? getSimulatedDailyStanding(todayResult.error, today) : null;
-  const previousDates = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - index - 1);
-    return getLocalDateKey(date);
-  });
-
-  const formatDate = (dateKey: string) => new Intl.DateTimeFormat(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }).format(new Date(`${dateKey}T12:00:00`));
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-7 text-center ${CARD_HEIGHT} flex flex-col`}>
@@ -1196,6 +1287,7 @@ function DailyChallengeHub({
         <p className="text-slate-500">{todayResult ? "Today's attempt is complete. Come back tomorrow!" : 'Play today from the Time Guesser menu.'}</p>
       </div>
 
+      <div className="flex-1 flex flex-col justify-center">
       {todayResult && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 mb-5">
           <p className="text-xs uppercase tracking-[0.2em] font-bold text-indigo-500">Today's score</p>
@@ -1206,39 +1298,97 @@ function DailyChallengeHub({
         </div>
       )}
 
+      {!todayResult && (
+        <button onClick={onPlayToday} className="w-full max-w-xs mx-auto bg-teal-500 hover:bg-teal-600 text-white font-black py-4 rounded-2xl mb-4 transition-colors shadow-lg shadow-teal-500/20">
+          Play Today's Challenge
+        </button>
+      )}
+
       {standing && (
         <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 mb-4">
           <p className="font-black text-indigo-700">Simulated global rank #{standing.rank.toLocaleString()}</p>
           <p className="text-xs text-slate-500">Top {100 - standing.percentile + 1}% of {standing.players.toLocaleString()} players · Local preview</p>
         </div>
       )}
-
-      <div className="text-left mb-2">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Previous challenges</p>
-        <p className="text-xs text-slate-500 mt-1">Practice these as often as you like.</p>
+      {todayResult && (
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3">
+            <p className="text-xs font-bold text-amber-700">Daily bonus earned</p>
+            <p className="text-2xl font-black text-amber-600">+{getDailyReward(dailyStreak)}</p>
+          </div>
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3">
+            <p className="text-xs font-bold text-rose-700">Current streak</p>
+            <p className="text-2xl font-black text-rose-600">🔥 {dailyStreak} days</p>
+          </div>
+        </div>
+      )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto always-scrollbar space-y-2 pr-1">
-        {previousDates.map(dateKey => (
-          <button
-            key={dateKey}
-            type="button"
-            onClick={() => onPlayDate(dateKey)}
-            className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 flex items-center justify-between transition-colors"
-          >
-            <span className="font-bold text-slate-800">{formatDate(dateKey)}</span>
-            <span className="text-right">
-              <span className="block text-sm font-semibold text-indigo-600">Play again</span>
-              <span className="block text-[11px] text-slate-400">{practiceBests[dateKey] === undefined ? 'No practice score' : `Best ${practiceBests[dateKey].toFixed(2)}s off`}</span>
-            </span>
-          </button>
-        ))}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-3">
+        <p className="text-xs text-slate-500 font-bold">{todayResult ? `Tomorrow's reward: +${nextDailyReward}` : `Today's reward: +${nextDailyReward}`}</p>
+        <p className="font-black text-slate-800">Next challenge in {dailyCountdown}</p>
       </div>
+
+      <button onClick={onPrevious} className="w-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-indigo-700 font-black py-4 rounded-2xl transition-colors">
+        Challenge Archive
+      </button>
 
       <button onClick={onBack} className="mt-5 w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2">
         <ArrowLeft className="w-5 h-5" />
         Back
       </button>
+    </div>
+  );
+}
+
+function PreviousDailyChallengesScreen({
+  results,
+  onBack,
+}: {
+  results: DailyResults;
+  onBack: () => void;
+}) {
+  const previousDates = Array.from({ length: 14 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - index - 1);
+    return getLocalDateKey(date);
+  });
+  const formatDate = (dateKey: string) => new Intl.DateTimeFormat(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date(`${dateKey}T12:00:00`));
+
+  return (
+    <div className={`bg-white rounded-3xl shadow-xl p-7 text-center ${CARD_HEIGHT} flex flex-col`}>
+      <div className="mb-5">
+        <div className="w-14 h-14 mx-auto bg-indigo-500 rounded-2xl flex items-center justify-center"><CalendarDays className="w-7 h-7 text-white" /></div>
+        <h1 className="text-3xl font-black text-slate-800 mt-2">Challenge Archive</h1>
+        <p className="text-sm text-slate-500">Your recent Daily Challenge history.</p>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto card-scroll space-y-2">
+        {previousDates.map(dateKey => {
+          const result = results[dateKey];
+          const fallback = result ? getSimulatedDailyStanding(result.error, dateKey) : null;
+          const rank = result?.simulatedRank ?? fallback?.rank;
+          const players = result?.simulatedPlayers ?? fallback?.players;
+          return (
+            <div key={dateKey} className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-center">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-black text-slate-800">{formatDate(dateKey)}</p>
+                <span className={`text-[10px] uppercase tracking-wider font-black px-2 py-1 rounded-full ${result ? 'bg-teal-500 text-white' : 'bg-slate-200 text-slate-600'}`}>{result ? 'Played' : 'Not played'}</span>
+              </div>
+              <p className="text-sm text-slate-500 mt-1">Secret time: <span className="font-bold text-slate-700">{getDailyTarget(dateKey).toFixed(2)}s</span></p>
+              {result && rank !== undefined && players !== undefined ? (
+                <p className="text-sm font-semibold text-indigo-600">Best error: {result.error.toFixed(2)}s · Global #{rank.toLocaleString()} of {players.toLocaleString()}</p>
+              ) : (
+                <p className="text-sm font-semibold text-slate-400">Not played</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <button onClick={onBack} className="mt-5 w-full bg-teal-500 hover:bg-teal-600 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2"><ArrowLeft className="w-5 h-5" />Daily Challenge</button>
     </div>
   );
 }
@@ -1289,7 +1439,7 @@ function StatsScreen({
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto always-scrollbar space-y-3 text-left pr-1">
+      <div className="flex-1 overflow-y-auto card-scroll space-y-3 text-left pr-1">
         <StatsSectionLabel>Time Guesser</StatsSectionLabel>
         <ResultRow label="Clock Rating" value={stats.clockRating.toString()} accent />
         <ResultRow label="Current Rank" value={rankInfo.rank.name} />
@@ -1389,7 +1539,6 @@ function SettingsScreen({
   }> = [
     { key: 'sounds', label: 'Sounds', description: 'Countdown and result tones', icon: Volume2 },
     { key: 'haptics', label: 'Haptic Feedback', description: 'Vibration on supported devices', icon: Smartphone },
-    { key: 'rankedMode', label: 'Ranked Time Guesser', description: 'Let Single Player affect Clock Rating', icon: Trophy },
     { key: 'reducedMotion', label: 'Reduced Motion', description: 'Disable animations and transitions', icon: Sparkles },
     { key: 'darkMode', label: 'Dark Mode', description: 'Use a darker colour scheme', icon: Moon },
   ];
@@ -1409,7 +1558,7 @@ function SettingsScreen({
         <p className="text-slate-500">Make TimeGames feel right for you.</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto always-scrollbar space-y-3 pr-1">
+      <div className="flex-1 overflow-y-auto card-scroll space-y-3 pr-1">
         {options.map(option => {
           const Icon = option.icon;
           const enabled = settings[option.key];
@@ -1498,7 +1647,7 @@ function RankingsScreen({
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto always-scrollbar space-y-2 pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto card-scroll space-y-2 pr-1">
         {ranks.map(rank => {
           const isCurrent = rank.name === currentRank.name;
           const pointsDifference = rank.min - clockRating;
@@ -1609,7 +1758,7 @@ function PartySetupScreen({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto always-scrollbar space-y-3 pr-1">
+      <div className="flex-1 overflow-y-auto card-scroll space-y-3 pr-1">
   {players.length === 0 ? (
     <div className="h-full flex items-center justify-center text-center">
       <p className="text-slate-400">
@@ -1741,7 +1890,7 @@ function PartyGuessesScreen({
 </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto always-scrollbar space-y-3 pr-1">
+      <div className="flex-1 overflow-y-auto card-scroll space-y-3 pr-1">
         {players.map((player, index) => (
           <div
             key={player.id}
@@ -1867,7 +2016,7 @@ function PartyResultsScreen({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto always-scrollbar space-y-2 pr-1">
+      <div className="flex-1 overflow-y-auto card-scroll space-y-2 pr-1">
         {!showScoreboard &&
           rankedPlayers.map((player, index) => {
             const tiedWinner = Math.abs(player.distance - winningDistance) <= 0.005;
@@ -1942,7 +2091,7 @@ function PartyResultsScreen({
           onClick={onNextRound}
           className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
         >
-          <RotateCcw className="w-5 h-5" />
+          <ArrowRight className="w-5 h-5" />
           Next Round
         </button>
 
@@ -1981,8 +2130,9 @@ function RevealScreen({
   onGuessChange,
   onSubmitGuess,
   onPlayAgain,
-  onReplayDaily,
-  dailyPracticeBest,
+  dailyStreak,
+  nextDailyReward,
+  dailyCountdown,
   onGoHome,
 }: {
   mode: GameMode;
@@ -2000,8 +2150,9 @@ function RevealScreen({
   onGuessChange: (value: string) => void;
   onSubmitGuess: () => void;
   onPlayAgain: () => void;
-  onReplayDaily: () => void;
-  dailyPracticeBest: number | null;
+  dailyStreak: number;
+  nextDailyReward: number;
+  dailyCountdown: string;
   onGoHome: () => void;
 }) {
   const hasGuess = isValidTimeInput(playerGuess);
@@ -2107,7 +2258,7 @@ function RevealScreen({
             )}
           </div>
 
-          <div className={`flip-face flip-back absolute inset-0 bg-slate-50 border border-slate-200 rounded-3xl p-6 flex flex-col justify-between overflow-y-auto always-scrollbar ${resultTone === 'spoton' ? 'spoton-glow' : ''}`}>
+          <div className={`flip-face flip-back result-scroll absolute inset-0 bg-slate-50 border border-slate-200 rounded-3xl p-6 flex flex-col justify-between overflow-y-auto ${resultTone === 'spoton' ? 'spoton-glow' : ''}`}>
             {(resultTone === 'spoton' || resultTone === 'elite') && (
               <div className="confetti">
                 {Array.from({ length: 14 }).map((_, index) => (
@@ -2204,34 +2355,34 @@ function RevealScreen({
 
               {mode === 'challenge' && guessDistance !== null && (
                 <div className="space-y-3">
+                  <p className="font-black text-teal-700">🔥 Daily Challenge Complete</p>
                   <ResultRow label="Your Guess" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
                   <ResultRow label="You were off by" value={`${guessDistance.toFixed(2)}s`} accent />
                   {simulatedStanding && dailyOfficial && (
                     <p className="text-xs font-bold text-indigo-600">Simulated global rank #{simulatedStanding.rank.toLocaleString()} of {simulatedStanding.players.toLocaleString()}</p>
                   )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3">
+                      <p className="text-xs font-bold text-amber-700">Clock Rating bonus</p>
+                      <p className="text-2xl font-black text-amber-600">+{getDailyReward(dailyStreak)}</p>
+                    </div>
+                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3">
+                      <p className="text-xs font-bold text-rose-700">Current streak</p>
+                      <p className="text-2xl font-black text-rose-600">🔥 {dailyStreak}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs font-bold text-slate-500">Tomorrow: +{nextDailyReward} · Next challenge in {dailyCountdown}</p>
                 </div>
               )}
             </div>
 
             <div className="space-y-3 pt-5 relative z-10">
-              {isChallenge && !dailyOfficial && dailyPracticeBest !== null && (
-                <p className="text-xs font-bold text-indigo-600">Best for this day: {dailyPracticeBest.toFixed(2)}s off</p>
-              )}
-              {isChallenge && !dailyOfficial && (
-                <button
-                  onClick={onReplayDaily}
-                  className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
-                >
-                  <RotateCcw className="w-5 h-5" />
-                  Play This Day Again
-                </button>
-              )}
               <button
                 onClick={onPlayAgain}
                 className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
               >
-                <RotateCcw className="w-5 h-5" />
-                {isChallenge ? 'Play Another Day' : 'Play Again'}
+                {isChallenge ? <CalendarDays className="w-5 h-5" /> : <RotateCcw className="w-5 h-5" />}
+                {isChallenge ? 'View Challenge Archive' : 'Play Again'}
               </button>
 
               <button

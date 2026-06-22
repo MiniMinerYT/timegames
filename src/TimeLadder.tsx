@@ -1,19 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Flag, RotateCcw, Timer, TrendingUp } from 'lucide-react';
+import { ArrowLeft, RotateCcw, TrendingUp } from 'lucide-react';
 
 const CARD_HEIGHT = 'h-[680px]';
 const FINAL_LEVEL = 20;
 const TOLERANCE = 0.25;
 
-type LadderPhase = 'ready' | 'countdown' | 'playing' | 'result';
-
-interface TimeLadderProps {
-  bestLevel: number;
-  sounds: boolean;
-  haptics: boolean;
-  onBestLevelChange: (level: number) => void;
-  onBack: () => void;
-}
+type LadderPhase = 'ready' | 'playing' | 'result';
 
 export default function TimeLadder({
   bestLevel,
@@ -21,10 +13,15 @@ export default function TimeLadder({
   haptics,
   onBestLevelChange,
   onBack,
-}: TimeLadderProps) {
+}: {
+  bestLevel: number;
+  sounds: boolean;
+  haptics: boolean;
+  onBestLevelChange: (level: number) => void;
+  onBack: () => void;
+}) {
   const [level, setLevel] = useState(1);
   const [phase, setPhase] = useState<LadderPhase>('ready');
-  const [countdown, setCountdown] = useState(3);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [success, setSuccess] = useState(false);
   const startRef = useRef<number | null>(null);
@@ -43,39 +40,32 @@ export default function TimeLadder({
       oscillator.start();
       oscillator.stop(context.currentTime + duration);
     } catch {
-      // Audio feedback is optional and may be blocked by the browser.
+      // Optional browser audio feedback.
     }
   }, [sounds]);
 
-  useEffect(() => {
-    if (phase !== 'countdown') return;
-    if (countdown > 0) {
-      playTone(420, 0.05);
-      const timer = window.setTimeout(() => setCountdown(value => value - 1), 1000);
-      return () => window.clearTimeout(timer);
-    }
-
-    playTone(720, 0.08);
-    if (haptics && 'vibrate' in navigator) navigator.vibrate(35);
-    startRef.current = performance.now();
-    setPhase('playing');
-  }, [countdown, haptics, phase, playTone]);
-
   const startLevel = () => {
-    setCountdown(3);
     setElapsed(null);
     setSuccess(false);
-    setPhase('countdown');
+    startRef.current = performance.now();
+    setPhase('playing');
+    playTone(720, 0.08);
+    if (haptics && 'vibrate' in navigator) navigator.vibrate(35);
   };
 
   const stopTimer = () => {
     if (startRef.current === null) return;
     const measured = Math.round(((performance.now() - startRef.current) / 1000) * 100) / 100;
-    const passed = Math.abs(measured - level) <= TOLERANCE;
+    const difference = Math.abs(measured - level);
+    const passed = difference <= TOLERANCE;
     setElapsed(measured);
     setSuccess(passed);
     setPhase('result');
     playTone(passed ? 880 : 220, 0.12);
+    if (difference < 0.005) {
+      window.setTimeout(() => playTone(1100, 0.1), 90);
+      window.setTimeout(() => playTone(1320, 0.16), 180);
+    }
     if (haptics && 'vibrate' in navigator) navigator.vibrate(passed ? [25, 35, 25] : [45, 30, 45]);
     if (passed && level > bestLevel) onBestLevelChange(level);
   };
@@ -83,14 +73,12 @@ export default function TimeLadder({
   const continueRun = () => {
     if (level >= FINAL_LEVEL) {
       setLevel(1);
-      setPhase('ready');
-      return;
+    } else {
+      setLevel(value => value + 1);
     }
-    setLevel(value => value + 1);
-    setCountdown(3);
     setElapsed(null);
     setSuccess(false);
-    setPhase('countdown');
+    setPhase('ready');
   };
 
   const restartRun = () => {
@@ -100,88 +88,75 @@ export default function TimeLadder({
     setPhase('ready');
   };
 
-  const error = elapsed === null ? null : Math.abs(elapsed - level);
+  useEffect(() => {
+    const handleSpace = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat) return;
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'BUTTON') return;
+      event.preventDefault();
+      if (phase === 'ready') startLevel();
+      else if (phase === 'playing') stopTimer();
+      else if (success) continueRun();
+      else restartRun();
+    };
+    window.addEventListener('keydown', handleSpace);
+    return () => window.removeEventListener('keydown', handleSpace);
+  });
+
+  const difference = elapsed === null ? null : Math.abs(elapsed - level);
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-6 text-center ${CARD_HEIGHT} flex flex-col`}>
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={onBack} aria-label="Back to TimeGames" className="w-11 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] font-black text-indigo-500">Time Ladder</p>
-          <p className="text-sm font-bold text-slate-500">Best: Level {bestLevel}</p>
-        </div>
-        <div className="w-11 h-11 rounded-xl bg-indigo-500 flex items-center justify-center">
-          <TrendingUp className="w-6 h-6 text-white" />
-        </div>
+      <div className="text-center space-y-1 mb-2">
+        <div className="w-11 h-11 mx-auto rounded-xl bg-indigo-500 flex items-center justify-center"><TrendingUp className="w-6 h-6 text-white" /></div>
+        <h1 className="text-2xl font-black text-slate-800">Time Ladder</h1>
+        <p className="text-xs text-slate-500">Climb from 1 to 20 seconds. One miss ends the run.</p>
+        <p className="text-xs font-black text-indigo-600">Best level: {bestLevel}</p>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto always-scrollbar pr-1">
-        <div className="bg-gradient-to-br from-indigo-50 to-teal-50 border border-indigo-100 rounded-3xl p-5 mb-4">
-          <p className="text-sm font-bold text-slate-500">Level {level} of {FINAL_LEVEL}</p>
-          <p className="text-6xl font-black text-indigo-600 my-2">{level.toFixed(2)}s</p>
-          <p className="text-sm text-slate-500">Stop within ±{TOLERANCE.toFixed(2)}s to climb.</p>
-          <div className="h-2 bg-white/80 rounded-full overflow-hidden mt-4">
-            <div className="h-full bg-gradient-to-r from-teal-500 to-indigo-500 rounded-full transition-all duration-500" style={{ width: `${(level / FINAL_LEVEL) * 100}%` }} />
+      <div className="flex-1 min-h-0 flex flex-col items-center gap-2">
+        <div key={level} className="w-full flex-1 min-h-0 flex flex-col items-center justify-center transition-all duration-500">
+          <div className="w-[74%] rounded-xl border border-slate-200 bg-slate-100 text-slate-400 py-2">
+            <p className="text-[10px] uppercase tracking-wider font-black">Previous</p>
+            <p className="text-sm font-black">{level > 1 ? `Level ${level - 1} · ${(level - 1).toFixed(2)}s` : 'Start of ladder'}</p>
           </div>
-        </div>
-
-        {phase === 'ready' && (
-          <div className="space-y-5 py-4">
-            <div className="grid grid-cols-10 gap-2" aria-label="Ladder progress">
-              {Array.from({ length: FINAL_LEVEL }, (_, index) => index + 1).map(step => (
-                <div key={step} className={`aspect-square rounded-lg flex items-center justify-center text-[10px] font-black ${step <= bestLevel ? 'bg-teal-500 text-white' : step === level ? 'bg-indigo-500 text-white ring-4 ring-indigo-100' : 'bg-slate-100 text-slate-400'}`}>
-                  {step}
-                </div>
-              ))}
+          <div className="w-1 h-3 bg-slate-200" />
+          <div className={`w-full rounded-3xl border-2 p-3 shadow-lg transition-colors ${phase === 'result' ? success ? 'bg-teal-50 border-teal-300' : 'bg-rose-50 border-rose-300' : 'bg-indigo-500 border-indigo-500 text-white'}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-left"><p className="text-[10px] uppercase tracking-wider font-black opacity-70">Current level</p><p className="text-2xl font-black">Level {level}</p></div>
+              <div className="text-right"><p className="text-[10px] uppercase tracking-wider font-black opacity-70">Target</p><p className="text-3xl font-black">{level.toFixed(2)}s</p></div>
             </div>
-            <p className="text-slate-500 text-sm">One miss ends the run. The clock stays hidden.</p>
-            <button onClick={startLevel} className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-4 rounded-2xl text-lg transition-all active:scale-[0.98]">
-              Start Climb
-            </button>
-          </div>
-        )}
-
-        {phase === 'countdown' && (
-          <div className="h-[250px] flex items-center justify-center">
-            <span className="text-8xl font-black text-slate-800">{countdown > 0 ? countdown : ''}</span>
-          </div>
-        )}
-
-        {phase === 'playing' && (
-          <div className="space-y-7 py-7">
-            <div className="w-24 h-24 mx-auto rounded-full bg-teal-500 shadow-xl shadow-teal-500/25 flex items-center justify-center">
-              <Timer className="w-12 h-12 text-white" />
-            </div>
-            <p className="font-bold text-slate-700">Trust your internal clock.</p>
-            <button onClick={stopTimer} className="w-40 h-40 mx-auto rounded-full bg-rose-500 hover:bg-rose-600 text-white text-3xl font-black shadow-xl shadow-rose-500/25 transition-all active:scale-95">
-              STOP
-            </button>
-          </div>
-        )}
-
-        {phase === 'result' && elapsed !== null && error !== null && (
-          <div className="space-y-4 py-2">
-            <div className={`rounded-3xl border p-5 ${success ? 'bg-teal-50 border-teal-200' : 'bg-rose-50 border-rose-200'}`}>
-              <Flag className={`w-9 h-9 mx-auto mb-2 ${success ? 'text-teal-600' : 'text-rose-600'}`} />
-              <h2 className="text-2xl font-black text-slate-800">{success ? level === FINAL_LEVEL ? 'Ladder complete!' : 'Level cleared!' : 'Run over'}</h2>
-              <p className="text-4xl font-black text-indigo-600 mt-3">{elapsed.toFixed(2)}s</p>
-              <p className="text-sm font-bold text-slate-500 mt-1">{error.toFixed(2)}s off target</p>
-            </div>
-            {success ? (
-              <button onClick={continueRun} className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-4 rounded-2xl transition-colors">
-                {level === FINAL_LEVEL ? 'Finish Run' : `Climb to Level ${level + 1}`}
-              </button>
-            ) : (
-              <button onClick={restartRun} className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2">
-                <RotateCcw className="w-5 h-5" />
-                Try a New Run
-              </button>
+            {phase === 'result' && elapsed !== null && difference !== null && (
+              <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-current/20">
+                <div><p className="text-[10px] font-bold opacity-70">Actual</p><p className="font-black">{elapsed.toFixed(2)}s</p></div>
+                <div><p className="text-[10px] font-bold opacity-70">Difference</p><p className="font-black">{difference.toFixed(2)}s</p></div>
+                <div><p className="text-[10px] font-bold opacity-70">Result</p><p className={`font-black ${success ? 'text-teal-700' : 'text-rose-700'}`}>{success ? 'Passed' : 'Failed'}</p></div>
+              </div>
             )}
           </div>
+          <div className="w-1 h-3 bg-slate-200" />
+          <div className="w-[74%] rounded-xl border border-slate-200 bg-slate-100 text-slate-400 py-2">
+            <p className="text-[10px] uppercase tracking-wider font-black">Next</p>
+            <p className="text-sm font-black">{level < FINAL_LEVEL ? `Level ${level + 1} · ${(level + 1).toFixed(2)}s` : 'Top of ladder'}</p>
+          </div>
+        </div>
+
+        {(phase === 'ready' || phase === 'playing') && (
+          <button onClick={phase === 'ready' ? startLevel : stopTimer} className={`w-32 h-32 shrink-0 rounded-full text-white text-2xl font-black shadow-xl transition-all active:scale-95 ${phase === 'ready' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-rose-500 hover:bg-rose-600'}`}>
+            {phase === 'ready' ? 'START' : 'STOP'}
+          </button>
+        )}
+        {phase === 'result' && (
+          <button onClick={success ? continueRun : restartRun} className="w-full shrink-0 bg-indigo-500 hover:bg-indigo-600 text-white font-black py-3 rounded-2xl transition-colors flex items-center justify-center gap-2">
+            {!success && <RotateCcw className="w-5 h-5" />}
+            {success ? level === FINAL_LEVEL ? 'Finish Run · Space' : 'Next Level · Space' : 'Try a New Run · Space'}
+          </button>
         )}
       </div>
+
+      <button onClick={onBack} className="mt-3 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+        <ArrowLeft className="w-5 h-5" />All Games
+      </button>
     </div>
   );
 }
