@@ -17,6 +17,7 @@ import {
   Moon,
 } from 'lucide-react';
 import TimeLadder from './TimeLadder';
+import HardcoreMode, { type HardcoreDifficulty, type HardcoreScores } from './HardcoreMode';
 
 type GameMode = 'home' | 'single' | 'party' | 'challenge';
 
@@ -31,6 +32,7 @@ type GamePhase =
   | 'rankings'
   | 'guesserHub'
   | 'ladder'
+  | 'hardcore'
   | 'dailyHub'
   | 'partySetup'
   | 'partyGuesses'
@@ -108,6 +110,14 @@ const defaultSettings: SettingsState = {
   reducedMotion: false,
   partyTimerRange: 'standard',
   darkMode: false,
+};
+
+const defaultHardcoreScores: HardcoreScores = {
+  easy: 0,
+  medium: 0,
+  hard: 0,
+  expert: 0,
+  god: 0,
 };
 
 function getLocalDateKey(date = new Date()) {
@@ -290,6 +300,22 @@ function App() {
     return Math.max(0, Math.min(20, saved));
   });
 
+  const [hardcoreScores, setHardcoreScores] = useState<HardcoreScores>(() => {
+    try {
+      const saved = localStorage.getItem('timegames-hardcore-bests');
+      const parsed = saved ? JSON.parse(saved) : {};
+      return {
+        easy: Math.max(0, Number(parsed.easy) || 0),
+        medium: Math.max(0, Number(parsed.medium) || 0),
+        hard: Math.max(0, Number(parsed.hard) || 0),
+        expert: Math.max(0, Number(parsed.expert) || 0),
+        god: Math.max(0, Number(parsed.god) || 0),
+      };
+    } catch {
+      return defaultHardcoreScores;
+    }
+  });
+
   const [partyPlayers, setPartyPlayers] = useState<PartyPlayer[]>([]);
 
   const [newPlayerName, setNewPlayerName] = useState('');
@@ -316,6 +342,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('timegames-ladder-best', bestLadderLevel.toString());
   }, [bestLadderLevel]);
+
+  useEffect(() => {
+    localStorage.setItem('timegames-hardcore-bests', JSON.stringify(hardcoreScores));
+  }, [hardcoreScores]);
 
   const playTone = useCallback((frequency = 440, duration = 0.08) => {
     if (!settings.sounds) return;
@@ -586,6 +616,15 @@ function App() {
     setGame(prev => ({ ...prev, mode: 'home', phase: 'ladder' }));
   }, [clearGameTimer]);
 
+  const showHardcoreMode = useCallback(() => {
+    clearGameTimer();
+    setGame(prev => ({ ...prev, mode: 'home', phase: 'hardcore' }));
+  }, [clearGameTimer]);
+
+  const updateHardcoreBest = useCallback((difficulty: HardcoreDifficulty, score: number) => {
+    setHardcoreScores(prev => ({ ...prev, [difficulty]: Math.max(prev[difficulty], score) }));
+  }, []);
+
   const showStats = useCallback(() => {
     setGame(prev => ({
       ...prev,
@@ -757,13 +796,13 @@ function App() {
       <div className="w-full max-w-md">
         {game.mode === 'home' && game.phase === 'ready' && (
           <HomeScreen
-            stats={stats}
             bestLadderLevel={bestLadderLevel}
+            bestHardcoreScore={Math.max(...Object.values(hardcoreScores))}
             onTimeGuesser={showTimeGuesser}
             onTimeLadder={showTimeLadder}
+            onHardcore={showHardcoreMode}
             onStats={showStats}
             onSettings={showSettings}
-            onRankings={showRankings}
           />
         )}
 
@@ -788,6 +827,16 @@ function App() {
             sounds={settings.sounds}
             haptics={settings.haptics}
             onBestLevelChange={setBestLadderLevel}
+            onBack={goHome}
+          />
+        )}
+
+        {game.phase === 'hardcore' && (
+          <HardcoreMode
+            bestScores={hardcoreScores}
+            sounds={settings.sounds}
+            haptics={settings.haptics}
+            onBestScoreChange={updateHardcoreBest}
             onBack={goHome}
           />
         )}
@@ -820,6 +869,8 @@ function App() {
           <StatsScreen
             stats={stats}
             bestLadderLevel={bestLadderLevel}
+            dailyResults={dailyResults}
+            hardcoreScores={hardcoreScores}
             onBack={hideStats}
             onResetStats={resetStats}
           />
@@ -897,23 +948,22 @@ function App() {
 }
 
 function HomeScreen({
-  stats,
   bestLadderLevel,
+  bestHardcoreScore,
   onTimeGuesser,
   onTimeLadder,
+  onHardcore,
   onStats,
   onSettings,
-  onRankings,
 }: {
-  stats: StatsState;
   bestLadderLevel: number;
+  bestHardcoreScore: number;
   onTimeGuesser: () => void;
   onTimeLadder: () => void;
+  onHardcore: () => void;
   onStats: () => void;
   onSettings: () => void;
-  onRankings: () => void;
 }) {
-  const rankInfo = getRank(stats.clockRating);
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-6 ${CARD_HEIGHT} flex flex-col`}>
       <div className="flex items-center justify-between mb-4">
@@ -925,40 +975,22 @@ function HomeScreen({
           <h1 className="text-3xl font-black text-slate-800 mt-1">TimeGames</h1>
           <p className="text-xs text-slate-500">Master your internal clock.</p>
         </div>
-        <button onClick={onSettings} aria-label="Settings" className="w-11 h-11 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center text-slate-600">
-          <Settings className="w-5 h-5" />
-        </button>
+        <div className="w-11" />
       </div>
-
-      <button onClick={onRankings} className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-3 flex items-center gap-3 text-left mb-4 transition-colors">
-        <span className="text-3xl">{rankInfo.rank.icon}</span>
-        <div className="flex-1 min-w-0">
-          <p className="font-black text-slate-800">{rankInfo.rank.name}</p>
-          <p className="text-xs text-slate-500">{stats.clockRating} rating · {rankInfo.next ? `${rankInfo.pointsNeeded} to next` : 'Top rank'}</p>
-          <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mt-2">
-            <div className="h-full bg-teal-500" style={{ width: `${rankInfo.progress}%` }} />
-          </div>
-        </div>
-      </button>
 
       <div className="flex-1 min-h-0 overflow-y-auto always-scrollbar space-y-3 pr-1">
         <GameMenuCard color="teal" icon={<Clock className="w-7 h-7" />} title="Time Guesser" description="Guess how long the hidden clock ran." onClick={onTimeGuesser} />
         <GameMenuCard color="indigo" icon={<Trophy className="w-7 h-7" />} title="Time Ladder" description={`Climb from 1s to 20s · Best level ${bestLadderLevel}`} onClick={onTimeLadder} />
-        <div className="bg-slate-100 border border-slate-200 rounded-3xl p-4 flex items-center gap-4 text-left opacity-80">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-rose-500 shrink-0"><Target className="w-7 h-7" /></div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2"><p className="text-lg font-black text-slate-700">Precision Mode</p><span className="text-[9px] uppercase font-black tracking-wider bg-white rounded-full px-2 py-1">Coming soon</span></div>
-            <p className="text-sm text-slate-500">Hit exact target times.</p>
-          </div>
-        </div>
+        <GameMenuCard color="red" icon={<Target className="w-7 h-7" />} title="Hardcore Mode" description={`Three lives · Endless score · Best ${bestHardcoreScore}`} onClick={onHardcore} />
         <GameMenuCard color="rose" icon={<BarChart3 className="w-7 h-7" />} title="Stats" description="See your progress across TimeGames." onClick={onStats} />
+        <GameMenuCard color="slate" icon={<Settings className="w-7 h-7" />} title="Settings" description="Sound, haptics, ranked play and display." onClick={onSettings} />
       </div>
     </div>
   );
 }
 
 function GameMenuCard({ color, icon, title, description, onClick }: {
-  color: 'teal' | 'indigo' | 'rose';
+  color: 'teal' | 'indigo' | 'red' | 'rose' | 'slate';
   icon: ReactNode;
   title: string;
   description: string;
@@ -967,7 +999,9 @@ function GameMenuCard({ color, icon, title, description, onClick }: {
   const colorClasses = {
     teal: 'bg-teal-500 hover:bg-teal-600 shadow-teal-500/20',
     indigo: 'bg-indigo-500 hover:bg-indigo-600 shadow-indigo-500/20',
+    red: 'bg-red-700 hover:bg-red-800 shadow-red-700/20',
     rose: 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/20',
+    slate: 'bg-slate-700 hover:bg-slate-800 shadow-slate-700/20',
   }[color];
   return (
     <button onClick={onClick} className={`w-full ${colorClasses} text-white rounded-3xl p-4 flex items-center gap-4 text-left shadow-lg transition-all active:scale-[0.98]`}>
@@ -1212,16 +1246,25 @@ function DailyChallengeHub({
 function StatsScreen({
   stats,
   bestLadderLevel,
+  dailyResults,
+  hardcoreScores,
   onBack,
   onResetStats,
 }: {
   stats: StatsState;
   bestLadderLevel: number;
+  dailyResults: DailyResults;
+  hardcoreScores: HardcoreScores;
   onBack: () => void;
   onResetStats: () => void;
 }) {
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
   const rankInfo = getRank(stats.clockRating);
+  const dailyEntries = Object.values(dailyResults);
+  const bestDailyAccuracy = dailyEntries.length > 0
+    ? Math.min(...dailyEntries.map(result => result.error))
+    : null;
+  const godUnlocked = hardcoreScores.expert >= 3 || hardcoreScores.god > 0;
 
   const confirmReset = () => {
     onResetStats();
@@ -1247,20 +1290,27 @@ function StatsScreen({
       </div>
 
       <div className="flex-1 overflow-y-auto always-scrollbar space-y-3 text-left pr-1">
+        <StatsSectionLabel>Time Guesser</StatsSectionLabel>
+        <ResultRow label="Clock Rating" value={stats.clockRating.toString()} accent />
+        <ResultRow label="Current Rank" value={rankInfo.rank.name} />
         <ResultRow label="Games Played" value={stats.gamesPlayed.toString()} />
         <ResultRow label="Best Accuracy" value={stats.bestAccuracy === null ? '-' : `${stats.bestAccuracy.toFixed(2)}s`} />
         <ResultRow label="Average Error" value={stats.averageError === null ? '-' : `${stats.averageError.toFixed(2)}s`} />
         <ResultRow label="Spot Ons" value={stats.spotOns.toString()} />
+
+        <StatsSectionLabel>Daily Challenge</StatsSectionLabel>
+        <ResultRow label="Best Daily Accuracy" value={bestDailyAccuracy === null ? '-' : `${bestDailyAccuracy.toFixed(2)}s`} />
+        <ResultRow label="Challenges Completed" value={dailyEntries.length.toString()} />
+
+        <StatsSectionLabel>Time Ladder</StatsSectionLabel>
         <ResultRow label="Best Ladder Level" value={bestLadderLevel.toString()} />
-        <ResultRow
-          label="Clock Rating"
-          value={`${rankInfo.rank.name} · ${stats.clockRating}`}
-          accent
-        />
-        <ResultRow
-          label="Next Rank"
-          value={rankInfo.next ? `${rankInfo.pointsNeeded} points away` : 'Highest rank reached'}
-        />
+
+        <StatsSectionLabel>Hardcore Mode</StatsSectionLabel>
+        <ResultRow label="Easy Best" value={hardcoreScores.easy.toString()} />
+        <ResultRow label="Medium Best" value={hardcoreScores.medium.toString()} />
+        <ResultRow label="Hard Best" value={hardcoreScores.hard.toString()} />
+        <ResultRow label="Expert Best" value={hardcoreScores.expert.toString()} />
+        {godUnlocked && <ResultRow label="GOD Best" value={hardcoreScores.god.toString()} accent />}
       </div>
 
       <div className="space-y-3 pt-5">
@@ -1296,7 +1346,7 @@ function StatsScreen({
               Reset statistics?
             </h2>
             <p id="reset-dialog-description" className="text-slate-500 mt-2 mb-6">
-              This will erase your general accuracy statistics and Clock Rating. Daily and Time Ladder records are kept.
+              This will erase Time Guesser accuracy statistics and Clock Rating. Daily, Time Ladder and Hardcore records are kept.
             </p>
             <div className="space-y-3">
               <button
@@ -2197,6 +2247,10 @@ function RevealScreen({
       </div>
     </div>
   );
+}
+
+function StatsSectionLabel({ children }: { children: ReactNode }) {
+  return <p className="pt-2 text-xs font-black uppercase tracking-[0.2em] text-slate-400">{children}</p>;
 }
 
 function ResultRow({

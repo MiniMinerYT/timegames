@@ -10,6 +10,7 @@ Rules:
 * Preserve Party Mode.
 * Preserve Daily Challenge.
 * Preserve Time Ladder.
+* Preserve Hardcore Mode and its difficulty unlock progression.
 * Keep Clock Rating limited to ranked Time Guesser Single Player.
 * Preserve ranking system.
 * Preserve localStorage settings and stats.

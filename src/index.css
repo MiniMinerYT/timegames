@@ -68,6 +68,37 @@ body {
   color: #f8fafc;
 }
 
+/* Hardcore GOD difficulty: dramatic but timing-neutral ambient treatment. */
+
+.hardcore-god-screen {
+  color: #fff7cc;
+  background:
+    radial-gradient(circle at 50% 0%, rgb(234 179 8 / 18%), transparent 34%),
+    linear-gradient(to bottom, #050505, #190707);
+  box-shadow:
+    0 0 0 1px rgb(234 179 8 / 35%),
+    0 0 32px rgb(220 38 38 / 16%);
+  animation: hardcore-god-glow 3.5s ease-in-out infinite;
+}
+
+.hardcore-god-panel {
+  background:
+    radial-gradient(circle at 85% 10%, rgb(234 179 8 / 18%), transparent 28%),
+    linear-gradient(135deg, #050505, #260808);
+  box-shadow: inset 0 0 24px rgb(234 179 8 / 8%);
+}
+
+@keyframes hardcore-god-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgb(234 179 8 / 30%), 0 0 24px rgb(220 38 38 / 12%);
+  }
+
+  50% {
+    box-shadow: 0 0 0 1px rgb(234 179 8 / 50%), 0 0 38px rgb(234 179 8 / 18%);
+  }
+}
+
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button {
   -webkit-appearance: none;
