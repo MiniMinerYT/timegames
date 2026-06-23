@@ -34,14 +34,14 @@ export default function HelpOverlay({ content }: { content: HelpContent }) {
 
       {open && (
         <div
-          className="absolute inset-0 z-[70] h-[680px] rounded-3xl bg-slate-950/60 p-4 flex"
+          className="fixed inset-0 z-[70] bg-slate-950/60 flex items-center justify-center app-modal-safe-padding"
           onClick={() => setOpen(false)}
         >
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="help-title"
-            className="w-full h-full max-h-[648px] bg-white border border-slate-200 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+            className="w-full max-w-md max-h-full bg-white border border-slate-200 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
             onClick={event => event.stopPropagation()}
           >
             <div className="shrink-0 flex items-start gap-3 p-5 border-b border-slate-200">

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, Lock, RotateCcw, ShieldAlert, Skull, Sparkles } from 'lucide-react';
+import { triggerHaptic } from './haptics';
 
-const CARD_HEIGHT = 'h-[680px]';
+const CARD_HEIGHT = 'app-card';
 
 export type HardcoreDifficulty = 'easy' | 'medium' | 'hard' | 'expert' | 'god' | 'literal';
 export type HardcoreScores = Record<HardcoreDifficulty, number>;
@@ -49,6 +50,7 @@ export default function HardcoreMode({
   haptics,
   reducedMotion,
   onTimingChange,
+  onHelpVisibilityChange,
   onBestScoreChange,
   onBack,
 }: {
@@ -57,6 +59,7 @@ export default function HardcoreMode({
   haptics: boolean;
   reducedMotion: boolean;
   onTimingChange: (active: boolean) => void;
+  onHelpVisibilityChange: (visible: boolean) => void;
   onBestScoreChange: (difficulty: HardcoreDifficulty, score: number) => void;
   onBack: () => void;
 }) {
@@ -106,7 +109,7 @@ export default function HardcoreMode({
     setPhase('playing');
     onTimingChange(true);
     playTone(760, 0.08);
-    if (haptics && 'vibrate' in navigator) navigator.vibrate(35);
+    triggerHaptic(haptics, 35);
   };
 
   const stopTimer = () => {
@@ -133,7 +136,7 @@ export default function HardcoreMode({
       window.setTimeout(() => playTone(1120, 0.1), 90);
       window.setTimeout(() => playTone(1380, 0.18), 180);
     }
-    if (haptics && 'vibrate' in navigator) navigator.vibrate(success ? [25, 30, 25] : [50, 35, 50]);
+    triggerHaptic(haptics, success ? [25, 30, 25] : [50, 35, 50]);
 
     if (success && nextScore > bestScores[difficulty]) {
       onBestScoreChange(difficulty, nextScore);
@@ -180,6 +183,11 @@ export default function HardcoreMode({
   }, [lockedNotice]);
 
   useEffect(() => () => onTimingChange(false), [onTimingChange]);
+
+  useEffect(() => {
+    onHelpVisibilityChange(phase === 'select');
+    return () => onHelpVisibilityChange(false);
+  }, [onHelpVisibilityChange, phase]);
 
   const shownError = elapsed === null ? null : Math.round(Math.abs(elapsed - target) * 100) / 100;
   const visibleDifficulties = difficulties;
@@ -325,7 +333,7 @@ export default function HardcoreMode({
       {(phase === 'result' || phase === 'gameOver') && shownError === 0 && (
         <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
       )}
-      <button onClick={onBack} className="mt-3 w-full bg-white/10 hover:bg-white/20 border border-slate-300/30 text-slate-700 font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+      <button onClick={onBack} className="mt-3 w-full shrink-0 bg-white/10 hover:bg-white/20 border border-slate-300/30 text-slate-700 font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors app-bottom-actions">
         <ArrowLeft className="w-5 h-5" />
         All Games
       </button>

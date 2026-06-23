@@ -20,9 +20,9 @@ The Home Time Guesser card indicates whether Single Player is currently Ranked o
 
 Shared game-menu cards use a fixed icon column, centered text column and matching spacer column so icons align consistently. Time Guesser, Time Ladder and Hardcore use the same centered icon/title/tagline header structure.
 
-All primary screens use the fixed 680px card layout. Long content scrolls inside cards without reserving a permanent scrollbar gutter or scrolling the whole page.
+The layout uses a responsive app-card system. Desktop and roomy web screens preserve the polished 680px card presentation, while mobile/native-sized screens use the full available dynamic viewport height with safe-area padding for phone status bars and home indicators. Content-heavy screens keep key navigation controls outside their scrollable content so actions such as Back remain visible. Scrollable content uses `flex-1 min-h-0 overflow-y-auto` plus bottom padding for the action area and safe-area inset, so final settings and stats can scroll fully above persistent bottom controls.
 
-Every screen exposes the same contextual question-mark button in the card's top-left corner. It opens a reusable help dialog over the current screen with page-specific rules and explanations. The dialog stays inside the fixed card, keeps its X close control visible in the top-right, scrolls its body internally when necessary, closes from the backdrop or Escape key and supports light/dark themes.
+Menu screens expose a contextual question-mark button in the card's top-left corner. It opens a reusable help dialog over the current screen with page-specific rules and explanations. The dialog respects the available viewport and safe areas, keeps its X close control visible in the top-right, scrolls its body internally when necessary, closes from the backdrop or Escape key and supports light/dark themes. Active Time Guesser gameplay, timing, guess-entry and result screens hide the help control so it does not distract or overlap play. Time Ladder keeps its help entry available, and Hardcore keeps help visible on the difficulty-selection screen only.
 
 ## Game 1: Time Guesser
 
@@ -120,7 +120,7 @@ Rules:
 
 The highest successfully cleared level persists in localStorage and is shown on the Home, Time Ladder and Stats screens. Time Ladder renders all 20 levels as one continuously mounted vertical tower. There is no surrounding box, rail artwork or background. Every rung remains rendered throughout movement; the stage's vertical mask alone determines when a step enters or leaves view, so rungs cross the top and bottom boundaries smoothly rather than being toggled invisible. The bottom mask sits immediately above the timer circle and allows extra horizontal room for result feedback. Rungs use nearly the full available card width while preserving safe scale-animation clearance and the unchanged timer circle. Stable rung DOM nodes are never replaced between levels. Framer Motion animates only the tower container's `translateY`, centering the current rung over approximately 0.75 seconds with ease-in/out movement. There is no opacity transition. Reduced Motion sets the movement duration to zero. The current rung shows the target and, after a stop, the actual time, difference and pass/fail result inline rather than opening a separate result screen.
 
-Time Ladder is fitted into the fixed card without internal scrolling. Its ladder visualization has a fixed-height stage so inline result details never shift the circular control. The animated tower ignores pointer input and the circle sits in a higher interaction layer, making the entire visible circle clickable. The largest practical circle remains in exactly the same position for START, STOP, advancing and resetting after failure. Ready-to-start is green, active STOP is red, and post-result actions including NEW RUN remain purple. Choosing NEW RUN after a failure above Level 1 reveals the intermediate rungs and smoothly rewinds the tower to Level 1 inside the masked upper stage; it never scrolls across the circle or lower navigation. Reduced Motion and completion resets move instantly. A second press starts the new timer. Space provides the same two-step behavior. The header states the ±0.25-second tolerance, and the final rung is labelled as the 20.00-second final step rather than a generic top marker.
+Time Ladder is fitted into the shared responsive card without internal scrolling in normal phone layouts. Its ladder visualization has a fixed-height stage so inline result details never shift the circular control. The animated tower ignores pointer input and the circle sits in a higher interaction layer, making the entire visible circle clickable. The largest practical circle remains in exactly the same position for START, STOP, advancing and resetting after failure. Ready-to-start is green, active STOP is red, and post-result actions including NEW RUN remain purple. Choosing NEW RUN after a failure above Level 1 reveals the intermediate rungs and smoothly rewinds the tower to Level 1 inside the masked upper stage; it never scrolls across the circle or lower navigation. Reduced Motion and completion resets move instantly. A second press starts the new timer. Space provides the same two-step behavior. The header states the ±0.25-second tolerance, and the final rung is labelled as the 20.00-second final step rather than a generic top marker.
 
 Completed rungs remain visible in teal, future rungs are dimmed and the focused rung receives a subtle scale treatment. Framer Motion supplies one-shot success pulse, failure shake and best-level feedback outside the active timing window. No repeating or rhythmic animation runs during the active timer. Completing all 20 levels triggers a full-card trophy, layered confetti, enhanced celebration sound and haptic sequence. Saved and operating-system reduced-motion preferences make Ladder movement and feedback instant.
 
@@ -145,7 +145,7 @@ Difficulties and tolerances:
 
 Locked Medium, Hard and Expert cards remain visible and explain their unlock requirement. GOD and LITERAL CLOCK are visible as secret question-mark tiers until their respective prerequisites are met. Before GOD is revealed, LITERAL CLOCK's requirement says `Score 3 on ????`; it names GOD only after GOD is unlocked. Best scores persist independently for every difficulty.
 
-All six difficulty cards fit on the fixed selection screen without scrolling using a compact two-column grid. Locked cards use explicit lock badges and dashed/high-contrast treatment. Clicking one shows a short dismissible explanation of its prerequisite. Hover states do not scale or clip, and Hard uses a readable red treatment.
+All six difficulty cards fit on the standard selection screen using a compact two-column grid. Locked cards use explicit lock badges and dashed/high-contrast treatment. Clicking one shows a short dismissible explanation of its prerequisite. Hover states do not scale or clip, and Hard uses a readable red treatment.
 
 Crossing an unlock score shows a dismissible unlock notice which closes automatically after a few seconds. Hardcore START and STOP use the same large centered circular control and position. Their full circular surfaces are explicit interaction layers so decorative content cannot intercept clicks. Space advances from a result to the next target and starts another run from game over.
 
@@ -204,11 +204,11 @@ Music is optional, defaults off and uses softly spaced, irregular notes rather t
 
 ## Input and Navigation UX
 
-Time guesses request the mobile decimal keypad and accept no more than two digits before and two digits after the decimal point.
+Time guesses request the mobile decimal keypad, accept no more than two digits before and two digits after the decimal point, and automatically insert the decimal point once two whole-number digits have been typed.
 
 Enter submits valid Single Player and Daily Challenge guesses. In Party Mode, Enter advances focus to the next player's guess field. Space starts and stops Time Ladder and Hardcore timers when focus is not inside another interactive control.
 
-Menu buttons provide short feedback tones when sounds are enabled. Gameplay retains countdown, stop and result tones plus optional haptics.
+Menu buttons provide short feedback tones when sounds are enabled. Gameplay retains countdown, stop and result tones plus optional haptics. Haptics are routed through `@capacitor/haptics` for native Android/iOS builds, with `navigator.vibrate` retained only as a browser fallback if Capacitor haptics are unavailable.
 
 A Spot On result in any implemented game plays a celebration sound and shows confetti. Party result rows replace the error with `Spot On!`, and Spot On player names use gold treatment.
 
@@ -240,16 +240,18 @@ Party players and scores remain in React state only.
 
 ## UI Requirements
 
-- Preserve the fixed 680px card and mobile-first maximum width.
-- Keep scrolling inside cards without forcing a persistent scrollbar gutter.
+- Preserve the desktop 680px card feel and mobile-first maximum width.
+- On mobile/native-sized screens, use the full available dynamic viewport height with safe-area padding and allow the app screen to scroll vertically when content cannot fit.
+- Keep scrolling inside the app/cards without letting bottom actions overlap content. Any scrollable area above persistent bottom actions must include enough bottom padding for the action area and `safe-area-inset-bottom`.
 - Result cards may remain internally scrollable but must hide their scrollbar so the Single Player reveal face stays clean.
 - Screens with a bottom “All Games” action should not duplicate it with a top-left back button.
-- Time Ladder and Hardcore selection/gameplay screens must fit without internal scrolling.
+- Time Ladder and Hardcore selection/gameplay screens should fit without internal scrolling on normal phone sizes, but the global app viewport may scroll on especially small screens rather than clipping content.
 - Preserve rounded cards and teal, indigo and rose accents.
 - Preserve the result flip card, hidden-clock shimmer, Spot On glow and confetti.
 - Time Guesser's reveal card flips horizontally from right to left.
 - Preserve reduced-motion and dark-mode support.
-- Avoid whole-page scrolling and fixed-card overflow.
+- Avoid clipped fixed-card overflow; mobile screens may scroll cleanly inside the app viewport when needed.
+- Native Android builds are locked to portrait orientation via the Android manifest.
 
 ## Technical Stack
 
@@ -259,6 +261,7 @@ Party players and scores remain in React state only.
 - Tailwind CSS
 - lucide-react
 - framer-motion
+- @capacitor/haptics
 - localStorage persistence
 
 ## Important Development Rules
@@ -270,5 +273,5 @@ Party players and scores remain in React state only.
 - Keep Time Ladder, Hardcore, Party and casual play isolated from Clock Rating; Daily may only award the documented once-per-day participation bonus.
 - Preserve localStorage-backed settings and stats.
 - Prefer focused components over continuing to enlarge `App.tsx`.
-- Preserve existing animations and fixed-card scrolling.
+- Preserve existing animations and responsive app-card scrolling.
 - Run `npm run build` after code changes and fix introduced TypeScript errors.

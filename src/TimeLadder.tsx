@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Check, Sparkles, Trophy } from 'lucide-react';
 import LadderIcon from './LadderIcon';
+import { triggerHaptic } from './haptics';
 
-const CARD_HEIGHT = 'h-[680px]';
+const CARD_HEIGHT = 'app-card';
 const FINAL_LEVEL = 20;
 const TOLERANCE = 0.25;
 const LADDER_VIEWPORT_HEIGHT = 250;
@@ -65,7 +66,7 @@ export default function TimeLadder({
     setPhase('playing');
     onTimingChange(true);
     playTone(720, 0.08);
-    if (haptics && 'vibrate' in navigator) navigator.vibrate(35);
+    triggerHaptic(haptics, 35);
   };
 
   const stopTimer = () => {
@@ -82,7 +83,7 @@ export default function TimeLadder({
       window.setTimeout(() => playTone(1100, 0.1), 90);
       window.setTimeout(() => playTone(1320, 0.16), 180);
     }
-    if (haptics && 'vibrate' in navigator) navigator.vibrate(passed ? [25, 35, 25] : [45, 30, 45]);
+    triggerHaptic(haptics, passed ? [25, 35, 25] : [45, 30, 45]);
     if (passed && level > bestLevel) {
       setBestCelebration(true);
       onBestLevelChange(level);
@@ -92,7 +93,7 @@ export default function TimeLadder({
       [1047, 1319, 1568, 2093].forEach((frequency, index) => {
         window.setTimeout(() => playTone(frequency, 0.22), index * 130);
       });
-      if (haptics && 'vibrate' in navigator) navigator.vibrate([60, 40, 60, 40, 120]);
+      triggerHaptic(haptics, [60, 40, 60, 40, 120]);
     }
   };
 
@@ -238,7 +239,7 @@ export default function TimeLadder({
         </motion.button>
       </div>
 
-      <button onClick={onBack} className="mt-3 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+      <button onClick={onBack} className="mt-3 w-full shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors app-bottom-actions">
         <ArrowLeft className="w-5 h-5" />All Games
       </button>
 

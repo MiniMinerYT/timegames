@@ -11,6 +11,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.1",
     "@supabase/supabase-js": "^2.57.4",
     "framer-motion": "^12.40.0",
     "lucide-react": "^0.344.0",
