@@ -20,7 +20,7 @@ The Home Time Guesser card indicates whether Single Player is currently Ranked o
 
 Shared game-menu cards use a fixed icon column, centered text column and matching spacer column so icons align consistently. Time Guesser, Time Ladder and Hardcore use the same centered icon/title/tagline header structure.
 
-The layout uses a responsive app-card system. Desktop and roomy web screens preserve the polished 680px card presentation, while mobile/native-sized screens use the full available dynamic viewport height with safe-area padding for phone status bars and home indicators. On narrow phone screens the outer card becomes the device frame with no decorative outer gutter, while desktop keeps the floating rounded-card look. Content-heavy screens keep key navigation controls outside their scrollable content so actions such as Back remain visible. Scrollable content uses `flex-1 min-h-0 overflow-y-auto` plus bottom padding for the action area and safe-area inset, so final settings and stats can scroll fully above persistent bottom controls.
+The layout uses a responsive app-card system. Desktop and roomy web screens preserve the polished 680px card presentation, while mobile/native-sized screens use the full available dynamic viewport height with safe-area padding for phone status bars, Dynamic Island/notches and home indicators. The HTML viewport uses `viewport-fit=cover` so iOS exposes safe-area insets correctly. On narrow phone screens the outer card becomes the device frame with no decorative outer gutter, while retaining a small safe-area breathing gap above and below content. Desktop keeps the floating rounded-card look. Content-heavy screens keep key navigation controls outside their scrollable content so actions such as Back remain visible. Scrollable content uses `flex-1 min-h-0 overflow-y-auto` plus bottom padding for the action area and safe-area inset, so final settings and stats can scroll fully above persistent bottom controls.
 
 Menu screens expose a contextual question-mark button in the card's top-left corner. It opens a reusable help dialog over the current screen with page-specific rules and explanations. The dialog respects the available viewport and safe areas, keeps its X close control visible in the top-right, scrolls its body internally when necessary, closes from the backdrop or Escape key and supports light/dark themes. Active Time Guesser gameplay, timing, guess-entry and result screens hide the help control so it does not distract or overlap play. Time Ladder keeps its help entry available, and Hardcore keeps help visible on the difficulty-selection screen only.
 
@@ -201,7 +201,7 @@ Countdown length and high contrast are not configurable. Time Guesser uses its f
 
 The operating system reduced-motion preference is respected in addition to the saved setting.
 
-Music is optional, defaults on at 35% volume and loops the bundled theme at `public/audio/theme.mp3`. Its volume is controlled by a persisted 0-100% slider in Settings. The theme behaves like waiting music: during active timing and guess-entry states it slowly fades down over about 5 seconds instead of stopping abruptly. It does not fade back in during any guessing element. After the game reaches a result or menu state, it waits about 10 seconds and then fades back in over about 5 seconds.
+Music is optional, defaults on at 35% volume and loops the bundled theme at `public/audio/theme.mp3`. Its volume is controlled by a persisted 0-100% slider in Settings. The theme behaves like waiting music: during active timing and guess-entry states it slowly fades down over about 5 seconds instead of stopping abruptly. It does not fade back in during any guessing element. After the game reaches a result or menu state, it waits about 10 seconds and then fades back in over about 5 seconds. Turning Music off immediately pauses and resets the media element so native iOS/Android wrappers cannot keep playback alive behind the disabled toggle.
 
 ## Input and Navigation UX
 
@@ -254,7 +254,7 @@ Party players and scores remain in React state only.
 - Time Guesser's reveal card flips horizontally from right to left.
 - Preserve reduced-motion and dark-mode support.
 - Avoid clipped fixed-card overflow; mobile screens may scroll cleanly inside the app viewport when needed.
-- Native Android builds are locked to portrait orientation via the Android manifest.
+- Native Android builds are locked to portrait orientation via the Android manifest. Native iOS builds are locked to vertical orientations via `Info.plist`.
 
 ## Technical Stack
 

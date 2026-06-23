@@ -45,6 +45,16 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
     const audio = audioRef.current;
     if (!audio) return;
 
+    if (!enabled) {
+      fadeRef.current = null;
+      returnAtRef.current = null;
+      hasDuckedRef.current = false;
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 0;
+      return;
+    }
+
     const startPlayback = () => {
       audio.muted = false;
       void audio.play().catch(() => undefined);
@@ -88,12 +98,6 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
     };
 
     const controller = window.setInterval(() => {
-      if (!enabled) {
-        startFade(0, FADE_OUT_MS);
-        if (applyFade()) audio.pause();
-        return;
-      }
-
       attemptPlaybackPeriodically();
 
       if (ducked) {
