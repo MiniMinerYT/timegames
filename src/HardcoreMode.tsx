@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Heart, Lock, RotateCcw, ShieldAlert, Skull, Sparkles } from 'lucide-react';
 import { triggerHaptic } from './haptics';
 
@@ -152,6 +152,13 @@ export default function HardcoreMode({
     setTarget(generateTarget(score));
     setElapsed(null);
     setPhase('target');
+  };
+
+  const changeDifficulty = () => {
+    startRef.current = null;
+    onTimingChange(false);
+    setElapsed(null);
+    setPhase('select');
   };
 
   useEffect(() => {
@@ -309,19 +316,37 @@ export default function HardcoreMode({
                 <p className="text-sm opacity-70">Best {definition.name} score: {bestScores[difficulty]}</p>
               </div>
               <button onClick={() => startRun(difficulty)} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl flex items-center justify-center gap-2`}><RotateCcw className="w-5 h-5" />Play Again</button>
-              <button onClick={() => setPhase('select')} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-500 text-white font-black py-3 rounded-2xl transition-colors">Change Difficulty</button>
             </div>
           )}
         </div>
       )}
-      {unlockNotice && (
-        <div className="absolute inset-x-6 top-24 z-30 rounded-3xl border border-yellow-400 bg-slate-950 text-white shadow-2xl p-5 animate-fade-in">
-          <Sparkles className="w-9 h-9 mx-auto text-yellow-400" />
-          <p className="text-xl font-black mt-2">{unlockNotice}</p>
-          <p className="text-xs text-slate-300 mt-1">A new challenge is waiting.</p>
-          <button onClick={() => setUnlockNotice(null)} className="mt-3 bg-yellow-500 hover:bg-yellow-400 text-black font-black px-5 py-2 rounded-xl">Got it</button>
-        </div>
-      )}
+      <AnimatePresence>
+        {unlockNotice && (
+          <motion.div
+            initial={reducedMotion ? { opacity: 0 } : { y: -96, opacity: 0 }}
+            animate={reducedMotion ? { opacity: 1 } : { y: 0, opacity: 1 }}
+            exit={reducedMotion ? { opacity: 0 } : { y: -96, opacity: 0 }}
+            transition={{ duration: reducedMotion ? 0 : 0.42, ease: 'easeInOut' }}
+            className="absolute inset-x-4 top-3 z-30 rounded-2xl border border-yellow-400/80 bg-slate-950/95 text-white shadow-xl shadow-yellow-500/20 px-4 py-3"
+          >
+            <div className="flex items-center gap-3 text-left">
+              <div className="w-10 h-10 rounded-xl bg-yellow-400 text-slate-950 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-300">New difficulty</p>
+                <p className="text-sm font-black truncate">{unlockNotice}</p>
+              </div>
+              <button
+                onClick={() => setUnlockNotice(null)}
+                className="shrink-0 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 px-3 py-1 text-xs font-black text-white transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {lockedNotice && (
         <div className="absolute inset-x-6 top-28 z-30 rounded-3xl border border-slate-400 bg-slate-950 text-white shadow-2xl p-5 animate-fade-in">
           <Lock className="w-9 h-9 mx-auto text-slate-300" />
@@ -333,10 +358,18 @@ export default function HardcoreMode({
       {(phase === 'result' || phase === 'gameOver') && shownError === 0 && (
         <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
       )}
-      <button onClick={onBack} className="mt-3 w-full shrink-0 app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors app-bottom-actions">
-        <ArrowLeft className="w-5 h-5" />
-        All Games
-      </button>
+      <div className="mt-3 shrink-0 space-y-2 app-bottom-actions">
+        {phase !== 'select' && (
+          <button onClick={changeDifficulty} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-500 text-white font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+            <ShieldAlert className="w-5 h-5" />
+            Change Difficulty
+          </button>
+        )}
+        <button onClick={onBack} className="w-full app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+          All Games
+        </button>
+      </div>
     </div>
   );
 }

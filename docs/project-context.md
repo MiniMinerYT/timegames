@@ -147,7 +147,7 @@ Locked Medium, Hard and Expert cards remain visible and explain their unlock req
 
 All six difficulty cards fit on the standard selection screen using a compact two-column grid where space allows. The difficulty grid becomes internally scrollable only when smaller mobile browser/app viewports genuinely need it, without extra bottom padding or a visible scrollbar when every difficulty is already visible. Locked cards use explicit lock badges and dashed/high-contrast treatment. Clicking one shows a short dismissible explanation of its prerequisite. Hover states do not scale or clip, and Hard uses a readable red treatment.
 
-Crossing an unlock score shows a dismissible unlock notice which closes automatically after a few seconds. Hardcore START and STOP use the same large centered circular control and position. Their full circular surfaces are explicit interaction layers so decorative content cannot intercept clicks. Space advances from a result to the next target and starts another run from game over.
+Crossing an unlock score shows a compact dismissible top toast which slides in from above, closes automatically after a few seconds and slides back upward without covering the Score/Lives HUD. Hardcore START and STOP use the same large centered circular control and position. Their full circular surfaces are explicit interaction layers so decorative content cannot intercept clicks. Space advances from a result to the next target and starts another run from game over. During a Hardcore run/result/game-over screen, the bottom action area includes Change Difficulty above All Games so players can return directly to difficulty selection.
 
 During a Hardcore run, Score and Lives appear as clearly labelled, unboxed HUD groups. The score uses a large numeral. Three larger hearts animate with Framer Motion when a life is lost; Reduced Motion changes directly to the depleted state.
 
@@ -190,7 +190,8 @@ Clock Rating is unaffected by Casual Single Player, Party Mode, Time Ladder and 
 
 Settings persist in localStorage. Current settings:
 - Sounds
-- Inquisitive ambient music
+- Theme music
+- Music volume
 - Haptic feedback
 - Reduced motion
 - Dark mode
@@ -200,7 +201,7 @@ Countdown length and high contrast are not configurable. Time Guesser uses its f
 
 The operating system reduced-motion preference is respected in addition to the saved setting.
 
-Music is optional, defaults off and uses softly spaced, irregular notes rather than a metronomic loop. It pauses during active hidden-timer windows so it cannot provide timing cues.
+Music is optional, defaults on at 35% volume and loops the bundled theme at `public/audio/theme.mp3`. Its volume is controlled by a persisted 0-100% slider in Settings. The theme behaves like waiting music: during active timing and guess-entry states it slowly fades down over about 5 seconds instead of stopping abruptly. It does not fade back in during any guessing element. After the game reaches a result or menu state, it waits about 10 seconds and then fades back in over about 5 seconds.
 
 ## Input and Navigation UX
 
@@ -231,6 +232,7 @@ Stats reset clears Time Guesser accuracy stats and Clock Rating after confirmati
 localStorage keys:
 - `timegames-stats`: general accuracy stats, Clock Rating and average-error sample count
 - `timegames-settings`: settings and ranked-mode preference
+- `timegames-music-default-on-migrated`: one-time migration marker so older installs adopt the music-on default once without repeatedly overriding the user's choice
 - `timegames-daily-results`: official Daily results keyed by local date
 - `timegames-daily-retention`: current streak, last completed date and dates whose rating bonus was claimed
 - `timegames-ladder-best`: highest successfully cleared Time Ladder level

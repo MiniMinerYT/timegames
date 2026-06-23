@@ -72,6 +72,7 @@ interface StatsState {
 interface SettingsState {
   sounds: boolean;
   music: boolean;
+  musicVolume: number;
   haptics: boolean;
   rankedMode: boolean;
   reducedMotion: boolean;
@@ -113,6 +114,7 @@ interface DailyRetentionState {
 
 const CARD_HEIGHT = 'app-card';
 const MAX_AVERAGE_ERROR = 100;
+const MUSIC_DEFAULT_ON_MIGRATION_KEY = 'timegames-music-default-on-migrated';
 
 function getHelpContent(game: GameState): HelpContent {
   if (game.phase === 'ladder') return {
@@ -153,7 +155,7 @@ function getHelpContent(game: GameState): HelpContent {
   if (game.phase === 'settings') return {
     title: 'Settings',
     intro: 'Adjust feedback, accessibility, appearance and Party Mode timing ranges.',
-    items: ['Sounds and ambient music have separate controls.', 'Reduced Motion removes or shortens movement effects.', 'Dark Mode, haptics and Party timer range persist on this device.'],
+    items: ['Sounds and theme music have separate controls.', 'Reduced Motion removes or shortens movement effects.', 'Dark Mode, haptics and Party timer range persist on this device.'],
   };
   if (game.mode === 'party' || ['partySetup', 'partyGuesses', 'partyResults'].includes(game.phase)) return {
     title: 'Party Mode',
@@ -188,7 +190,8 @@ const defaultStats: StatsState = {
 
 const defaultSettings: SettingsState = {
   sounds: true,
-  music: false,
+  music: true,
+  musicVolume: 0.35,
   haptics: true,
   rankedMode: true,
   reducedMotion: false,
@@ -370,9 +373,15 @@ function App() {
       const saved = localStorage.getItem('timegames-settings');
       if (!saved) return defaultSettings;
       const parsed = JSON.parse(saved);
+      const musicDefaultMigrated = localStorage.getItem(MUSIC_DEFAULT_ON_MIGRATION_KEY) === 'true';
       return {
         sounds: typeof parsed.sounds === 'boolean' ? parsed.sounds : defaultSettings.sounds,
-        music: typeof parsed.music === 'boolean' ? parsed.music : defaultSettings.music,
+        music: musicDefaultMigrated && typeof parsed.music === 'boolean'
+          ? parsed.music
+          : defaultSettings.music,
+        musicVolume: typeof parsed.musicVolume === 'number'
+          ? Math.max(0, Math.min(1, parsed.musicVolume))
+          : defaultSettings.musicVolume,
         haptics: typeof parsed.haptics === 'boolean' ? parsed.haptics : defaultSettings.haptics,
         rankedMode: typeof parsed.rankedMode === 'boolean' ? parsed.rankedMode : defaultSettings.rankedMode,
         reducedMotion: typeof parsed.reducedMotion === 'boolean' ? parsed.reducedMotion : defaultSettings.reducedMotion,
@@ -459,6 +468,7 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('timegames-settings', JSON.stringify(settings));
+    localStorage.setItem(MUSIC_DEFAULT_ON_MIGRATION_KEY, 'true');
   }, [settings]);
 
   useEffect(() => {
@@ -964,10 +974,14 @@ function App() {
   const showHelp =
     ['ready', 'guesserHub', 'dailyHub', 'dailyHistory', 'partySetup', 'stats', 'settings', 'rankings', 'ladder'].includes(game.phase) ||
     (game.phase === 'hardcore' && hardcoreHelpVisible);
+  const musicDucked =
+    ['countdown', 'playing', 'stopped', 'partyGuesses'].includes(game.phase) ||
+    (game.phase === 'reveal' && !game.timeRevealed) ||
+    standaloneTimingActive;
 
   return (
     <div onClickCapture={handleMenuClick} className={`app-viewport bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
-      <AmbientMusic enabled={settings.music} paused={game.phase === 'playing' || standaloneTimingActive} />
+      <AmbientMusic enabled={settings.music} ducked={musicDucked} volume={settings.musicVolume} />
       <div className="w-full max-w-md relative min-h-0">
         {showHelp && <HelpOverlay content={helpContent} />}
         {game.mode === 'home' && game.phase === 'ready' && (
@@ -1626,7 +1640,7 @@ function SettingsScreen({
     icon: typeof Volume2;
   }> = [
     { key: 'sounds', label: 'Sounds', description: 'Countdown and result tones', icon: Volume2 },
-    { key: 'music', label: 'Music', description: 'Inquisitive ambient soundtrack', icon: Music },
+    { key: 'music', label: 'Music', description: 'Play background theme music', icon: Music },
     { key: 'haptics', label: 'Haptic Feedback', description: 'Vibration on supported devices', icon: Smartphone },
     { key: 'reducedMotion', label: 'Reduced Motion', description: 'Disable animations and transitions', icon: Sparkles },
     { key: 'darkMode', label: 'Dark Mode', description: 'Use a darker colour scheme', icon: Moon },
@@ -1652,24 +1666,49 @@ function SettingsScreen({
           const Icon = option.icon;
           const enabled = settings[option.key];
           return (
-            <div key={option.key} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-slate-600 border border-slate-200">
-                <Icon className="w-5 h-5" />
+            <div key={option.key} className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-slate-600 border border-slate-200">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-slate-800">{option.label}</p>
+                  <p className="text-xs text-slate-500">{option.description}</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={enabled}
+                  aria-label={`Toggle ${option.label}`}
+                  onClick={() => onChange(option.key, !enabled)}
+                  className={`w-12 h-7 rounded-full p-1 transition-colors shrink-0 ${enabled ? 'bg-teal-500' : 'bg-slate-300'}`}
+                >
+                  <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-800">{option.label}</p>
-                <p className="text-xs text-slate-500">{option.description}</p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={enabled}
-                aria-label={`Toggle ${option.label}`}
-                onClick={() => onChange(option.key, !enabled)}
-                className={`w-12 h-7 rounded-full p-1 transition-colors shrink-0 ${enabled ? 'bg-teal-500' : 'bg-slate-300'}`}
-              >
-                <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
+              {option.key === 'music' && (
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <label htmlFor="music-volume" className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                      Volume
+                    </label>
+                    <span className="text-sm font-black text-teal-600">
+                      {Math.round(settings.musicVolume * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    id="music-volume"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={Math.round(settings.musicVolume * 100)}
+                    onChange={(event) => onChange('musicVolume', Number(event.target.value) / 100)}
+                    aria-label="Music volume"
+                    className="w-full accent-teal-500"
+                  />
+                </div>
+              )}
             </div>
           );
         })}
