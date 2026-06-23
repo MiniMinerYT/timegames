@@ -239,7 +239,7 @@ export default function TimeLadder({
         </motion.button>
       </div>
 
-      <button onClick={onBack} className="mt-3 w-full shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors app-bottom-actions">
+      <button onClick={onBack} className="mt-3 w-full shrink-0 app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors app-bottom-actions">
         <ArrowLeft className="w-5 h-5" />All Games
       </button>
 

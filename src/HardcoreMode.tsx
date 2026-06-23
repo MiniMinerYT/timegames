@@ -205,7 +205,7 @@ export default function HardcoreMode({
   const inRun = phase !== 'select';
 
   return (
-    <div className={`${screenTheme} relative rounded-3xl shadow-xl p-6 text-center ${CARD_HEIGHT} flex flex-col ${inRun && difficulty !== 'easy' ? 'text-white' : ''}`}>
+    <div className={`${screenTheme} relative rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col ${inRun && difficulty !== 'easy' ? 'text-white' : ''}`}>
       <div className="text-center space-y-1 mb-3">
         <div className="w-12 h-12 mx-auto rounded-2xl bg-red-600 flex items-center justify-center text-white"><Skull className="w-6 h-6" /></div>
         <h1 className="text-3xl font-black">Hardcore Mode</h1>
@@ -214,11 +214,11 @@ export default function HardcoreMode({
       </div>
 
       {phase === 'select' ? (
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto card-scroll hardcore-difficulty-scroll">
           <div className="mb-2">
             <p className="text-sm font-black text-slate-500 uppercase tracking-[0.18em]">Choose Difficulty</p>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 pb-1">
             {visibleDifficulties.map(item => {
               const unlocked = isUnlocked(item.id, bestScores);
               const mysterious = (item.id === 'god' || item.id === 'literal') && !unlocked;
@@ -333,7 +333,7 @@ export default function HardcoreMode({
       {(phase === 'result' || phase === 'gameOver') && shownError === 0 && (
         <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
       )}
-      <button onClick={onBack} className="mt-3 w-full shrink-0 bg-white/10 hover:bg-white/20 border border-slate-300/30 text-slate-700 font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors app-bottom-actions">
+      <button onClick={onBack} className="mt-3 w-full shrink-0 app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors app-bottom-actions">
         <ArrowLeft className="w-5 h-5" />
         All Games
       </button>

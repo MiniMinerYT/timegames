@@ -1331,7 +1331,7 @@ function TimeGuesserHub({
       <div>
         <button
           onClick={onBack}
-          className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold py-3.5 px-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
+          className="w-full app-secondary-action font-semibold py-3.5 px-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>All Games</span>
@@ -1415,7 +1415,7 @@ function DailyChallengeHub({
       </div>
 
       <div className="space-y-2 shrink-0 app-bottom-actions">
-        <button onClick={onPrevious} className="w-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-indigo-700 font-black py-3 rounded-2xl transition-colors">
+        <button onClick={onPrevious} className="w-full app-secondary-action font-black py-3 rounded-2xl transition-colors">
           Challenge Archive
         </button>
         <button onClick={onBack} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2">
@@ -1562,7 +1562,7 @@ function StatsScreen({
 
         <button
           onClick={() => setShowResetConfirmation(true)}
-          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200"
+          className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200"
         >
           Reset Statistics
         </button>
@@ -1598,7 +1598,7 @@ function StatsScreen({
                 type="button"
                 autoFocus
                 onClick={() => setShowResetConfirmation(false)}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 px-5 rounded-2xl transition-colors"
+                className="w-full app-secondary-action font-bold py-3.5 px-5 rounded-2xl transition-colors"
               >
                 Cancel
               </button>
@@ -1891,10 +1891,10 @@ function PartySetupScreen({
 
         <button
           onClick={onGoHome}
-          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
+          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
         >
-          <Home className="w-5 h-5" />
-          Back to Time Guesser
+          <ArrowLeft className="w-5 h-5" />
+          Back
         </button>
       </div>
     </div>
@@ -2033,10 +2033,10 @@ function PartyGuessesScreen({
 
         <button
           onClick={onGoHome}
-          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
+          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
         >
-          <Home className="w-5 h-5" />
-          Back to Time Guesser
+          <ArrowLeft className="w-5 h-5" />
+          Back
         </button>
       </div>
     </div>
@@ -2190,7 +2190,7 @@ function PartyResultsScreen({
 
         <button
           onClick={() => setShowScoreboard(prev => !prev)}
-          className="w-full bg-white hover:bg-slate-100 text-slate-700 font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 border border-slate-200 flex items-center justify-center gap-2"
+          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
         >
           <Trophy className="w-5 h-5" />
           {showScoreboard ? 'Round Results' : 'Scoreboard'}
@@ -2198,10 +2198,10 @@ function PartyResultsScreen({
 
         <button
           onClick={onGoHome}
-          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
+          className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
         >
-          <Home className="w-5 h-5" />
-          Back to Time Guesser
+          <ArrowLeft className="w-5 h-5" />
+          Back
         </button>
       </div>
     </div>
@@ -2482,7 +2482,7 @@ function RevealScreen({
 
               <button
                 onClick={onGoHome}
-                className="w-full bg-white hover:bg-slate-100 text-slate-700 font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 border border-slate-200"
+                className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
               >
                 <Home className="w-5 h-5" />
                 Back to Time Guesser

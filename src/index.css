@@ -9,6 +9,16 @@ html {
 
 body {
   margin: 0;
+  overflow-x: hidden;
+}
+
+button,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  touch-action: manipulation;
 }
 
 #root {
@@ -40,7 +50,32 @@ body {
 }
 
 .app-bottom-actions {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.app-secondary-action {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+}
+
+.app-secondary-action:hover {
+  background: #f1f5f9;
+}
+
+.dark-mode .app-secondary-action {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+.dark-mode .app-secondary-action:hover {
+  background: #334155;
+}
+
+.dark-mode .app-bottom-actions.bg-white,
+.dark-mode .app-bottom-actions .bg-white {
+  background-color: #0f172a;
 }
 
 @media (min-width: 640px) and (min-height: 760px) {
@@ -48,6 +83,27 @@ body {
     height: 680px;
     min-height: 680px;
     max-height: 680px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-viewport {
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+
+  .app-modal-safe-padding {
+    padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-card {
+    height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .scroll-content-with-actions {
+    padding-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -203,6 +259,16 @@ input[type='number'] {
 .card-scroll {
   overflow-y: auto;
   scrollbar-width: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.hardcore-difficulty-scroll {
+  scrollbar-width: none;
+}
+
+.hardcore-difficulty-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .result-scroll {
