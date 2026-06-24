@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
 
-const THEME_SRC = '/audio/themev3.mp3';
+const THEME_SRC = '/audio/themev4.mp3';
 const FADE_OUT_MS = 5000;
 const FADE_IN_DELAY_MS = 10000;
 const FADE_IN_MS = 5000;
@@ -34,9 +35,25 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const levelRef = useRef(0);
+  const launchAutoplayAttemptedRef = useRef(false);
 
   useEffect(() => {
     enabledRef.current = enabled;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (!enabled) {
+      fadeRef.current = null;
+      returnAtRef.current = null;
+      hasDuckedRef.current = false;
+      setOutputLevel(0);
+      audio.muted = true;
+      audio.pause();
+      return;
+    }
+
+    audio.muted = false;
+    startPlayback(false);
   }, [enabled]);
 
   useEffect(() => {
@@ -51,9 +68,14 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
     const audio = new Audio(THEME_SRC);
     audio.loop = true;
     audio.preload = 'auto';
+    audio.autoplay = true;
+    audio.playsInline = true;
+    audio.setAttribute('playsinline', 'true');
+    audio.setAttribute('webkit-playsinline', 'true');
     audio.volume = 0;
     audio.muted = !enabledRef.current;
     audioRef.current = audio;
+    audio.load();
 
     return () => {
       audio.pause();
@@ -110,13 +132,33 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
     if (!audio) return;
 
     if (unlock) unlockedRef.current = true;
-    if (!unlockedRef.current) return;
+    if (!enabledRef.current && !unlock) return;
 
     ensureAudioGraph();
     void audioContextRef.current?.resume().catch(() => undefined);
     audio.muted = !enabledRef.current;
     void audio.play().catch(() => undefined);
   }, [ensureAudioGraph]);
+
+  useEffect(() => {
+    if (!enabled || launchAutoplayAttemptedRef.current) return undefined;
+    launchAutoplayAttemptedRef.current = true;
+
+    const attemptEarlyPlayback = () => {
+      startPlayback(false);
+    };
+
+    attemptEarlyPlayback();
+    const frame = window.requestAnimationFrame(attemptEarlyPlayback);
+    const firstTimer = window.setTimeout(attemptEarlyPlayback, Capacitor.getPlatform() === 'ios' ? 150 : 300);
+    const secondTimer = window.setTimeout(attemptEarlyPlayback, 900);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(firstTimer);
+      window.clearTimeout(secondTimer);
+    };
+  }, [enabled, startPlayback]);
 
   useEffect(() => {
     const unlockPlayback = () => startPlayback(true);
@@ -163,7 +205,6 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
     };
 
     const attemptPlaybackPeriodically = () => {
-      if (!unlockedRef.current) return;
       const now = Date.now();
       if (!audio.paused && !audio.ended) return;
       if (now - lastPlayAttemptRef.current < 1000) return;

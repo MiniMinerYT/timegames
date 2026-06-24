@@ -7,7 +7,7 @@ export interface HelpContent {
   items: string[];
 }
 
-export default function HelpOverlay({ content }: { content: HelpContent }) {
+export default function HelpOverlay({ content, triggerVisible = true }: { content: HelpContent; triggerVisible?: boolean }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => setOpen(false), [content.title]);
@@ -27,7 +27,7 @@ export default function HelpOverlay({ content }: { content: HelpContent }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`About ${content.title}`}
-        className="absolute top-4 left-4 z-40 w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-600 shadow-md flex items-center justify-center hover:bg-slate-100 transition-colors"
+        className={`help-trigger absolute left-4 z-40 w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-600 shadow-md flex items-center justify-center hover:bg-slate-100 transition-all duration-300 ${triggerVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
       >
         <HelpCircle className="w-6 h-6" />
       </button>

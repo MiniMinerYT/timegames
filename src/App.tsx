@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type MouseEvent, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, type MouseEvent, type ReactNode, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -56,6 +56,7 @@ type GamePhase =
   | 'partySetup'
   | 'partyGuesses'
   | 'partyResults'
+  | 'tabletopReady'
   | 'tabletopReveal';
 
 interface GameState {
@@ -126,6 +127,8 @@ interface DailyRetentionState {
 }
 
 const CARD_HEIGHT = 'app-card';
+const HEADER_ICON_CLASS = 'w-14 h-14 mx-auto rounded-2xl flex items-center justify-center';
+type SplashPhase = 'waiting' | 'launching' | 'revealing' | 'done';
 
 function isNativeOrTouchDevice() {
   if (Capacitor.isNativePlatform()) return true;
@@ -135,7 +138,6 @@ function isNativeOrTouchDevice() {
 const MAX_AVERAGE_ERROR = 100;
 const MUSIC_DEFAULT_ON_MIGRATION_KEY = 'timegames-music-default-on-migrated';
 const PLAYER_ID_KEY = 'timegames-player-id';
-const PLAYER_DISPLAY_NAME_KEY = 'timegames-player-display-name';
 
 function getHelpContent(game: GameState): HelpContent {
   if (game.phase === 'ladder') return {
@@ -313,10 +315,6 @@ function getOrCreatePlayerId() {
   return generated;
 }
 
-function sanitizeDisplayName(value: string) {
-  return value.trim().replace(/\s+/g, ' ').slice(0, 24);
-}
-
 const rankDefinitions = [
   { min: 0, name: 'Bronze Clock', icon: '🥉' },
   { min: 500, name: 'Silver Clock', icon: '🥈' },
@@ -472,8 +470,11 @@ function App() {
   const [standaloneTimingActive, setStandaloneTimingActive] = useState(false);
   const [hardcoreHelpVisible, setHardcoreHelpVisible] = useState(false);
   const [playerId] = useState(getOrCreatePlayerId);
-  const [displayName, setDisplayName] = useState(() => localStorage.getItem(PLAYER_DISPLAY_NAME_KEY) ?? '');
   const [dailyLeaderboard, setDailyLeaderboard] = useState<Record<string, DailyLeaderboardSummary>>({});
+  const [splashPhase, setSplashPhase] = useState<SplashPhase>('waiting');
+  const homeIconRef = useRef<HTMLDivElement | null>(null);
+  const splashIconRef = useRef<HTMLDivElement | null>(null);
+  const [splashIconTarget, setSplashIconTarget] = useState({ x: 0, y: 0 });
 
   const [bestLadderLevel, setBestLadderLevel] = useState(() => {
     const saved = Number(localStorage.getItem('timegames-ladder-best')) || 0;
@@ -551,22 +552,23 @@ function App() {
   }, [dailyRetention]);
 
   useEffect(() => {
-    localStorage.setItem(PLAYER_DISPLAY_NAME_KEY, sanitizeDisplayName(displayName));
-  }, [displayName]);
-
-  useEffect(() => {
     if (!isSupabaseConfigured) return;
     let cancelled = false;
-    fetchDailyLeaderboard(todayKey, playerId)
-      .then(summary => {
+    const refreshLeaderboard = () => {
+      fetchDailyLeaderboard(todayKey, playerId)
+        .then(summary => {
         if (cancelled || !summary) return;
         setDailyLeaderboard(prev => ({ ...prev, [todayKey]: summary }));
-      })
-      .catch(() => undefined);
+        })
+        .catch(() => undefined);
+    };
+    refreshLeaderboard();
+    const interval = window.setInterval(refreshLeaderboard, ['dailyHub', 'reveal'].includes(game.phase) ? 15000 : 60000);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
-  }, [playerId, todayKey]);
+  }, [game.phase, playerId, todayKey]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
@@ -580,6 +582,29 @@ function App() {
   useEffect(() => {
     localStorage.setItem('timegames-hardcore-bests', JSON.stringify(hardcoreScores));
   }, [hardcoreScores]);
+
+  const measureSplashIconTarget = useCallback(() => {
+    const icon = homeIconRef.current;
+    const splashIcon = splashIconRef.current;
+    if (!icon || !splashIcon) return;
+    const rect = icon.getBoundingClientRect();
+    const splashRect = splashIcon.getBoundingClientRect();
+    setSplashIconTarget({
+      x: rect.left + rect.width / 2 - (splashRect.left + splashRect.width / 2),
+      y: rect.top + rect.height / 2 - (splashRect.top + splashRect.height / 2),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (splashPhase !== 'waiting') return undefined;
+    measureSplashIconTarget();
+    const frame = window.requestAnimationFrame(measureSplashIconTarget);
+    window.addEventListener('resize', measureSplashIconTarget);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', measureSplashIconTarget);
+    };
+  }, [game.phase, measureSplashIconTarget, splashPhase]);
 
   const playTone = useCallback((frequency = 440, duration = 0.08) => {
     if (!settings.sounds) return;
@@ -796,12 +821,10 @@ function App() {
       }));
 
       if (isToday && isSupabaseConfigured) {
-        const finalDisplayName = sanitizeDisplayName(displayName) || 'Anonymous';
-        if (!sanitizeDisplayName(displayName)) setDisplayName(finalDisplayName);
         void submitDailyLeaderboardScore({
             challengeDate: dateKey,
             playerId,
-            displayName: finalDisplayName,
+            displayName: 'Anonymous',
             error: distance,
             guess,
           })
@@ -859,7 +882,7 @@ function App() {
       timeRevealed: true,
       ratingChange,
     }));
-  }, [game, dailyResults, dailyRetention, settings.rankedMode, stats.clockRating, updateStats, playTone, playCelebration, vibrate, displayName, playerId]);
+}, [game, dailyResults, dailyRetention, settings.rankedMode, stats.clockRating, updateStats, playTone, playCelebration, vibrate, playerId]);
 
   const playAgain = useCallback(() => {
     if (game.mode === 'challenge') {
@@ -952,6 +975,18 @@ function App() {
 
   const resetStats = useCallback(() => {
     setStats(defaultStats);
+    setDailyResults({});
+    setDailyRetention(defaultDailyRetention);
+    setDailyLeaderboard({});
+    setBestLadderLevel(0);
+    setHardcoreScores(defaultHardcoreScores);
+    setPartyPlayers([]);
+    setNewPlayerName('');
+    dailySubmissionRef.current = null;
+    localStorage.removeItem('timegames-daily-results');
+    localStorage.removeItem('timegames-daily-retention');
+    localStorage.removeItem('timegames-ladder-best');
+    localStorage.removeItem('timegames-hardcore-bests');
   }, []);
 
   const openPartySetup = useCallback(() => {
@@ -1024,6 +1059,21 @@ function App() {
 
     startCountdown('party');
   }, [partyPlayers.length, startCountdown]);
+
+  const openTabletopMode = useCallback(() => {
+    clearGameTimer();
+    setGame({
+      mode: 'tabletop',
+      phase: 'tabletopReady',
+      targetTime: 0,
+      playerGuess: '',
+      countdownValue: 3,
+      timeRevealed: false,
+      challengeDate: null,
+      dailyOfficial: false,
+      ratingChange: null,
+    });
+  }, [clearGameTimer]);
 
   const startTabletopRound = useCallback(() => {
     startCountdown('tabletop');
@@ -1105,22 +1155,55 @@ function App() {
     standaloneTimingActive ||
     ['countdown', 'playing', 'stopped', 'partyGuesses'].includes(game.phase) ||
     (game.phase === 'reveal' && !game.timeRevealed);
+  const splashVisible = splashPhase !== 'done';
+  const startSplash = useCallback(() => {
+    if (splashPhase !== 'waiting') return;
+    measureSplashIconTarget();
+    setSplashPhase('launching');
+    window.setTimeout(() => {
+      setSplashPhase('revealing');
+    }, settings.reducedMotion ? 80 : 1560);
+    window.setTimeout(() => {
+      setSplashPhase('done');
+    }, settings.reducedMotion ? 140 : 2200);
+  }, [measureSplashIconTarget, settings.reducedMotion, splashPhase]);
 
   return (
     <div onClickCapture={handleMenuClick} className={`app-viewport bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center screen-transition-scope ${disableScreenTransition ? 'screen-transition-disabled' : ''} ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
       <AmbientMusic enabled={settings.music} ducked={musicDucked} volume={settings.musicVolume} />
+      <AnimatePresence>
+        {splashVisible && (
+          <SplashScreen
+            phase={splashPhase}
+            reducedMotion={settings.reducedMotion}
+            darkMode={settings.darkMode}
+            target={splashIconTarget}
+            iconRef={splashIconRef}
+            onStart={startSplash}
+          />
+        )}
+      </AnimatePresence>
       <div className={`w-full max-w-md relative min-h-0 ${game.mode === 'tabletop' ? 'tabletop-frame' : ''}`}>
-        {showHelp && <HelpOverlay content={helpContent} />}
+        {showHelp && (
+          <HelpOverlay
+            content={helpContent}
+            triggerVisible={!(game.mode === 'home' && game.phase === 'ready' && (splashPhase === 'waiting' || splashPhase === 'launching'))}
+          />
+        )}
         {game.mode === 'home' && game.phase === 'ready' && (
           <HomeScreen
+            key={splashPhase === 'waiting' || splashPhase === 'launching' ? 'home-preload' : 'home-revealed'}
             bestLadderLevel={bestLadderLevel}
             bestHardcoreScore={Math.max(...Object.values(hardcoreScores))}
             rankedMode={settings.rankedMode}
+            iconRef={homeIconRef}
+            introIconHidden={splashPhase === 'waiting' || splashPhase === 'launching'}
             onTimeGuesser={showTimeGuesser}
             onTimeLadder={showTimeLadder}
             onHardcore={showHardcoreMode}
             onStats={showStats}
             onSettings={showSettings}
+            animateIn={splashPhase === 'revealing'}
           />
         )}
 
@@ -1199,9 +1282,7 @@ function App() {
         {game.phase === 'settings' && (
           <SettingsScreen
             settings={settings}
-            displayName={displayName}
             onChange={updateSetting}
-            onDisplayNameChange={setDisplayName}
             onBack={hideSettings}
           />
         )}
@@ -1226,7 +1307,7 @@ function App() {
             onAddPlayer={addPartyPlayer}
             onRemovePlayer={removePartyPlayer}
             onStartRound={startPartyRound}
-            onStartTabletop={startTabletopRound}
+            onStartTabletop={openTabletopMode}
             onGoHome={showTimeGuesser}
           />
         )}
@@ -1259,13 +1340,20 @@ function App() {
           />
         )}
 
+        {game.phase === 'tabletopReady' && (
+          <TabletopReadyScreen
+            onStart={startTabletopRound}
+            onGoHome={showTimeGuesser}
+          />
+        )}
+
         {game.phase === 'tabletopReveal' && (
           <TabletopRevealScreen
             targetTime={game.targetTime}
             revealed={game.timeRevealed}
             reducedMotion={settings.reducedMotion}
             onReveal={revealTabletopTime}
-            onNextRound={startTabletopRound}
+            onNextRound={openTabletopMode}
             onGoHome={showTimeGuesser}
           />
         )}
@@ -1304,45 +1392,211 @@ function App() {
   );
 }
 
+function SplashScreen({
+  phase,
+  reducedMotion,
+  darkMode,
+  target,
+  iconRef,
+  onStart,
+}: {
+  phase: SplashPhase;
+  reducedMotion: boolean;
+  darkMode: boolean;
+  target: { x: number; y: number };
+  iconRef: RefObject<HTMLDivElement>;
+  onStart: () => void;
+}) {
+  const isLaunching = phase === 'launching';
+  const isRevealing = phase === 'revealing';
+  const hasStarted = phase !== 'waiting';
+  const waveAnimation = reducedMotion || hasStarted
+    ? { rotate: 0, y: 0 }
+    : {
+        rotate: [-0.7, 0.8, -0.45, 0.55, -0.7],
+        y: [0, -3, 2, -1, 0],
+      };
+
+  return (
+    <motion.div
+      className={`fixed inset-0 z-[90] app-modal-safe-padding ${isRevealing ? 'pointer-events-none' : 'flex items-center justify-center'}`}
+      initial={{ opacity: 1 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: reducedMotion ? 0 : 0.16, ease: 'easeOut' } }}
+      aria-label="Start TimeGames"
+    >
+      <motion.div
+        className={`absolute inset-0 ${darkMode ? 'bg-gradient-to-b from-slate-950 to-slate-900' : 'bg-gradient-to-b from-slate-50 to-slate-100'}`}
+        animate={{ opacity: isRevealing ? 0 : 1 }}
+        transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
+      />
+      <motion.div
+        role="button"
+        tabIndex={0}
+        onClick={onStart}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onStart();
+          }
+        }}
+        className="relative w-full h-full text-center cursor-pointer select-none focus:outline-none focus-visible:ring-4 focus-visible:ring-teal-300/60 rounded-3xl overflow-hidden"
+        initial={false}
+      >
+        <motion.div
+          className="absolute inset-x-0 top-[calc(50%+2.85rem)] flex flex-col items-center px-6 pointer-events-none"
+          animate={waveAnimation}
+          transition={reducedMotion || hasStarted ? { duration: 0 } : { duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <motion.div
+            animate={reducedMotion
+              ? { opacity: hasStarted ? 0 : 1 }
+              : hasStarted
+                ? { opacity: [1, 1, 0], scale: [1, 0.055, 0.001], y: [0, -124, -164], filter: ['blur(0px)', 'blur(0.5px)', 'blur(5px)'] }
+                : { opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: reducedMotion ? 0 : 0.82, times: [0, 0.82, 1], ease: [0.58, 0, 0.16, 1] }}
+          >
+            <motion.h1
+              className={`text-4xl font-black ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}
+              initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: reducedMotion ? 0 : 0.45, delay: 0.12 }}
+            >
+              TimeGames
+            </motion.h1>
+            <motion.p
+              className={`text-sm font-bold mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}
+              initial={reducedMotion ? false : { opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: reducedMotion ? 0 : 0.45, delay: 0.24 }}
+            >
+              Master your internal clock
+            </motion.p>
+            <motion.div
+              className={`mt-8 inline-flex items-center justify-center rounded-full px-5 py-2 text-xs font-black uppercase tracking-[0.22em] shadow-lg ${darkMode ? 'bg-slate-800 text-teal-200 shadow-black/30 border border-slate-700' : 'bg-white text-teal-600 shadow-slate-200/80 border border-teal-100'}`}
+              initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: reducedMotion ? 0 : 0.28, delay: 0.46 }}
+            >
+              Tap to start
+            </motion.div>
+          </motion.div>
+        </motion.div>
+
+        <motion.div
+          ref={iconRef}
+          className="absolute left-1/2 top-1/2 pointer-events-none"
+          style={{ marginLeft: -28, marginTop: -28 }}
+          initial={reducedMotion ? false : { scale: 0.9, x: 0, y: 0 }}
+          animate={reducedMotion
+            ? { x: hasStarted ? target.x : 0, y: hasStarted ? target.y : 0, scale: 1, opacity: isRevealing ? 0 : 1 }
+            : {
+                x: hasStarted ? target.x : 0,
+                y: hasStarted ? target.y : 0,
+                scale: isLaunching ? [1, 1.08, 1] : 1,
+                opacity: isRevealing ? [1, 1, 0] : 1,
+              }}
+          transition={reducedMotion
+            ? { duration: 0 }
+            : hasStarted
+              ? {
+                  x: { duration: 0.78, delay: isLaunching ? 0.72 : 0, ease: [0.2, 0.9, 0.18, 1] },
+                  y: { duration: 0.78, delay: isLaunching ? 0.72 : 0, ease: [0.2, 0.9, 0.18, 1] },
+                  scale: { duration: 0.54, delay: isLaunching ? 0.72 : 0, ease: 'easeOut' },
+                  opacity: { duration: 0.32, delay: isRevealing ? 0.18 : 0, times: [0, 0.55, 1], ease: 'easeOut' },
+                }
+              : { duration: 0 }}
+        >
+          <motion.div
+            className={`${HEADER_ICON_CLASS} bg-teal-500 shadow-2xl shadow-teal-500/30`}
+            animate={reducedMotion
+              ? { scale: 1, rotate: 0 }
+              : isLaunching
+                ? { rotate: [0, -5, 0], boxShadow: ['0 24px 50px rgba(20,184,166,0.24)', '0 30px 70px rgba(20,184,166,0.34)', '0 14px 30px rgba(20,184,166,0.16)'] }
+                : isRevealing
+                  ? { scale: [1, 1.025, 1], rotate: 0, boxShadow: ['0 14px 30px rgba(20,184,166,0.16)', '0 8px 18px rgba(20,184,166,0.08)', '0 0 0 rgba(20,184,166,0)'] }
+                  : { scale: [1, 1.035, 1], rotate: [0, -1.25, 1, 0] }}
+            transition={reducedMotion
+              ? { duration: 0 }
+              : isLaunching
+                ? { duration: 0.54, delay: 0.72, ease: 'easeOut' }
+                : isRevealing
+                  ? { duration: 0.5, ease: 'easeOut' }
+                  : { duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <Clock className="w-8 h-8 text-white" />
+          </motion.div>
+        </motion.div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function HomeScreen({
   bestLadderLevel,
   bestHardcoreScore,
   rankedMode,
+  iconRef,
+  introIconHidden,
   onTimeGuesser,
   onTimeLadder,
   onHardcore,
   onStats,
   onSettings,
+  animateIn,
 }: {
   bestLadderLevel: number;
   bestHardcoreScore: number;
   rankedMode: boolean;
+  iconRef?: RefObject<HTMLDivElement>;
+  introIconHidden: boolean;
   onTimeGuesser: () => void;
   onTimeLadder: () => void;
   onHardcore: () => void;
   onStats: () => void;
   onSettings: () => void;
+  animateIn: boolean;
 }) {
+  const homeTextMotion = (index: number) => ({
+    initial: animateIn ? { opacity: 0, y: -42 + index * 6, scale: 0.06 } : false,
+    animate: { opacity: 1, y: 0, scale: 1 },
+    transition: { duration: 0.34, delay: animateIn ? 0.03 + index * 0.055 : 0, ease: [0.16, 1, 0.3, 1] as const },
+    style: { transformOrigin: '50% -2.8rem' },
+  });
+
+  const homeCardMotion = (index: number) => ({
+    initial: animateIn ? { opacity: 0, y: -126 + index * 11, scale: 0.06 } : false,
+    animate: { opacity: 1, y: 0, scale: 1 },
+    transition: { duration: 0.4, delay: animateIn ? 0.12 + 0.065 * index : 0, ease: [0.16, 1, 0.3, 1] as const },
+    style: { transformOrigin: '50% -4.5rem' },
+  });
+
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 ${CARD_HEIGHT} flex flex-col`}>
-      <div className="flex items-center justify-between mb-4">
+    <div className={`bg-white rounded-3xl shadow-xl p-6 ${CARD_HEIGHT} flex flex-col justify-center`}>
+      <div className="my-auto w-full min-h-0 flex flex-col">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="w-11" />
         <div className="text-center">
-          <div className="w-12 h-12 mx-auto bg-teal-500 rounded-2xl flex items-center justify-center">
-            <Clock className="w-7 h-7 text-white" />
+          <div ref={iconRef} className={`${HEADER_ICON_CLASS} bg-teal-500 ${introIconHidden ? 'opacity-0' : 'opacity-100'} transition-opacity duration-150`}>
+            <Clock className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-black text-slate-800 mt-1">TimeGames</h1>
-          <p className="text-xs text-slate-500">Master your internal clock.</p>
+          <motion.h1 className="text-3xl font-black text-slate-800 mt-1" {...homeTextMotion(0)}>
+            TimeGames
+          </motion.h1>
+          <motion.p className="text-xs text-slate-500" {...homeTextMotion(1)}>
+            Master your internal clock.
+          </motion.p>
         </div>
         <div className="w-11" />
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto card-scroll space-y-3 pr-1">
-        <GameMenuCard color="teal" icon={<Clock className="w-7 h-7" />} title="Time Guesser" description={`${rankedMode ? 'Ranked' : 'Casual'} · Hidden-clock guessing`} onClick={onTimeGuesser} />
-        <GameMenuCard color="indigo" icon={<LadderIcon className="w-7 h-7" />} title="Time Ladder" description={`Climb from 1s to 20s · Best level ${bestLadderLevel}`} onClick={onTimeLadder} />
-        <GameMenuCard color="red" icon={<Skull className="w-7 h-7" />} title="Hardcore Mode" description={`Three lives · Endless score · Best ${bestHardcoreScore}`} onClick={onHardcore} />
-        <GameMenuCard color="rose" icon={<BarChart3 className="w-7 h-7" />} title="Stats" description="See your progress across TimeGames." onClick={onStats} />
-        <GameMenuCard color="slate" icon={<Settings className="w-7 h-7" />} title="Settings" description="Sound, haptics and display." onClick={onSettings} />
+      <div className="min-h-0 overflow-y-auto card-scroll space-y-3 pr-1">
+        <motion.div {...homeCardMotion(0)}><GameMenuCard color="teal" icon={<Clock className="w-7 h-7" />} title="Time Guesser" description={`${rankedMode ? 'Ranked' : 'Casual'} · Hidden-clock guessing`} onClick={onTimeGuesser} /></motion.div>
+        <motion.div {...homeCardMotion(1)}><GameMenuCard color="indigo" icon={<LadderIcon className="w-7 h-7" />} title="Time Ladder" description={`Climb from 1s to 20s · Best level ${bestLadderLevel}`} onClick={onTimeLadder} /></motion.div>
+        <motion.div {...homeCardMotion(2)}><GameMenuCard color="red" icon={<Skull className="w-7 h-7" />} title="Hardcore Mode" description={`Three lives · Endless score · Best ${bestHardcoreScore}`} onClick={onHardcore} /></motion.div>
+        <motion.div {...homeCardMotion(3)}><GameMenuCard color="rose" icon={<BarChart3 className="w-7 h-7" />} title="Stats" description="See your progress across TimeGames." onClick={onStats} /></motion.div>
+        <motion.div {...homeCardMotion(4)}><GameMenuCard color="slate" icon={<Settings className="w-7 h-7" />} title="Settings" description="Sound, haptics and display." onClick={onSettings} /></motion.div>
+      </div>
       </div>
     </div>
   );
@@ -1717,6 +1971,18 @@ function StatsScreen({
         <ResultRow label="Expert Best" value={hardcoreScores.expert.toString()} />
         {godUnlocked && <ResultRow label="GOD Best" value={hardcoreScores.god.toString()} accent />}
         {literalUnlocked && <ResultRow label="LITERAL CLOCK Best" value={hardcoreScores.literal.toString()} accent />}
+
+        <div className="pt-4">
+          <button
+            onClick={() => setShowResetConfirmation(true)}
+            className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200"
+          >
+            Reset Statistics
+          </button>
+          <p className="text-xs text-slate-400 text-center mt-2">
+            Clears all local progress, Daily history, Ladder best and Hardcore unlocks.
+          </p>
+        </div>
       </div>
 
       <div className="space-y-3 pt-4 shrink-0 bg-white relative z-10 app-bottom-actions">
@@ -1726,13 +1992,6 @@ function StatsScreen({
         >
           <ArrowLeft className="w-5 h-5" />
           Back
-        </button>
-
-        <button
-          onClick={() => setShowResetConfirmation(true)}
-          className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200"
-        >
-          Reset Statistics
         </button>
       </div>
 
@@ -1752,7 +2011,7 @@ function StatsScreen({
               Reset statistics?
             </h2>
             <p id="reset-dialog-description" className="text-slate-500 mt-2 mb-6">
-              This will erase Time Guesser accuracy statistics and Clock Rating. Daily, Time Ladder and Hardcore records are kept.
+              This will erase all local progress, including Clock Rating, Daily history, Time Ladder best level and Hardcore unlocks.
             </p>
             <div className="space-y-3">
               <button
@@ -1780,15 +2039,11 @@ function StatsScreen({
 
 function SettingsScreen({
   settings,
-  displayName,
   onChange,
-  onDisplayNameChange,
   onBack,
 }: {
   settings: SettingsState;
-  displayName: string;
   onChange: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void;
-  onDisplayNameChange: (value: string) => void;
   onBack: () => void;
 }) {
   const options: Array<{
@@ -1872,33 +2127,6 @@ function SettingsScreen({
         })}
 
         <div className="pt-2">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 mb-3">
-            Daily Leaderboard
-          </p>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-3">
-            <label htmlFor="daily-display-name" className="font-bold text-slate-800 block">
-              Display Name
-            </label>
-            <p className="text-xs text-slate-500 mb-3">
-              Used for Daily Challenge leaderboard submissions on this device.
-            </p>
-            <input
-              id="daily-display-name"
-              type="text"
-              value={displayName}
-              onChange={(event) => onDisplayNameChange(sanitizeDisplayName(event.target.value))}
-              placeholder="Anonymous"
-              maxLength={24}
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:border-teal-500"
-            />
-            {!isSupabaseConfigured && (
-              <p className="text-xs text-slate-400 mt-2">
-                Online leaderboard is hidden until Supabase environment variables are configured.
-              </p>
-            )}
-          </div>
-
           <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 mb-3">
             Gameplay
           </p>
@@ -2492,6 +2720,46 @@ function PartyResultsScreen({
   );
 }
 
+function TabletopReadyScreen({
+  onStart,
+  onGoHome,
+}: {
+  onStart: () => void;
+  onGoHome: () => void;
+}) {
+  return (
+    <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
+      <div className="tabletop-landscape-shell">
+        <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-5 flex items-center justify-between gap-5">
+          <div className="text-left min-w-0">
+            <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center mb-3">
+              <Eye className="w-8 h-8 text-teal-200" />
+            </div>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-teal-200">Tabletop Mode</p>
+            <h1 className="text-4xl font-black leading-none mt-1">Ready?</h1>
+            <p className="text-sm text-white/70 mt-2 max-w-[220px]">Start the hidden timer, then everyone guesses together.</p>
+          </div>
+
+          <button
+            onClick={onStart}
+            className="w-40 h-40 rounded-full bg-teal-500 hover:bg-teal-400 text-white text-2xl font-black shadow-2xl shadow-teal-500/30 transition-all active:scale-95"
+          >
+            START<br />TIMER
+          </button>
+        </div>
+      </div>
+
+      <button
+        onClick={onGoHome}
+        className="mt-3 w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 app-bottom-actions"
+      >
+        <ArrowLeft className="w-5 h-5" />
+        Back to Time Guesser
+      </button>
+    </div>
+  );
+}
+
 function TabletopRevealScreen({
   targetTime,
   revealed,
@@ -2509,64 +2777,55 @@ function TabletopRevealScreen({
 }) {
   return (
     <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
-      <div className="tabletop-header text-center space-y-1 mb-3 shrink-0">
-        <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-500 flex items-center justify-center">
-          <Eye className="w-7 h-7 text-white" />
-        </div>
-        <h1 className="text-3xl font-black text-slate-800">Tabletop Reveal</h1>
-        <p className="text-slate-500 text-sm">Discuss the answer together, then reveal the hidden time.</p>
-      </div>
-
-      <div className="tabletop-board bg-gradient-to-br from-indigo-50 via-white to-teal-50 border border-slate-200 rounded-[2rem] p-3 sm:p-4 flex-1 min-h-0 flex flex-col">
-      <div className="tabletop-reveal-stage flip-scene flex-1 min-h-0">
-        <div className={`flip-card relative h-full ${revealed ? 'is-flipped' : ''}`}>
-          <div className="flip-face absolute inset-0 bg-white/90 border border-slate-200 rounded-3xl p-5 flex flex-col items-center justify-center shadow-inner">
-            <div className="text-6xl sm:text-7xl font-black text-slate-700 tracking-widest leading-none">
-              ? ? ?
+      <div className="tabletop-landscape-shell">
+        <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-4 flex flex-col">
+          {!revealed ? (
+            <button
+              type="button"
+              onClick={onReveal}
+              className="flex-1 rounded-[1.5rem] border border-white/15 bg-white/10 flex flex-col items-center justify-center text-white transition-all active:scale-[0.98]"
+              aria-label="Reveal tabletop time"
+            >
+              <div className="text-8xl font-black tracking-widest leading-none">???</div>
+              <p className="text-sm font-black uppercase tracking-[0.3em] text-teal-200 mt-5">Tap to reveal</p>
+            </button>
+          ) : (
+            <div className="flex-1 rounded-[1.5rem] border border-white/15 bg-white/10 flex flex-col items-center justify-center">
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-teal-200 mb-2">Secret Time</p>
+              <div className="tabletop-time font-black text-teal-200 tracking-tight leading-none">
+                {targetTime.toFixed(2)}s
+              </div>
             </div>
-            <p className="text-slate-400 font-semibold mt-5">Ready for the answer?</p>
-          </div>
-
-          <div className="flip-face flip-back absolute inset-0 bg-white/90 border border-slate-200 rounded-3xl p-5 flex flex-col items-center justify-center shadow-inner">
-            <p className="text-slate-400 text-sm font-semibold uppercase tracking-[0.25em] mb-3">
-              Secret Time
-            </p>
-            <div className="text-7xl sm:text-8xl tabletop-time font-black text-teal-600 tracking-tight leading-none">
-              {targetTime.toFixed(2)}s
-            </div>
-            <p className="text-slate-500 font-semibold mt-5">How close was the table?</p>
-          </div>
+          )}
         </div>
       </div>
-      </div>
 
-      <div className="tabletop-actions space-y-3 pt-4 shrink-0 app-bottom-actions">
-        {!revealed ? (
-          <button
-            onClick={onReveal}
-            className="w-full bg-teal-500 hover:bg-teal-600 text-white font-black py-5 px-6 rounded-2xl text-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
-          >
-            <Eye className="w-6 h-6" />
-            Reveal Time
-          </button>
-        ) : (
+      {revealed ? (
+        <div className="tabletop-actions grid grid-cols-2 gap-3 pt-4 shrink-0 app-bottom-actions">
           <button
             onClick={onNextRound}
-            className="w-full bg-teal-500 hover:bg-teal-600 text-white font-black py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
+            className="w-full bg-teal-500 hover:bg-teal-600 text-white font-black py-4 px-4 rounded-2xl text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
           >
             <ArrowRight className="w-5 h-5" />
-            New Tabletop Round
+            Play Again
           </button>
-        )}
-
+          <button
+            onClick={onGoHome}
+            className="w-full app-secondary-action font-black py-4 px-4 rounded-2xl text-base transition-all duration-200 flex items-center justify-center gap-2"
+          >
+            <Home className="w-5 h-5" />
+            Home
+          </button>
+        </div>
+      ) : (
         <button
           onClick={onGoHome}
-          className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
+          className="mt-3 w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 app-bottom-actions"
         >
           <ArrowLeft className="w-5 h-5" />
-          Back
+          Back to Time Guesser
         </button>
-      </div>
+      )}
 
       {revealed && !reducedMotion && (
         <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
@@ -2879,3 +3138,4 @@ function ResultRow({
 }
 
 export default App;
+

@@ -216,7 +216,7 @@ export default function HardcoreMode({
   return (
     <div className={`${screenTheme} relative rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col ${inRun && difficulty !== 'easy' ? 'text-white' : ''}`}>
       <div className="text-center space-y-1 mb-3">
-        <div className="w-12 h-12 mx-auto rounded-2xl bg-red-600 flex items-center justify-center text-white"><Skull className="w-6 h-6" /></div>
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-red-600 flex items-center justify-center text-white"><Skull className="w-8 h-8" /></div>
         <h1 className="text-3xl font-black">Hardcore Mode</h1>
         {!inRun && <p className="text-sm opacity-80">Three lives. Hit targets and build an endless score.</p>}
         {inRun && <p className={`text-xs font-black ${definition.accent}`}>{definition.name} · Best {bestScores[difficulty]}</p>}
@@ -325,11 +325,11 @@ export default function HardcoreMode({
       <AnimatePresence>
         {unlockNotice && (
           <motion.div
-            initial={reducedMotion ? { opacity: 0 } : { y: -96, opacity: 0 }}
+            initial={reducedMotion ? { opacity: 0 } : { y: -24, opacity: 0 }}
             animate={reducedMotion ? { opacity: 1 } : { y: 0, opacity: 1 }}
-            exit={reducedMotion ? { opacity: 0 } : { y: -96, opacity: 0 }}
+            exit={reducedMotion ? { opacity: 0 } : { y: -24, opacity: 0 }}
             transition={{ duration: reducedMotion ? 0 : 0.42, ease: 'easeInOut' }}
-            className="absolute inset-x-4 top-3 z-30 rounded-2xl border border-yellow-400/80 bg-slate-950/95 text-white shadow-xl shadow-yellow-500/20 px-4 py-3"
+            className="safe-top-toast absolute inset-x-4 z-30 rounded-2xl border border-yellow-400/80 bg-slate-950/95 text-white shadow-xl shadow-yellow-500/20 px-4 py-3"
           >
             <div className="flex items-center gap-3 text-left">
               <div className="w-10 h-10 rounded-xl bg-yellow-400 text-slate-950 flex items-center justify-center shrink-0">

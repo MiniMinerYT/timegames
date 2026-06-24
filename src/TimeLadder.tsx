@@ -161,7 +161,7 @@ export default function TimeLadder({
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-5 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
       <div className="text-center space-y-0.5 mb-1">
-        <div className="w-10 h-10 mx-auto rounded-xl bg-indigo-500 flex items-center justify-center"><LadderIcon className="w-6 h-6 text-white" /></div>
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500 flex items-center justify-center"><LadderIcon className="w-8 h-8 text-white" /></div>
         <h1 className="text-2xl font-black text-slate-800">Time Ladder</h1>
         <p className="text-xs text-slate-500">Climb 1–20 seconds · Get within ±{TOLERANCE.toFixed(2)}s · One miss ends the run.</p>
         <p className="text-xs font-black text-indigo-600">Best level: {bestLevel}</p>

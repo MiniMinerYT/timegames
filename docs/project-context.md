@@ -22,7 +22,9 @@ Shared game-menu cards use a fixed icon column, centered text column and matchin
 
 The layout uses a responsive app-card system. Desktop and roomy web screens preserve the polished 680px card presentation, while mobile/native-sized screens use the full available dynamic viewport height with safe-area padding for phone status bars, Dynamic Island/notches and home indicators. The HTML viewport uses `viewport-fit=cover` so iOS exposes safe-area insets correctly. On narrow phone screens the card itself fills the device frame and extends its light/dark background into the safe-area regions, avoiding mismatched top or bottom strips while keeping content padded away from notches and home indicators. Desktop keeps the floating rounded-card look. Content-heavy screens keep key navigation controls outside their scrollable content so actions such as Back remain visible. Scrollable content uses `flex-1 min-h-0 overflow-y-auto` plus modest bottom padding for the action area and safe-area inset, so final settings and stats can scroll fully above persistent bottom controls without oversized blank overscroll gaps.
 
-Top-level menu, game-hub, Stats and Settings screen changes use subtle content-only transitions inside the app card. On desktop the rounded 680px card frame stays stationary; only the contents inside it animate. These one-shot transitions are disabled during active timing windows and are also disabled by the saved or operating-system Reduced Motion preferences.
+The app opens with a tap-to-start TimeGames splash sequence that matches the saved light/dark theme. While waiting, the clock logo, title, tagline and start prompt use a slow subtle wave/shake so the entry screen feels alive without becoming distracting. Tapping or pressing Enter/Space first pulls all text beneath the logo upward in one smooth motion until it becomes tiny and hidden behind the clock icon, then the same splash clock icon immediately launches toward the actual measured center of the home header icon. The launch destination is measured and frozen at tap time so the moving icon does not re-target after it lands. During the first Home reveal, the Home header remains position-stable while the moving splash icon overlaps the real Home icon, its launch glow fades away, and the handoff crossfades so it feels like one continuous icon settling into place. The Home title, tagline and menu cards start tiny near the icon and quickly grow/drop down in a tight waterfall as if being released from the landed logo. The help question mark is excluded from the waterfall and fades in separately. Theme music attempts to autoplay on launch, and the start tap provides the fallback user gesture needed when platforms such as iOS/WebKit block audible autoplay until interaction. Reduced Motion shortens the sequence to simple state changes.
+
+Top-level menu, game-hub, Stats and Settings screen changes use very subtle content-only transitions inside the app card. On desktop the rounded 680px card frame stays stationary; only the contents inside it animate. These one-shot transitions are intentionally gentle, are disabled during active timing windows and are also disabled by the saved or operating-system Reduced Motion preferences.
 
 Menu screens expose a contextual question-mark button in the card's top-left corner. It opens a reusable help dialog over the current screen with page-specific rules and explanations. The dialog respects the available viewport and safe areas, keeps its X close control visible in the top-right, scrolls its body internally when necessary, closes from the backdrop or Escape key and supports light/dark themes. Active Time Guesser gameplay, timing, guess-entry and result screens hide the help control so it does not distract or overlap play. Time Ladder keeps its help entry available, and Hardcore keeps help visible on the difficulty-selection screen only.
 
@@ -68,7 +70,7 @@ The result ranks participating players by absolute error. Players within 0.005 s
 
 Party results use the same flip-card reveal language as Time Guesser for the secret time before showing the ranked round outcome.
 
-Tabletop Mode is a mobile-first Party variant for a group sitting around one device. It does not ask for player names, guesses or scores. After the hidden timer stops, the screen shows one large `Reveal Time` button. The group can discuss the answer, then tap to dramatically flip/reveal the secret time. Tabletop Mode uses the Party target range setting but never affects Clock Rating, stats or the scored Party leaderboard. The app remains portrait-locked globally; Tabletop does not force physical device landscape. Instead, it presents a horizontal-feeling tabletop board inside the portrait shell with a wide central reveal panel, very large numbers and chunky controls so it reads well when the phone is placed on a table.
+Tabletop Mode is a mobile-first Party variant for a group sitting around one device. It does not ask for player names, guesses or scores. Selecting Tabletop opens a dedicated Start Timer screen rather than immediately starting the timer. After the hidden timer stops, the screen shows a large rotated tabletop board with question marks. The group can discuss the answer, then tap the board itself to dramatically flip/reveal the secret time in very large type. After reveal, the available actions are Play Again and Home. Tabletop Mode uses the Party target range setting but never affects Clock Rating, stats or the scored Party leaderboard. The app remains portrait-locked globally; Tabletop does not force physical device landscape. Instead, its central content is rotated into a landscape-style board inside the portrait shell so it reads well when the phone is placed on a table.
 
 Party target ranges:
 - Short: 2–6 seconds
@@ -89,9 +91,9 @@ After completing today's challenge, the Daily screen shows:
 
 Daily Challenge uses Supabase for the real global leaderboard when both `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are present. If either variable is missing, leaderboard functionality is disabled gracefully and leaderboard UI is hidden. The app uses the existing `daily_submissions` table with `id`, `challenge_date`, `player_id`, `display_name`, `error`, `guess` and `created_at`.
 
-A random `player_id` is generated once per device, stored locally and reused forever. Daily leaderboard submissions use the locally stored display name, defaulting safely to `Anonymous` if none has been set. The display name can be changed later in Settings.
+A random `player_id` is generated once per device, stored locally and reused forever. Daily leaderboard submissions use `Anonymous` for the required `display_name` table field; the app does not ask the player for a display name and only surfaces Daily placement/rank information.
 
-Only today's official Daily Challenge submits to Supabase. Archived days are view-only and must never submit. The app checks for an existing submission for the same `challenge_date` and `player_id`; if one already exists, it fetches and displays the existing placement instead of submitting again. Submissions include `challenge_date`, `player_id`, `display_name`, `error` and `guess`. The leaderboard fetch includes the player's global rank, total players today, best score today and top 10 entries, but the normal UI keeps the result focused on global rank and best score.
+Only today's official Daily Challenge submits to Supabase. Archived days are view-only and must never submit. The app checks for an existing submission for the same `challenge_date` and `player_id`; if one already exists, it fetches and displays the existing placement instead of submitting again. Submissions include `challenge_date`, `player_id`, `display_name`, `error` and `guess`, with `display_name` sent as `Anonymous`. The leaderboard fetch includes the player's global rank, total players today, best score today and top 10 entries, but the normal UI keeps the result focused on global rank and best score. Today's leaderboard placement refreshes periodically while the app is open, with faster refreshes on Daily screens so returning to Daily Challenge shows the latest known placement.
 
 Challenge Archive is view-only and currently lists the previous 14 local calendar dates. Every item shows its date, deterministic secret time and whether it was played. Played entries show the official error; missed entries say `Not played`. Archived challenges cannot be replayed or submitted because their secret times are already known.
 
@@ -213,13 +215,12 @@ Settings persist in localStorage. Current settings:
 - Reduced motion
 - Dark mode
 - Party timer range
-- Daily leaderboard display name
 
 Countdown length and high contrast are not configurable. Time Guesser uses its fixed 3-second countdown. Time Ladder and Hardcore use explicit Start/Stop timer controls with no countdown. Larger Controls is not currently implemented and is not reintroduced.
 
 The operating system reduced-motion preference is respected in addition to the saved setting.
 
-Music is optional, defaults on at 35% volume and loops the bundled theme at `public/audio/themev3.mp3`. Playback is gesture-unlocked so desktop, Android and iOS autoplay rules are respected. Its volume is controlled by a persisted 0-100% slider in Settings and the implementation uses a Web Audio gain node where available so volume and fades work more reliably across native wrappers and mobile browsers. The theme behaves like waiting music: during active timing and guess-entry states it slowly fades down over about 5 seconds instead of stopping abruptly. It does not fade back in during any guessing element. After the game reaches a result or menu state, it waits about 10 seconds and then fades back in over about 5 seconds. Turning Music off mutes the track without resetting it to the start; when technically possible the track continues progressing silently and resumes from its current position when re-enabled.
+Music is optional, defaults on at 35% volume and loops the bundled theme at `public/audio/themev4.mp3`. Playback is attempted on app load and still falls back to gesture-unlock when desktop/mobile autoplay rules block immediate playback. Its volume is controlled by a persisted 0-100% slider in Settings and the implementation uses a Web Audio gain node where available so volume and fades work more reliably across native wrappers and mobile browsers. The theme behaves like waiting music: during active timing and guess-entry states it slowly fades down over about 5 seconds instead of stopping abruptly. It does not fade back in during any guessing element. After the game reaches a result or menu state, it waits about 10 seconds and then fades back in over about 5 seconds. Turning Music off immediately mutes and pauses the track without resetting it to the start; re-enabling resumes from the current position when playback is allowed.
 
 Turning Haptic Feedback on immediately triggers a short confirmation buzz through the shared haptic system. Capacitor Haptics is used on native Android/iOS builds, with `navigator.vibrate` retained as a browser fallback.
 
@@ -245,7 +246,7 @@ The Stats screen contains:
 
 General accuracy stats include Single Player and official Daily Challenge attempts. Party Mode and Time Ladder are excluded. Errors of 100 seconds or more are excluded from average error to avoid accidental inputs skewing the result.
 
-Stats reset clears Time Guesser accuracy stats and Clock Rating after confirmation. It does not clear Daily history or retention state, Time Ladder best or Hardcore best scores.
+Stats reset clears all local progress after confirmation, including Time Guesser accuracy stats, Clock Rating, Daily history/retention state, Time Ladder best level, Hardcore best scores/unlocks and current Party players.
 
 ## Persistence
 
@@ -254,7 +255,6 @@ localStorage keys:
 - `timegames-settings`: settings and ranked-mode preference
 - `timegames-music-default-on-migrated`: one-time migration marker so older installs adopt the music-on default once without repeatedly overriding the user's choice
 - `timegames-player-id`: randomly generated device-local Daily leaderboard identity
-- `timegames-player-display-name`: locally stored Daily leaderboard display name
 - `timegames-daily-results`: official Daily results keyed by local date
 - `timegames-daily-retention`: current streak, last completed date and dates whose rating bonus was claimed
 - `timegames-ladder-best`: highest successfully cleared Time Ladder level
