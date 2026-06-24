@@ -49,6 +49,7 @@ export default function HardcoreMode({
   sounds,
   haptics,
   reducedMotion,
+  nativeControls,
   onTimingChange,
   onHelpVisibilityChange,
   onBestScoreChange,
@@ -58,6 +59,7 @@ export default function HardcoreMode({
   sounds: boolean;
   haptics: boolean;
   reducedMotion: boolean;
+  nativeControls: boolean;
   onTimingChange: (active: boolean) => void;
   onHelpVisibilityChange: (visible: boolean) => void;
   onBestScoreChange: (difficulty: HardcoreDifficulty, score: number) => void;
@@ -282,7 +284,7 @@ export default function HardcoreMode({
             <div className="flex-1 flex flex-col items-center justify-center space-y-3">
               <p className={`text-sm uppercase tracking-[0.25em] font-black ${definition.accent}`}>Your target</p>
               <p className="text-5xl font-black">{target.toFixed(2)}s</p>
-              <p className="text-sm opacity-80">Memorise it, then press Start or use Space.</p>
+              <p className="text-sm opacity-80">{nativeControls ? 'Memorise it, then tap Start.' : 'Memorise it, then press Start or use Space.'}</p>
               <button onClick={beginTimer} className={`relative z-20 pointer-events-auto w-44 h-44 rounded-full ${definition.button} text-white text-4xl font-black shadow-2xl transition-all active:scale-95`}>START</button>
             </div>
           )}
@@ -291,7 +293,7 @@ export default function HardcoreMode({
             <div className="flex-1 flex flex-col items-center justify-center space-y-3">
               <p className="invisible text-sm uppercase tracking-[0.25em] font-black" aria-hidden="true">Your target</p>
               <p className="invisible text-5xl font-black" aria-hidden="true">00.00s</p>
-              <p className="font-bold opacity-80">Target hidden. Press STOP or Space.</p>
+              <p className="font-bold opacity-80">{nativeControls ? 'Target hidden. Press STOP.' : 'Target hidden. Press STOP or Space.'}</p>
               <button onClick={stopTimer} className="relative z-20 pointer-events-auto w-44 h-44 rounded-full bg-red-600 hover:bg-red-700 text-white text-4xl font-black shadow-2xl shadow-red-900/30 transition-all active:scale-95">STOP</button>
             </div>
           )}
@@ -303,7 +305,7 @@ export default function HardcoreMode({
                 <p className="text-5xl font-black mt-3">{elapsed.toFixed(2)}s</p>
                 <p className="font-bold opacity-70 mt-1">{shownError.toFixed(2)}s off · Target {target.toFixed(2)}s</p>
               </div>
-              <button onClick={nextRound} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl`}>Next Target · Space</button>
+              <button onClick={nextRound} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl`}>{nativeControls ? 'Next Target' : 'Next Target · Space'}</button>
             </div>
           )}
 

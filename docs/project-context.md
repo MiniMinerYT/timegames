@@ -20,7 +20,9 @@ The Home Time Guesser card indicates whether Single Player is currently Ranked o
 
 Shared game-menu cards use a fixed icon column, centered text column and matching spacer column so icons align consistently. Time Guesser, Time Ladder and Hardcore use the same centered icon/title/tagline header structure.
 
-The layout uses a responsive app-card system. Desktop and roomy web screens preserve the polished 680px card presentation, while mobile/native-sized screens use the full available dynamic viewport height with safe-area padding for phone status bars, Dynamic Island/notches and home indicators. The HTML viewport uses `viewport-fit=cover` so iOS exposes safe-area insets correctly. On narrow phone screens the outer card becomes the device frame with no decorative outer gutter, while retaining a small safe-area breathing gap above and below content. Desktop keeps the floating rounded-card look. Content-heavy screens keep key navigation controls outside their scrollable content so actions such as Back remain visible. Scrollable content uses `flex-1 min-h-0 overflow-y-auto` plus bottom padding for the action area and safe-area inset, so final settings and stats can scroll fully above persistent bottom controls.
+The layout uses a responsive app-card system. Desktop and roomy web screens preserve the polished 680px card presentation, while mobile/native-sized screens use the full available dynamic viewport height with safe-area padding for phone status bars, Dynamic Island/notches and home indicators. The HTML viewport uses `viewport-fit=cover` so iOS exposes safe-area insets correctly. On narrow phone screens the card itself fills the device frame and extends its light/dark background into the safe-area regions, avoiding mismatched top or bottom strips while keeping content padded away from notches and home indicators. Desktop keeps the floating rounded-card look. Content-heavy screens keep key navigation controls outside their scrollable content so actions such as Back remain visible. Scrollable content uses `flex-1 min-h-0 overflow-y-auto` plus modest bottom padding for the action area and safe-area inset, so final settings and stats can scroll fully above persistent bottom controls without oversized blank overscroll gaps.
+
+Top-level menu, game-hub, Stats and Settings screen changes use subtle content-only transitions inside the app card. On desktop the rounded 680px card frame stays stationary; only the contents inside it animate. These one-shot transitions are disabled during active timing windows and are also disabled by the saved or operating-system Reduced Motion preferences.
 
 Menu screens expose a contextual question-mark button in the card's top-left corner. It opens a reusable help dialog over the current screen with page-specific rules and explanations. The dialog respects the available viewport and safe areas, keeps its X close control visible in the top-right, scrolls its body internally when necessary, closes from the backdrop or Escape key and supports light/dark themes. Active Time Guesser gameplay, timing, guess-entry and result screens hide the help control so it does not distract or overlap play. Time Ladder keeps its help entry available, and Hardcore keeps help visible on the difficulty-selection screen only.
 
@@ -52,11 +54,21 @@ Casual and ranked rounds update general stats. Only ranked rounds affect Clock R
 
 ### Party Mode
 
-At least two players are required. After the fixed 3-second countdown and hidden clock, players enter guesses. Blank players are skipped.
+Party Mode starts with a mode choice on mobile/native-sized builds:
+- Standard Party Mode
+- Tabletop Mode
 
-Pressing Enter on a valid Party guess formats it and focuses the next player's input.
+Desktop/web pointer layouts may continue to show the standard scored Party flow only.
+
+In Standard Party Mode, at least two players are required. After the fixed 3-second countdown and hidden clock, players enter guesses. Blank players are skipped.
+
+Party guesses use the shared in-app number keypad rather than the native device keyboard. Selecting a player makes them active, and submitting a valid guess formats it and advances to the next player who still needs a guess. Desktop keyboard entry and Enter submission are preserved through the custom keypad handler.
 
 The result ranks participating players by absolute error. Players within 0.005 seconds of the best error tie for first and each receive one point. The in-session scoreboard, players and scores are not persisted across reloads. Party Mode never affects Clock Rating or general stats.
+
+Party results use the same flip-card reveal language as Time Guesser for the secret time before showing the ranked round outcome.
+
+Tabletop Mode is a mobile-first Party variant for a group sitting around one device. It does not ask for player names, guesses or scores. After the hidden timer stops, the screen shows one large `Reveal Time` button. The group can discuss the answer, then tap to dramatically flip/reveal the secret time. Tabletop Mode uses the Party target range setting but never affects Clock Rating, stats or the scored Party leaderboard. The app remains portrait-locked globally; Tabletop does not force physical device landscape. Instead, it presents a horizontal-feeling tabletop board inside the portrait shell with a wide central reveal panel, very large numbers and chunky controls so it reads well when the phone is placed on a table.
 
 Party target ranges:
 - Short: 2–6 seconds
@@ -69,14 +81,19 @@ Each local calendar date has a deterministic target between 0.5 and 10 seconds. 
 
 After completing today's challenge, the Daily screen shows:
 - Guess, target and error
-- A simulated global rank-style standing
+- Global leaderboard placement when Supabase is configured
+- Best score today when leaderboard data is available
 - Clock Rating participation bonus, current streak and tomorrow's reward
 - A live countdown to the next local calendar day
 - A link to Challenge Archive on the Daily hub
 
-The simulated global standing is explicitly placeholder logic generated locally from the date and error. It must be replaced by real backend leaderboard data if a backend is introduced.
+Daily Challenge uses Supabase for the real global leaderboard when both `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are present. If either variable is missing, leaderboard functionality is disabled gracefully and leaderboard UI is hidden. The app uses the existing `daily_submissions` table with `id`, `challenge_date`, `player_id`, `display_name`, `error`, `guess` and `created_at`.
 
-Challenge Archive is view-only and currently lists the previous 14 local calendar dates. Every item shows its date, deterministic secret time and whether it was played. Played entries also show the official error and simulated/global placement; missed entries say `Not played`. Archived challenges cannot be replayed because their secret times are already known.
+A random `player_id` is generated once per device, stored locally and reused forever. Daily leaderboard submissions use the locally stored display name, defaulting safely to `Anonymous` if none has been set. The display name can be changed later in Settings.
+
+Only today's official Daily Challenge submits to Supabase. Archived days are view-only and must never submit. The app checks for an existing submission for the same `challenge_date` and `player_id`; if one already exists, it fetches and displays the existing placement instead of submitting again. Submissions include `challenge_date`, `player_id`, `display_name`, `error` and `guess`. The leaderboard fetch includes the player's global rank, total players today, best score today and top 10 entries, but the normal UI keeps the result focused on global rank and best score.
+
+Challenge Archive is view-only and currently lists the previous 14 local calendar dates. Every item shows its date, deterministic secret time and whether it was played. Played entries show the official error; missed entries say `Not played`. Archived challenges cannot be replayed or submitted because their secret times are already known.
 
 Official Daily attempts update general gameplay stats. Completing today's challenge awards a once-per-day Clock Rating participation bonus regardless of accuracy. The challenge's accuracy itself does not produce a ranked gain or loss.
 
@@ -84,13 +101,13 @@ Daily completion streak rewards:
 - Day 1: +10 Clock Rating
 - Day 2: +15
 - Day 3: +20
-- Day 4: +25
-- Day 5: +30
-- Day 6: +35
-- Day 7: +40
-- Day 8: +45
-- Day 9: +50
-- Day 10 and every maintained day thereafter: +60
+- Day 4: +30
+- Day 5: +40
+- Day 6: +50
+- Day 7: +60
+- Day 8: +75
+- Day 9: +90
+- Day 10 and every maintained day thereafter: +100
 
 The active streak, last completed date and claimed dates persist locally. Missing a local calendar day resets the next completion to Day 1. A live `HH:MM:SS` countdown on the Time Guesser Daily card, Daily hub and Daily result counts down to the user's next local midnight.
 
@@ -196,18 +213,21 @@ Settings persist in localStorage. Current settings:
 - Reduced motion
 - Dark mode
 - Party timer range
+- Daily leaderboard display name
 
 Countdown length and high contrast are not configurable. Time Guesser uses its fixed 3-second countdown. Time Ladder and Hardcore use explicit Start/Stop timer controls with no countdown. Larger Controls is not currently implemented and is not reintroduced.
 
 The operating system reduced-motion preference is respected in addition to the saved setting.
 
-Music is optional, defaults on at 35% volume and loops the bundled theme at `public/audio/theme.mp3`. Its volume is controlled by a persisted 0-100% slider in Settings. The theme behaves like waiting music: during active timing and guess-entry states it slowly fades down over about 5 seconds instead of stopping abruptly. It does not fade back in during any guessing element. After the game reaches a result or menu state, it waits about 10 seconds and then fades back in over about 5 seconds. Turning Music off immediately pauses and resets the media element so native iOS/Android wrappers cannot keep playback alive behind the disabled toggle.
+Music is optional, defaults on at 35% volume and loops the bundled theme at `public/audio/themev3.mp3`. Playback is gesture-unlocked so desktop, Android and iOS autoplay rules are respected. Its volume is controlled by a persisted 0-100% slider in Settings and the implementation uses a Web Audio gain node where available so volume and fades work more reliably across native wrappers and mobile browsers. The theme behaves like waiting music: during active timing and guess-entry states it slowly fades down over about 5 seconds instead of stopping abruptly. It does not fade back in during any guessing element. After the game reaches a result or menu state, it waits about 10 seconds and then fades back in over about 5 seconds. Turning Music off mutes the track without resetting it to the start; when technically possible the track continues progressing silently and resumes from its current position when re-enabled.
+
+Turning Haptic Feedback on immediately triggers a short confirmation buzz through the shared haptic system. Capacitor Haptics is used on native Android/iOS builds, with `navigator.vibrate` retained as a browser fallback.
 
 ## Input and Navigation UX
 
-Time guesses request the mobile decimal keypad, accept no more than two digits before and two digits after the decimal point, and automatically insert the decimal point once two whole-number digits have been typed.
+Numerical guess entry uses a shared custom in-app keypad instead of the native device keyboard. The keypad includes digits 0-9, decimal point, delete/backspace and a submit button. It accepts no more than two digits before and two digits after the decimal point and automatically inserts the decimal point once two whole-number digits have been typed. The keypad is used by Time Guesser Single Player, Daily Challenge and Standard Party guess entry, and is designed for future numeric entry screens.
 
-Enter submits valid Single Player and Daily Challenge guesses. In Party Mode, Enter advances focus to the next player's guess field. Space starts and stops Time Ladder and Hardcore timers when focus is not inside another interactive control.
+Enter submits valid Single Player and Daily Challenge guesses through the custom keypad handler. In Party Mode, Enter saves the active player's valid guess and advances to the next player. Space starts and stops Time Ladder and Hardcore timers when focus is not inside another interactive control on desktop. Native/touch UI wording avoids keyboard-specific labels such as `Space`, while preserving the keyboard shortcut for desktop users.
 
 Menu buttons provide short feedback tones when sounds are enabled. Gameplay retains countdown, stop and result tones plus optional haptics. Haptics are routed through `@capacitor/haptics` for native Android/iOS builds, with `navigator.vibrate` retained only as a browser fallback if Capacitor haptics are unavailable.
 
@@ -233,6 +253,8 @@ localStorage keys:
 - `timegames-stats`: general accuracy stats, Clock Rating and average-error sample count
 - `timegames-settings`: settings and ranked-mode preference
 - `timegames-music-default-on-migrated`: one-time migration marker so older installs adopt the music-on default once without repeatedly overriding the user's choice
+- `timegames-player-id`: randomly generated device-local Daily leaderboard identity
+- `timegames-player-display-name`: locally stored Daily leaderboard display name
 - `timegames-daily-results`: official Daily results keyed by local date
 - `timegames-daily-retention`: current streak, last completed date and dates whose rating bonus was claimed
 - `timegames-ladder-best`: highest successfully cleared Time Ladder level
@@ -254,7 +276,7 @@ Party players and scores remain in React state only.
 - Time Guesser's reveal card flips horizontally from right to left.
 - Preserve reduced-motion and dark-mode support.
 - Avoid clipped fixed-card overflow; mobile screens may scroll cleanly inside the app viewport when needed.
-- Native Android builds are locked to portrait orientation via the Android manifest. Native iOS builds are locked to vertical orientations via `Info.plist`.
+- Native Android builds are locked to portrait orientation via the Android manifest. Native iOS builds are locked to vertical orientations via `Info.plist`. Tabletop Mode keeps that portrait lock and uses an internal horizontal board-style layout rather than OS-level landscape.
 
 ## Technical Stack
 
@@ -265,6 +287,7 @@ Party players and scores remain in React state only.
 - lucide-react
 - framer-motion
 - @capacitor/haptics
+- @supabase/supabase-js
 - localStorage persistence
 
 ## Important Development Rules

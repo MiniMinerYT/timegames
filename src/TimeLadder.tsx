@@ -18,6 +18,7 @@ export default function TimeLadder({
   sounds,
   haptics,
   reducedMotion,
+  nativeControls,
   onTimingChange,
   onBestLevelChange,
   onBack,
@@ -26,6 +27,7 @@ export default function TimeLadder({
   sounds: boolean;
   haptics: boolean;
   reducedMotion: boolean;
+  nativeControls: boolean;
   onTimingChange: (active: boolean) => void;
   onBestLevelChange: (level: number) => void;
   onBack: () => void;
@@ -235,7 +237,7 @@ export default function TimeLadder({
         >
           {phase === 'ready' ? 'START' : phase === 'playing' ? 'STOP' : success ? level === FINAL_LEVEL ? 'FINISH' : 'NEXT' : 'START'}
           {phase === 'result' && !success && <span className="block text-xs tracking-wider mt-0.5">NEW RUN</span>}
-          <span className="block text-[10px] tracking-wider mt-1 opacity-80">OR SPACE</span>
+          <span className="block text-[10px] tracking-wider mt-1 opacity-80">{nativeControls ? 'TAP WHEN READY' : 'OR SPACE'}</span>
         </motion.button>
       </div>
 

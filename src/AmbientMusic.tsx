@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
-const THEME_SRC = '/audio/theme.mp3';
+const THEME_SRC = '/audio/themev3.mp3';
 const FADE_OUT_MS = 5000;
 const FADE_IN_DELAY_MS = 10000;
 const FADE_IN_MS = 5000;
@@ -27,45 +27,118 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
   const returnAtRef = useRef<number | null>(null);
   const hasDuckedRef = useRef(false);
   const lastPlayAttemptRef = useRef(0);
+  const unlockedRef = useRef(false);
+  const enabledRef = useRef(enabled);
+  const duckedRef = useRef(ducked);
+  const volumeRef = useRef(volume);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
+  const levelRef = useRef(0);
+
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
+
+  useEffect(() => {
+    duckedRef.current = ducked;
+  }, [ducked]);
+
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
 
   useEffect(() => {
     const audio = new Audio(THEME_SRC);
     audio.loop = true;
     audio.preload = 'auto';
     audio.volume = 0;
+    audio.muted = !enabledRef.current;
     audioRef.current = audio;
 
     return () => {
       audio.pause();
+      void audioContextRef.current?.close().catch(() => undefined);
       audioRef.current = null;
+      audioContextRef.current = null;
+      gainRef.current = null;
     };
   }, []);
+
+  const setOutputLevel = useCallback((level: number) => {
+    const clamped = Math.max(0, Math.min(1, level));
+    levelRef.current = clamped;
+
+    const gain = gainRef.current;
+    if (gain) {
+      gain.gain.setValueAtTime(clamped, audioContextRef.current?.currentTime ?? 0);
+      return;
+    }
+
+    const audio = audioRef.current;
+    if (audio) audio.volume = clamped;
+  }, []);
+
+  const ensureAudioGraph = useCallback(() => {
+    if (gainRef.current) return;
+
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    try {
+      const AudioContextConstructor =
+        window.AudioContext ||
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextConstructor) return;
+
+      const context = new AudioContextConstructor();
+      const source = context.createMediaElementSource(audio);
+      const gain = context.createGain();
+      gain.gain.value = levelRef.current;
+      source.connect(gain);
+      gain.connect(context.destination);
+
+      audio.volume = 1;
+      audioContextRef.current = context;
+      gainRef.current = gain;
+    } catch {
+      // Fall back to HTMLAudioElement volume when Web Audio is unavailable.
+    }
+  }, []);
+
+  const startPlayback = useCallback((unlock = false) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (unlock) unlockedRef.current = true;
+    if (!unlockedRef.current) return;
+
+    ensureAudioGraph();
+    void audioContextRef.current?.resume().catch(() => undefined);
+    audio.muted = !enabledRef.current;
+    void audio.play().catch(() => undefined);
+  }, [ensureAudioGraph]);
+
+  useEffect(() => {
+    const unlockPlayback = () => startPlayback(true);
+    window.addEventListener('pointerdown', unlockPlayback, { passive: true });
+    window.addEventListener('keydown', unlockPlayback);
+
+    return () => {
+      window.removeEventListener('pointerdown', unlockPlayback);
+      window.removeEventListener('keydown', unlockPlayback);
+    };
+  }, [startPlayback]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-
-    if (!enabled) {
-      fadeRef.current = null;
-      returnAtRef.current = null;
-      hasDuckedRef.current = false;
-      audio.pause();
-      audio.currentTime = 0;
-      audio.volume = 0;
-      return;
-    }
-
-    const startPlayback = () => {
-      audio.muted = false;
-      void audio.play().catch(() => undefined);
-    };
 
     const startFade = (to: number, durationMs: number) => {
       const currentFade = fadeRef.current;
       if (currentFade && Math.abs(currentFade.to - to) < 0.001 && currentFade.durationMs === durationMs) return;
 
       fadeRef.current = {
-        from: audio.volume,
+        from: levelRef.current,
         to,
         startedAt: performance.now(),
         durationMs,
@@ -80,27 +153,36 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
         ? 1
         : Math.min(1, (performance.now() - fade.startedAt) / fade.durationMs);
       const eased = 1 - Math.pow(1 - progress, 3);
-      audio.volume = fade.from + (fade.to - fade.from) * eased;
+      setOutputLevel(fade.from + (fade.to - fade.from) * eased);
 
       if (progress < 1) return false;
 
-      audio.volume = fade.to;
+      setOutputLevel(fade.to);
       fadeRef.current = null;
       return true;
     };
 
     const attemptPlaybackPeriodically = () => {
+      if (!unlockedRef.current) return;
       const now = Date.now();
       if (!audio.paused && !audio.ended) return;
       if (now - lastPlayAttemptRef.current < 1000) return;
       lastPlayAttemptRef.current = now;
-      startPlayback();
+      startPlayback(false);
     };
 
     const controller = window.setInterval(() => {
+      audio.muted = !enabledRef.current;
       attemptPlaybackPeriodically();
 
-      if (ducked) {
+      if (!enabledRef.current) {
+        const mutedTarget = duckedRef.current ? DUCKED_VOLUME : volumeRef.current;
+        startFade(mutedTarget, VOLUME_CHANGE_FADE_MS);
+        applyFade();
+        return;
+      }
+
+      if (duckedRef.current) {
         hasDuckedRef.current = true;
         returnAtRef.current = null;
         startFade(DUCKED_VOLUME, FADE_OUT_MS);
@@ -117,8 +199,8 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
           return;
         }
 
-        startPlayback();
-        startFade(volume, FADE_IN_MS);
+        startPlayback(false);
+        startFade(volumeRef.current, FADE_IN_MS);
         if (applyFade()) {
           hasDuckedRef.current = false;
           returnAtRef.current = null;
@@ -126,19 +208,18 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
         return;
       }
 
-      startPlayback();
-      startFade(volume, VOLUME_CHANGE_FADE_MS);
+      startPlayback(false);
+      startFade(volumeRef.current, VOLUME_CHANGE_FADE_MS);
       applyFade();
     }, CONTROLLER_TICK_MS);
 
-    startPlayback();
-    window.addEventListener('pointerdown', startPlayback);
+    audio.muted = !enabled;
+    startPlayback(false);
 
     return () => {
       window.clearInterval(controller);
-      window.removeEventListener('pointerdown', startPlayback);
     };
-  }, [enabled, ducked, volume]);
+  }, [enabled, setOutputLevel, startPlayback]);
 
   return null;
 }
