@@ -22,6 +22,7 @@ import {
   CalendarDays,
   ArrowRight,
   Eye,
+  Timer,
 } from 'lucide-react';
 import TimeLadder from './TimeLadder';
 import HardcoreMode, { type HardcoreDifficulty, type HardcoreScores } from './HardcoreMode';
@@ -606,7 +607,7 @@ function App() {
     };
   }, [game.phase, measureSplashIconTarget, splashPhase]);
 
-  const playTone = useCallback((frequency = 440, duration = 0.08) => {
+  const playTone = useCallback((frequency = 440, duration = 0.08, volume = 0.08) => {
     if (!settings.sounds) return;
     try {
       const audioContext = new AudioContext();
@@ -616,7 +617,7 @@ function App() {
       oscillator.frequency.value = frequency;
       oscillator.type = 'sine';
 
-      gain.gain.setValueAtTime(0.08, audioContext.currentTime);
+      gain.gain.setValueAtTime(volume, audioContext.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
 
       oscillator.connect(gain);
@@ -715,7 +716,7 @@ function App() {
   useEffect(() => {
     if (game.phase === 'countdown') {
       if (game.countdownValue > 0) {
-        playTone(420, 0.06);
+        playTone(420, 0.06, game.mode === 'tabletop' ? 0.22 : 0.08);
 
         const timer = setTimeout(() => {
           setGame(prev => ({
@@ -727,7 +728,7 @@ function App() {
         return () => clearTimeout(timer);
       }
 
-      playTone(720, 0.1);
+      playTone(720, 0.1, game.mode === 'tabletop' ? 0.28 : 0.08);
       vibrate(40);
 
       setGame(prev => ({
@@ -740,7 +741,7 @@ function App() {
   useEffect(() => {
     if (game.phase === 'playing') {
       timerRef.current = window.setTimeout(() => {
-        playTone(220, 0.12);
+        playTone(220, 0.12, game.mode === 'tabletop' ? 0.28 : 0.08);
         vibrate([40, 30, 40]);
 
         setGame(prev => ({
@@ -1084,8 +1085,8 @@ function App() {
       ...prev,
       timeRevealed: true,
     }));
-    playTone(760, 0.1);
-    window.setTimeout(() => playTone(980, 0.12), 110);
+    playTone(760, 0.1, 0.28);
+    window.setTimeout(() => playTone(980, 0.12, 0.28), 110);
     vibrate([25, 35, 25]);
   }, [playTone, vibrate]);
 
@@ -1313,12 +1314,12 @@ function App() {
         )}
 
         {game.phase === 'countdown' && (
-          <CountdownScreen value={game.countdownValue} />
+          <CountdownScreen value={game.countdownValue} tabletop={game.mode === 'tabletop'} />
         )}
 
-        {game.phase === 'playing' && <PlayingScreen />}
+        {game.phase === 'playing' && <PlayingScreen tabletop={game.mode === 'tabletop'} />}
 
-        {game.phase === 'stopped' && <StoppedScreen />}
+        {game.phase === 'stopped' && <StoppedScreen tabletop={game.mode === 'tabletop'} />}
 
         {game.phase === 'partyGuesses' && (
           <PartyGuessesScreen
@@ -1444,7 +1445,7 @@ function SplashScreen({
         initial={false}
       >
         <motion.div
-          className="absolute inset-x-0 top-[calc(50%+2.85rem)] flex flex-col items-center px-6 pointer-events-none"
+          className="absolute inset-x-0 top-[calc(50%-0.25rem)] flex flex-col items-center px-6 pointer-events-none"
           animate={waveAnimation}
           transition={reducedMotion || hasStarted ? { duration: 0 } : { duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
         >
@@ -1452,7 +1453,7 @@ function SplashScreen({
             animate={reducedMotion
               ? { opacity: hasStarted ? 0 : 1 }
               : hasStarted
-                ? { opacity: [1, 1, 0], scale: [1, 0.055, 0.001], y: [0, -124, -164], filter: ['blur(0px)', 'blur(0.5px)', 'blur(5px)'] }
+                ? { opacity: [1, 1, 0], scale: [1, 0.055, 0.001], y: [0, -64, -82], filter: ['blur(0px)', 'blur(0.5px)', 'blur(5px)'] }
                 : { opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: reducedMotion ? 0 : 0.82, times: [0, 0.82, 1], ease: [0.58, 0, 0.16, 1] }}
           >
@@ -1485,7 +1486,7 @@ function SplashScreen({
 
         <motion.div
           ref={iconRef}
-          className="absolute left-1/2 top-1/2 pointer-events-none"
+          className="absolute left-1/2 top-[calc(50%-4rem)] pointer-events-none"
           style={{ marginLeft: -28, marginTop: -28 }}
           initial={reducedMotion ? false : { scale: 0.9, x: 0, y: 0 }}
           animate={reducedMotion
@@ -1508,7 +1509,7 @@ function SplashScreen({
               : { duration: 0 }}
         >
           <motion.div
-            className={`${HEADER_ICON_CLASS} bg-teal-500 shadow-2xl shadow-teal-500/30`}
+            className={`${HEADER_ICON_CLASS} logo-glow bg-teal-500 shadow-2xl shadow-teal-500/30`}
             animate={reducedMotion
               ? { scale: 1, rotate: 0 }
               : isLaunching
@@ -1577,7 +1578,7 @@ function HomeScreen({
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="w-11" />
         <div className="text-center">
-          <div ref={iconRef} className={`${HEADER_ICON_CLASS} bg-teal-500 ${introIconHidden ? 'opacity-0' : 'opacity-100'} transition-opacity duration-150`}>
+          <div ref={iconRef} className={`${HEADER_ICON_CLASS} logo-glow bg-teal-500 ${introIconHidden ? 'opacity-0' : 'opacity-100'} transition-opacity duration-150`}>
             <Clock className="w-8 h-8 text-white" />
           </div>
           <motion.h1 className="text-3xl font-black text-slate-800 mt-1" {...homeTextMotion(0)}>
@@ -1591,11 +1592,11 @@ function HomeScreen({
       </div>
 
       <div className="min-h-0 overflow-y-auto card-scroll space-y-3 pr-1">
-        <motion.div {...homeCardMotion(0)}><GameMenuCard color="teal" icon={<Clock className="w-7 h-7" />} title="Time Guesser" description={`${rankedMode ? 'Ranked' : 'Casual'} · Hidden-clock guessing`} onClick={onTimeGuesser} /></motion.div>
-        <motion.div {...homeCardMotion(1)}><GameMenuCard color="indigo" icon={<LadderIcon className="w-7 h-7" />} title="Time Ladder" description={`Climb from 1s to 20s · Best level ${bestLadderLevel}`} onClick={onTimeLadder} /></motion.div>
-        <motion.div {...homeCardMotion(2)}><GameMenuCard color="red" icon={<Skull className="w-7 h-7" />} title="Hardcore Mode" description={`Three lives · Endless score · Best ${bestHardcoreScore}`} onClick={onHardcore} /></motion.div>
-        <motion.div {...homeCardMotion(3)}><GameMenuCard color="rose" icon={<BarChart3 className="w-7 h-7" />} title="Stats" description="See your progress across TimeGames." onClick={onStats} /></motion.div>
-        <motion.div {...homeCardMotion(4)}><GameMenuCard color="slate" icon={<Settings className="w-7 h-7" />} title="Settings" description="Sound, haptics and display." onClick={onSettings} /></motion.div>
+        <motion.div {...homeCardMotion(0)}><GameMenuCard color="teal" icon={<Timer className="w-7 h-7" />} title="Time Guesser" description="Beat the clock" onClick={onTimeGuesser} /></motion.div>
+        <motion.div {...homeCardMotion(1)}><GameMenuCard color="indigo" icon={<LadderIcon className="w-7 h-7" />} title="Time Ladder" description="Climb from 1 to 20" onClick={onTimeLadder} /></motion.div>
+        <motion.div {...homeCardMotion(2)}><GameMenuCard color="red" icon={<Skull className="w-7 h-7" />} title="Hardcore Mode" description="Three lives only" onClick={onHardcore} /></motion.div>
+        <motion.div {...homeCardMotion(3)}><GameMenuCard color="rose" icon={<BarChart3 className="w-7 h-7" />} title="Stats" description="Track progress" onClick={onStats} /></motion.div>
+        <motion.div {...homeCardMotion(4)}><GameMenuCard color="slate" icon={<Settings className="w-7 h-7" />} title="Settings" description="Tune the feel" onClick={onSettings} /></motion.div>
       </div>
       </div>
     </div>
@@ -1610,14 +1611,14 @@ function GameMenuCard({ color, icon, title, description, onClick }: {
   onClick: () => void;
 }) {
   const colorClasses = {
-    teal: 'bg-teal-500 hover:bg-teal-600 shadow-teal-500/20',
-    indigo: 'bg-indigo-500 hover:bg-indigo-600 shadow-indigo-500/20',
-    red: 'bg-red-700 hover:bg-red-800 shadow-red-700/20',
-    rose: 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/20',
-    slate: 'bg-slate-700 hover:bg-slate-800 shadow-slate-700/20',
+    teal: 'bg-teal-500 hover:bg-teal-600 shadow-teal-500/25',
+    indigo: 'bg-indigo-500 hover:bg-indigo-600 shadow-indigo-500/25',
+    red: 'bg-red-700 hover:bg-red-800 shadow-red-700/25',
+    rose: 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/25',
+    slate: 'bg-gradient-to-br from-slate-700 to-teal-900 hover:from-slate-600 hover:to-teal-800 shadow-teal-900/30',
   }[color];
   return (
-    <button onClick={onClick} className={`w-full ${colorClasses} text-white rounded-3xl p-4 grid grid-cols-[48px_1fr_48px] items-center text-center shadow-lg transition-all active:scale-[0.98]`}>
+    <button onClick={onClick} className={`menu-game-card w-full ${colorClasses} text-white rounded-3xl p-4 grid grid-cols-[48px_1fr_48px] items-center text-center shadow-xl transition-all duration-200 active:scale-[0.97]`}>
       <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">{icon}</div>
       <div><p className="text-lg font-black">{title}</p><p className="text-sm text-white/80">{description}</p></div>
       <span className="w-12" aria-hidden="true" />
@@ -1730,7 +1731,7 @@ function TimeGuesserHub({
       </div>
 
       <div className="space-y-2.5">
-        <GameMenuCard color="teal" icon={<Clock className="w-6 h-6" />} title={`Single Player ${rankedMode ? 'Ranked' : 'Casual'}`} description={rankedMode ? 'Build your Clock Rating.' : 'Practice without rating pressure.'} onClick={onSinglePlayer} />
+        <GameMenuCard color="teal" icon={<Timer className="w-6 h-6" />} title={`Single Player ${rankedMode ? 'Ranked' : 'Casual'}`} description={rankedMode ? 'Build rating.' : 'No rating pressure.'} onClick={onSinglePlayer} />
         <GameMenuCard
           color="indigo"
           icon={<CalendarDays className="w-6 h-6" />}
@@ -2118,7 +2119,7 @@ function SettingsScreen({
                     value={Math.round(settings.musicVolume * 100)}
                     onChange={(event) => onChange('musicVolume', Number(event.target.value) / 100)}
                     aria-label="Music volume"
-                    className="w-full accent-teal-500"
+                    className="volume-slider w-full accent-teal-500"
                   />
                 </div>
               )}
@@ -2374,8 +2375,20 @@ function PartySetupScreen({
   );
 }
 
-function CountdownScreen({ value }: { value: number }) {
+function CountdownScreen({ value, tabletop = false }: { value: number; tabletop?: boolean }) {
   const display = value === 0 ? '' : value.toString();
+
+  if (tabletop) {
+    return (
+      <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
+        <div className="tabletop-landscape-shell">
+          <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-5 flex items-center justify-center">
+            <div className="tabletop-countdown font-black leading-none text-teal-200">{display}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex items-center justify-center`}>
@@ -2386,7 +2399,22 @@ function CountdownScreen({ value }: { value: number }) {
   );
 }
 
-function PlayingScreen() {
+function PlayingScreen({ tabletop = false }: { tabletop?: boolean }) {
+  if (tabletop) {
+    return (
+      <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
+        <div className="tabletop-landscape-shell">
+          <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-5 flex items-center justify-center">
+            <div>
+              <p className="text-7xl font-black leading-none">Stay Ready</p>
+              <p className="text-2xl text-teal-200 font-bold mt-4">The hidden timer is running</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} overflow-hidden relative flex items-center justify-center`}>
       <div className="absolute inset-0 overflow-hidden">
@@ -2414,7 +2442,19 @@ function PlayingScreen() {
   );
 }
 
-function StoppedScreen() {
+function StoppedScreen({ tabletop = false }: { tabletop?: boolean }) {
+  if (tabletop) {
+    return (
+      <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
+        <div className="tabletop-landscape-shell">
+          <div className="tabletop-landscape-surface bg-gradient-to-br from-red-950 via-slate-950 to-indigo-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-5 flex items-center justify-center">
+            <div className="tabletop-stop font-black leading-none text-red-300">STOP</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex items-center justify-center`}>
       <div className="text-8xl font-black text-red-500 scale-110">
@@ -2778,7 +2818,7 @@ function TabletopRevealScreen({
   return (
     <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
       <div className="tabletop-landscape-shell">
-        <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-4 flex flex-col">
+        <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-4 flex gap-4">
           {!revealed ? (
             <button
               type="button"
@@ -2790,34 +2830,35 @@ function TabletopRevealScreen({
               <p className="text-sm font-black uppercase tracking-[0.3em] text-teal-200 mt-5">Tap to reveal</p>
             </button>
           ) : (
-            <div className="flex-1 rounded-[1.5rem] border border-white/15 bg-white/10 flex flex-col items-center justify-center">
-              <p className="text-xs font-black uppercase tracking-[0.3em] text-teal-200 mb-2">Secret Time</p>
-              <div className="tabletop-time font-black text-teal-200 tracking-tight leading-none">
-                {targetTime.toFixed(2)}s
+            <>
+              <div className="flex-1 rounded-[1.5rem] border border-white/15 bg-white/10 flex flex-col items-center justify-center min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.3em] text-teal-200 mb-2">Secret Time</p>
+                <div className="tabletop-time font-black text-teal-200 tracking-tight leading-none">
+                  {targetTime.toFixed(2)}s
+                </div>
               </div>
-            </div>
+              <div className="w-40 shrink-0 flex flex-col justify-center gap-3 tabletop-actions app-bottom-actions">
+                <button
+                  onClick={onNextRound}
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white font-black py-4 px-3 rounded-2xl text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
+                >
+                  <ArrowRight className="w-5 h-5" />
+                  Play Again
+                </button>
+                <button
+                  onClick={onGoHome}
+                  className="w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-black py-4 px-3 rounded-2xl text-base transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  <Home className="w-5 h-5" />
+                  Home
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {revealed ? (
-        <div className="tabletop-actions grid grid-cols-2 gap-3 pt-4 shrink-0 app-bottom-actions">
-          <button
-            onClick={onNextRound}
-            className="w-full bg-teal-500 hover:bg-teal-600 text-white font-black py-4 px-4 rounded-2xl text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
-          >
-            <ArrowRight className="w-5 h-5" />
-            Play Again
-          </button>
-          <button
-            onClick={onGoHome}
-            className="w-full app-secondary-action font-black py-4 px-4 rounded-2xl text-base transition-all duration-200 flex items-center justify-center gap-2"
-          >
-            <Home className="w-5 h-5" />
-            Home
-          </button>
-        </div>
-      ) : (
+      {!revealed && (
         <button
           onClick={onGoHome}
           className="mt-3 w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 app-bottom-actions"

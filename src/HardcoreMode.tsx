@@ -285,7 +285,7 @@ export default function HardcoreMode({
               <p className={`text-sm uppercase tracking-[0.25em] font-black ${definition.accent}`}>Your target</p>
               <p className="text-5xl font-black">{target.toFixed(2)}s</p>
               <p className="text-sm opacity-80">{nativeControls ? 'Memorise it, then tap Start.' : 'Memorise it, then press Start or use Space.'}</p>
-              <button onClick={beginTimer} className={`relative z-20 pointer-events-auto w-44 h-44 rounded-full ${definition.button} text-white text-4xl font-black shadow-2xl transition-all active:scale-95`}>START</button>
+              <button onClick={beginTimer} className="relative z-20 pointer-events-auto w-44 h-44 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-4xl font-black shadow-2xl shadow-emerald-500/25 transition-all active:scale-95">START</button>
             </div>
           )}
 
@@ -300,11 +300,11 @@ export default function HardcoreMode({
 
           {phase === 'result' && elapsed !== null && shownError !== null && (
             <div className="flex-1 flex flex-col justify-center space-y-3">
-              <div className={`rounded-3xl border p-4 ${passed ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-red-500/15 border-red-500/40'}`}>
+              <motion.div initial={false} animate={!passed && !reducedMotion ? { x: [0, -7, 7, -4, 4, 0] } : { x: 0 }} transition={{ duration: reducedMotion ? 0 : 0.34, ease: 'easeInOut' }} className={`rounded-3xl border p-4 ${passed ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-red-500/15 border-red-500/40'}`}>
                 <p className="text-2xl font-black">{passed ? 'Passed' : 'Fail · Life lost'}</p>
                 <p className="text-5xl font-black mt-3">{elapsed.toFixed(2)}s</p>
                 <p className="font-bold opacity-70 mt-1">{shownError.toFixed(2)}s off · Target {target.toFixed(2)}s</p>
-              </div>
+              </motion.div>
               <button onClick={nextRound} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl`}>{nativeControls ? 'Next Target' : 'Next Target · Space'}</button>
             </div>
           )}
@@ -375,3 +375,4 @@ export default function HardcoreMode({
     </div>
   );
 }
+

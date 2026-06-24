@@ -12,6 +12,8 @@ The Home screen is the top-level game collection. It contains:
 - Stats card
 - Settings card
 
+Home card descriptions are intentionally short and punchy so the mobile menu breathes: Time Guesser says `Beat the clock`, Time Ladder says `Climb from 1 to 20`, Hardcore says `Three lives only`, Stats says `Track progress` and Settings says `Tune the feel`. Time Guesser uses a stopwatch icon, Time Ladder uses a ladder icon and Hardcore uses a skull icon.
+
 Daily Challenge, Party Mode and Single Player are not top-level games. They live inside Time Guesser.
 
 Clock Rating and rank progress appear inside Time Guesser only because ranked Time Guesser is the only game that changes rating.
@@ -70,7 +72,7 @@ The result ranks participating players by absolute error. Players within 0.005 s
 
 Party results use the same flip-card reveal language as Time Guesser for the secret time before showing the ranked round outcome.
 
-Tabletop Mode is a mobile-first Party variant for a group sitting around one device. It does not ask for player names, guesses or scores. Selecting Tabletop opens a dedicated Start Timer screen rather than immediately starting the timer. After the hidden timer stops, the screen shows a large rotated tabletop board with question marks. The group can discuss the answer, then tap the board itself to dramatically flip/reveal the secret time in very large type. After reveal, the available actions are Play Again and Home. Tabletop Mode uses the Party target range setting but never affects Clock Rating, stats or the scored Party leaderboard. The app remains portrait-locked globally; Tabletop does not force physical device landscape. Instead, its central content is rotated into a landscape-style board inside the portrait shell so it reads well when the phone is placed on a table.
+Tabletop Mode is a mobile-first Party variant for a group sitting around one device. It does not ask for player names, guesses or scores. Selecting Tabletop opens a dedicated Start Timer screen rather than immediately starting the timer. The countdown, hidden-timer ready state, stop prompt and reveal all use a large rotated tabletop board so the content reads horizontally across a table while the app remains portrait-locked. After the hidden timer stops, the screen shows large question marks. The group can discuss the answer, then tap the board itself to dramatically flip/reveal the secret time in very large type. After reveal, Play Again and Home are stacked on the right side of the rotated board. Tabletop sound effects are deliberately louder than normal solo-play tones so the group can hear round state changes. Tabletop Mode uses the Party target range setting but never affects Clock Rating, stats or the scored Party leaderboard. The app remains portrait-locked globally; Tabletop does not force physical device landscape. Instead, its central content is rotated into a landscape-style board inside the portrait shell so it reads well when the phone is placed on a table.
 
 Party target ranges:
 - Short: 2–6 seconds
@@ -172,7 +174,7 @@ During a Hardcore run, Score and Lives appear as clearly labelled, unboxed HUD g
 
 Reaching zero lives plays a short descending run-over sound when sounds are enabled.
 
-Hardcore STOP is always red, regardless of selected difficulty.
+Hardcore START is always green and STOP is always red, regardless of selected difficulty. Result feedback only shakes on failure/life-loss; passed rounds stay stable so success does not create an unnecessary screen wobble.
 
 Difficulty themes progress from calm teal through amber, red and dark purple to a black/gold GOD theme and stark black LITERAL CLOCK theme. Ambient styling is visual only, provides no timing information and respects reduced-motion behavior.
 
@@ -221,6 +223,8 @@ Countdown length and high contrast are not configurable. Time Guesser uses its f
 The operating system reduced-motion preference is respected in addition to the saved setting.
 
 Music is optional, defaults on at 35% volume and loops the bundled theme at `public/audio/themev4.mp3`. Playback is attempted on app load and still falls back to gesture-unlock when desktop/mobile autoplay rules block immediate playback. Its volume is controlled by a persisted 0-100% slider in Settings and the implementation uses a Web Audio gain node where available so volume and fades work more reliably across native wrappers and mobile browsers. The theme behaves like waiting music: during active timing and guess-entry states it slowly fades down over about 5 seconds instead of stopping abruptly. It does not fade back in during any guessing element. After the game reaches a result or menu state, it waits about 10 seconds and then fades back in over about 5 seconds. Turning Music off immediately mutes and pauses the track without resetting it to the start; re-enabling resumes from the current position when playback is allowed.
+
+The Music volume slider uses a larger custom thumb/track and horizontal touch handling so it is easier to grab on mobile without accidentally scrolling the Settings page.
 
 Turning Haptic Feedback on immediately triggers a short confirmation buzz through the shared haptic system. Capacitor Haptics is used on native Android/iOS builds, with `navigator.vibrate` retained as a browser fallback.
 
@@ -272,6 +276,8 @@ Party players and scores remain in React state only.
 - Screens with a bottom “All Games” action should not duplicate it with a top-left back button.
 - Time Ladder and Hardcore selection/gameplay screens should fit without internal scrolling on normal phone sizes, but the global app viewport may scroll on especially small screens rather than clipping content.
 - Preserve rounded cards and teal, indigo and rose accents.
+- The global frame uses a subtle dark navy radial background, a faint logo glow, card highlight gradients and slightly deeper menu-card shadows so the app feels more physical and premium without changing the core clean style.
+- Menu cards use a small press-scale response and may use a very subtle non-gameplay breathing glow on menu screens only. Active timing gameplay must not use repeating or rhythmic animation that could help players count time.
 - Preserve the result flip card, hidden-clock shimmer, Spot On glow and confetti.
 - Time Guesser's reveal card flips horizontally from right to left.
 - Preserve reduced-motion and dark-mode support.
