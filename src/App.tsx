@@ -130,6 +130,48 @@ interface DailyRetentionState {
 const CARD_HEIGHT = 'app-card';
 const HEADER_ICON_CLASS = 'w-14 h-14 mx-auto rounded-2xl flex items-center justify-center';
 type SplashPhase = 'waiting' | 'launching' | 'revealing' | 'done';
+const STAR_FIELD_STARS = Array.from({ length: 78 }, (_, index) => {
+  const seed = (index + 1) * 9301 + 49297;
+  const random = (salt: number) => {
+    const value = Math.sin(seed * (salt + 1)) * 10000;
+    return value - Math.floor(value);
+  };
+  const angle = random(1) * Math.PI * 2;
+  const distance = 8 + random(2) * 38;
+  const central = index < 44;
+  const centralX = 50 + (random(9) - 0.5) * 58;
+  const centralY = 50 + (random(10) - 0.5) * 62;
+  return {
+    id: index,
+    x: central ? centralX : 4 + random(3) * 92,
+    y: central ? centralY : 4 + random(4) * 92,
+    size: 1.15 + random(5) * (central ? 2.75 : 2.1),
+    opacity: 0.22 + random(6) * (central ? 0.46 : 0.32),
+    dx: Math.cos(angle) * distance,
+    dy: Math.sin(angle) * distance,
+    duration: 7 + random(7) * 14,
+    delay: -random(8) * 14,
+  };
+});
+const SHOOTING_STARS = Array.from({ length: 3 }, (_, index) => {
+  const seed = (index + 3) * 104729 + 1729;
+  const random = (salt: number) => {
+    const value = Math.sin(seed * (salt + 1)) * 10000;
+    return value - Math.floor(value);
+  };
+  const angle = -38 + random(1) * 76;
+  const distance = 240 + random(2) * 260;
+  return {
+    id: index,
+    x: 4 + random(3) * 88,
+    y: 5 + random(4) * 72,
+    dx: Math.cos((angle * Math.PI) / 180) * distance,
+    dy: Math.sin((angle * Math.PI) / 180) * distance,
+    angle,
+    duration: 44 + random(5) * 34,
+    delay: 12 + random(6) * 70,
+  };
+});
 
 function isNativeOrTouchDevice() {
   if (Capacitor.isNativePlatform()) return true;
@@ -220,7 +262,7 @@ const defaultSettings: SettingsState = {
   rankedMode: true,
   reducedMotion: false,
   partyTimerRange: 'standard',
-  darkMode: false,
+  darkMode: true,
 };
 
 const defaultHardcoreScores: HardcoreScores = {
@@ -361,8 +403,9 @@ function calculateRatingChange(error: number, rating: number) {
   }
 
   const baseGain =
-    error < 0.005 ? 110 :
-    error < 0.1 ? 85 :
+    error < 0.005 ? 260 :
+    error < 0.05 ? 180 :
+    error < 0.1 ? 115 :
     error < 0.25 ? 65 :
     error < 0.5 ? 48 :
     error < 1 ? 30 :
@@ -499,6 +542,7 @@ function App() {
     }
   });
 
+  const [rankUpNotice, setRankUpNotice] = useState<string | null>(null);
   const [partyPlayers, setPartyPlayers] = useState<PartyPlayer[]>([]);
 
   const [newPlayerName, setNewPlayerName] = useState('');
@@ -789,14 +833,19 @@ function App() {
     });
   }, []);
 
-  const submitGuess = useCallback(() => {
-    const distance = Math.abs(parseFloat(game.playerGuess) - game.targetTime);
+  const submitGuess = useCallback((guessOverride?: string) => {
+    const submittedGuessText = guessOverride ?? game.playerGuess;
+    const submittedGuess = parseFloat(submittedGuessText);
+    const distance = Math.abs(submittedGuess - game.targetTime);
     if (!Number.isFinite(distance)) return;
     if (game.dailyOfficial && game.challengeDate) {
       if (dailyResults[game.challengeDate] || dailySubmissionRef.current === game.challengeDate) return;
       dailySubmissionRef.current = game.challengeDate;
     }
 
+    const startingRating = stats.clockRating;
+    let projectedRating = startingRating;
+    const startingRankName = getRank(startingRating).rank.name;
     const ratingChange = game.mode === 'single' && settings.rankedMode
       ? calculateRatingChange(distance, stats.clockRating)
       : null;
@@ -807,7 +856,7 @@ function App() {
     if (game.mode === 'challenge' && game.dailyOfficial && game.challengeDate) {
       const dateKey = game.challengeDate;
       const isToday = dateKey === getLocalDateKey();
-      const guess = parseFloat(game.playerGuess);
+      const guess = submittedGuess;
       const standing = !isSupabaseConfigured ? getSimulatedDailyStanding(distance, dateKey) : null;
       setDailyResults(prev => ({
         ...prev,
@@ -860,6 +909,7 @@ function App() {
           ? dailyRetention.streak + 1
           : 1;
         const dailyBonus = getDailyReward(newStreak);
+        projectedRating += dailyBonus;
         setDailyRetention(prev => ({
           streak: newStreak,
           lastCompletedDate: dateKey,
@@ -869,10 +919,16 @@ function App() {
       }
     }
     if (ratingChange !== null) {
+      projectedRating = Math.max(0, projectedRating + ratingChange);
       setStats(prev => ({
         ...prev,
         clockRating: Math.max(0, prev.clockRating + ratingChange),
       }));
+    }
+    const newRankName = getRank(projectedRating).rank.name;
+    if (newRankName !== startingRankName) {
+      setRankUpNotice(newRankName);
+      window.setTimeout(() => setRankUpNotice(current => current === newRankName ? null : current), 4200);
     }
     if (distance < 0.005) playCelebration();
     else playTone(distance < 0.5 ? 880 : 520, 0.12);
@@ -880,6 +936,7 @@ function App() {
 
     setGame(prev => ({
       ...prev,
+      playerGuess: submittedGuessText,
       timeRevealed: true,
       ratingChange,
     }));
@@ -1135,6 +1192,20 @@ function App() {
 
     return null;
   })();
+  const revealDailyLeaderboard = (() => {
+    if (!game.challengeDate) return null;
+    const live = dailyLeaderboard[game.challengeDate];
+    if (live) return live;
+    const stored = dailyResults[game.challengeDate];
+    const rank = stored?.globalRank ?? stored?.simulatedRank;
+    if (!stored || rank === undefined) return null;
+    return {
+      playerRank: rank,
+      totalPlayers: stored.leaderboardPlayers ?? stored.simulatedPlayers ?? 0,
+      bestScoreToday: stored.bestScoreToday ?? stored.error,
+      topTen: [],
+    } satisfies DailyLeaderboardSummary;
+  })();
 
   const handleMenuClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
     if (!(event.target as HTMLElement).closest('button')) return;
@@ -1148,13 +1219,13 @@ function App() {
     ['ready', 'guesserHub', 'dailyHub', 'dailyHistory', 'partySetup', 'stats', 'settings', 'rankings', 'ladder'].includes(game.phase) ||
     (game.phase === 'hardcore' && hardcoreHelpVisible);
   const musicDucked =
-    ['countdown', 'playing', 'stopped', 'partyGuesses'].includes(game.phase) ||
+    ['countdown', 'playing', 'stopped'].includes(game.phase) ||
     (game.phase === 'reveal' && !game.timeRevealed) ||
     standaloneTimingActive;
   const disableScreenTransition =
     settings.reducedMotion ||
     standaloneTimingActive ||
-    ['countdown', 'playing', 'stopped', 'partyGuesses'].includes(game.phase) ||
+    ['countdown', 'playing', 'stopped'].includes(game.phase) ||
     (game.phase === 'reveal' && !game.timeRevealed);
   const splashVisible = splashPhase !== 'done';
   const startSplash = useCallback(() => {
@@ -1172,6 +1243,7 @@ function App() {
   return (
     <div onClickCapture={handleMenuClick} className={`app-viewport bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center screen-transition-scope ${disableScreenTransition ? 'screen-transition-disabled' : ''} ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
       <AmbientMusic enabled={settings.music} ducked={musicDucked} volume={settings.musicVolume} />
+      <CardStarField active={!disableScreenTransition && !settings.reducedMotion} />
       <AnimatePresence>
         {splashVisible && (
           <SplashScreen
@@ -1185,6 +1257,20 @@ function App() {
         )}
       </AnimatePresence>
       <div className={`w-full max-w-md relative min-h-0 ${game.mode === 'tabletop' ? 'tabletop-frame' : ''}`}>
+        <AnimatePresence>
+          {rankUpNotice && (
+            <motion.div
+              initial={settings.reducedMotion ? { opacity: 0 } : { y: -18, opacity: 0, scale: 0.96 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={settings.reducedMotion ? { opacity: 0 } : { y: -18, opacity: 0, scale: 0.96 }}
+              transition={{ duration: settings.reducedMotion ? 0 : 0.34, ease: 'easeOut' }}
+              className="safe-top-toast absolute inset-x-4 z-50 rounded-2xl border border-yellow-300/80 bg-slate-950/95 text-white shadow-2xl shadow-yellow-500/20 px-4 py-3 text-center"
+            >
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-yellow-300">Rank Up</p>
+              <p className="text-lg font-black mt-0.5">{rankUpNotice}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {showHelp && (
           <HelpOverlay
             content={helpContent}
@@ -1197,11 +1283,17 @@ function App() {
             bestLadderLevel={bestLadderLevel}
             bestHardcoreScore={Math.max(...Object.values(hardcoreScores))}
             rankedMode={settings.rankedMode}
+            todayResult={dailyResults[todayKey] ?? null}
+            todayLeaderboard={todayLeaderboard}
+            dailyStreak={activeDailyStreak}
+            nextDailyReward={nextDailyReward}
+            dailyCountdown={dailyCountdown}
             iconRef={homeIconRef}
             introIconHidden={splashPhase === 'waiting' || splashPhase === 'launching'}
             onTimeGuesser={showTimeGuesser}
             onTimeLadder={showTimeLadder}
             onHardcore={showHardcoreMode}
+            onDailyChallenge={showDailyHistory}
             onStats={showStats}
             onSettings={showSettings}
             animateIn={splashPhase === 'revealing'}
@@ -1269,7 +1361,7 @@ function App() {
             dailyCountdown={dailyCountdown}
             onPlayToday={openDailyChallenge}
             onPrevious={showPreviousDailyHistory}
-            onBack={showTimeGuesser}
+            onBack={goHome}
           />
         )}
 
@@ -1327,7 +1419,7 @@ function App() {
             onGuessChange={updatePartyGuess}
             onGuessBlur={formatPartyGuess}
             onShowResults={showPartyResults}
-            onGoHome={showTimeGuesser}
+            onGoHome={game.mode === 'challenge' ? goHome : showTimeGuesser}
           />
         )}
 
@@ -1384,8 +1476,8 @@ function App() {
             dailyStreak={activeDailyStreak}
             nextDailyReward={nextDailyReward}
             dailyCountdown={dailyCountdown}
-            dailyLeaderboard={game.challengeDate ? dailyLeaderboard[game.challengeDate] ?? null : null}
-            onGoHome={showTimeGuesser}
+            dailyLeaderboard={revealDailyLeaderboard}
+            onGoHome={game.mode === 'challenge' ? goHome : showTimeGuesser}
           />
         )}
       </div>
@@ -1420,17 +1512,18 @@ function SplashScreen({
 
   return (
     <motion.div
-      className={`fixed inset-0 z-[90] app-modal-safe-padding ${isRevealing ? 'pointer-events-none' : 'flex items-center justify-center'}`}
+      className={`app-splash-overlay fixed inset-0 z-[90] app-modal-safe-padding ${isRevealing ? 'pointer-events-none' : 'flex items-center justify-center'}`}
       initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: reducedMotion ? 0 : 0.16, ease: 'easeOut' } }}
       aria-label="Start TimeGames"
     >
       <motion.div
-        className={`absolute inset-0 ${darkMode ? 'bg-gradient-to-b from-slate-950 to-slate-900' : 'bg-gradient-to-b from-slate-50 to-slate-100'}`}
+          className={`absolute inset-0 splash-surface ${darkMode ? 'bg-gradient-to-b from-slate-950 to-slate-900' : 'bg-gradient-to-b from-slate-50 to-slate-100'}`}
         animate={{ opacity: isRevealing ? 0 : 1 }}
         transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
       />
+      <CardStarField active={!hasStarted && !reducedMotion} splash />
       <motion.div
         role="button"
         tabIndex={0}
@@ -1445,7 +1538,7 @@ function SplashScreen({
         initial={false}
       >
         <motion.div
-          className="absolute inset-x-0 top-[calc(50%-0.25rem)] flex flex-col items-center px-6 pointer-events-none"
+          className="absolute inset-x-0 top-[calc(50%-1rem)] z-[1] flex flex-col items-center px-6 pointer-events-none"
           animate={waveAnimation}
           transition={reducedMotion || hasStarted ? { duration: 0 } : { duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
         >
@@ -1453,7 +1546,7 @@ function SplashScreen({
             animate={reducedMotion
               ? { opacity: hasStarted ? 0 : 1 }
               : hasStarted
-                ? { opacity: [1, 1, 0], scale: [1, 0.055, 0.001], y: [0, -64, -82], filter: ['blur(0px)', 'blur(0.5px)', 'blur(5px)'] }
+                ? { opacity: [1, 1, 0], scale: [1, 0.022, 0.001], y: [0, -88, -98], filter: ['blur(0px)', 'blur(0.2px)', 'blur(5px)'] }
                 : { opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
             transition={{ duration: reducedMotion ? 0 : 0.82, times: [0, 0.82, 1], ease: [0.58, 0, 0.16, 1] }}
           >
@@ -1486,7 +1579,7 @@ function SplashScreen({
 
         <motion.div
           ref={iconRef}
-          className="absolute left-1/2 top-[calc(50%-4rem)] pointer-events-none"
+          className="absolute left-1/2 top-[calc(50%-4rem)] z-30 pointer-events-none"
           style={{ marginLeft: -28, marginTop: -28 }}
           initial={reducedMotion ? false : { scale: 0.9, x: 0, y: 0 }}
           animate={reducedMotion
@@ -1533,15 +1626,60 @@ function SplashScreen({
   );
 }
 
+function CardStarField({ active, splash = false }: { active: boolean; splash?: boolean }) {
+  return (
+    <div className={`card-starfield ${splash ? 'card-starfield-splash' : ''} ${active ? '' : 'card-starfield-paused'}`} aria-hidden="true">
+      {STAR_FIELD_STARS.map(star => (
+        <span
+          key={star.id}
+          className="star-dot"
+          style={{
+            left: `${star.x}%`,
+            top: `${star.y}%`,
+            width: `${star.size}px`,
+            height: `${star.size}px`,
+            opacity: star.opacity,
+            ['--star-x' as string]: `${star.dx}px`,
+            ['--star-y' as string]: `${star.dy}px`,
+            ['--star-duration' as string]: `${star.duration}s`,
+            ['--star-delay' as string]: `${star.delay}s`,
+          }}
+        />
+      ))}
+      {SHOOTING_STARS.map(star => (
+        <span
+          key={`shooting-${star.id}`}
+          className="shooting-star"
+          style={{
+            left: `${star.x}%`,
+            top: `${star.y}%`,
+            ['--shoot-x' as string]: `${star.dx}px`,
+            ['--shoot-y' as string]: `${star.dy}px`,
+            ['--shoot-angle' as string]: `${star.angle}deg`,
+            ['--shoot-duration' as string]: `${star.duration}s`,
+            ['--shoot-delay' as string]: `${star.delay}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function HomeScreen({
   bestLadderLevel,
   bestHardcoreScore,
   rankedMode,
+  todayResult,
+  todayLeaderboard,
+  dailyStreak,
+  nextDailyReward,
+  dailyCountdown,
   iconRef,
   introIconHidden,
   onTimeGuesser,
   onTimeLadder,
   onHardcore,
+  onDailyChallenge,
   onStats,
   onSettings,
   animateIn,
@@ -1549,15 +1687,22 @@ function HomeScreen({
   bestLadderLevel: number;
   bestHardcoreScore: number;
   rankedMode: boolean;
+  todayResult: DailyResult | null;
+  todayLeaderboard: DailyLeaderboardSummary | null;
+  dailyStreak: number;
+  nextDailyReward: number;
+  dailyCountdown: string;
   iconRef?: RefObject<HTMLDivElement>;
   introIconHidden: boolean;
   onTimeGuesser: () => void;
   onTimeLadder: () => void;
   onHardcore: () => void;
+  onDailyChallenge: () => void;
   onStats: () => void;
   onSettings: () => void;
   animateIn: boolean;
 }) {
+  const dailyRank = todayLeaderboard?.playerRank ?? todayResult?.globalRank ?? todayResult?.simulatedRank;
   const homeTextMotion = (index: number) => ({
     initial: animateIn ? { opacity: 0, y: -42 + index * 6, scale: 0.06 } : false,
     animate: { opacity: 1, y: 0, scale: 1 },
@@ -1573,7 +1718,7 @@ function HomeScreen({
   });
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 ${CARD_HEIGHT} flex flex-col justify-center`}>
+    <div className={`home-screen-card rounded-3xl p-6 ${CARD_HEIGHT} flex flex-col justify-center`}>
       <div className="my-auto w-full min-h-0 flex flex-col">
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="w-11" />
@@ -1595,33 +1740,38 @@ function HomeScreen({
         <motion.div {...homeCardMotion(0)}><GameMenuCard color="teal" icon={<Timer className="w-7 h-7" />} title="Time Guesser" description="Beat the clock" onClick={onTimeGuesser} /></motion.div>
         <motion.div {...homeCardMotion(1)}><GameMenuCard color="indigo" icon={<LadderIcon className="w-7 h-7" />} title="Time Ladder" description="Climb from 1 to 20" onClick={onTimeLadder} /></motion.div>
         <motion.div {...homeCardMotion(2)}><GameMenuCard color="red" icon={<Skull className="w-7 h-7" />} title="Hardcore Mode" description="Three lives only" onClick={onHardcore} /></motion.div>
-        <motion.div {...homeCardMotion(3)}><GameMenuCard color="rose" icon={<BarChart3 className="w-7 h-7" />} title="Stats" description="Track progress" onClick={onStats} /></motion.div>
-        <motion.div {...homeCardMotion(4)}><GameMenuCard color="slate" icon={<Settings className="w-7 h-7" />} title="Settings" description="Tune the feel" onClick={onSettings} /></motion.div>
+        <motion.div {...homeCardMotion(3)}><GameMenuCard color="rose" icon={<CalendarDays className="w-7 h-7" />} title="Daily Challenge" description={todayResult ? `${dailyRank ? `Rank #${dailyRank} · ` : ''}New in ${dailyCountdown}` : `${dailyStreak > 0 ? `🔥 ${dailyStreak} day · ` : ''}+${nextDailyReward} rating`} onClick={onDailyChallenge} /></motion.div>
+        <div className="grid grid-cols-2 gap-3">
+          <motion.div {...homeCardMotion(4)}><GameMenuCard compact color="cyan" icon={<BarChart3 className="w-6 h-6" />} title="Stats" description="Progress" onClick={onStats} /></motion.div>
+          <motion.div {...homeCardMotion(5)}><GameMenuCard compact color="slate" icon={<Settings className="w-6 h-6" />} title="Settings" description="Tweak" onClick={onSettings} /></motion.div>
+        </div>
       </div>
       </div>
     </div>
   );
 }
 
-function GameMenuCard({ color, icon, title, description, onClick }: {
-  color: 'teal' | 'indigo' | 'red' | 'rose' | 'slate';
+function GameMenuCard({ color, icon, title, description, onClick, compact = false }: {
+  color: 'teal' | 'indigo' | 'cyan' | 'red' | 'rose' | 'slate';
   icon: ReactNode;
   title: string;
   description: string;
   onClick: () => void;
+  compact?: boolean;
 }) {
   const colorClasses = {
     teal: 'bg-teal-500 hover:bg-teal-600 shadow-teal-500/25',
     indigo: 'bg-indigo-500 hover:bg-indigo-600 shadow-indigo-500/25',
+    cyan: 'bg-cyan-600 hover:bg-cyan-700 shadow-cyan-600/25',
     red: 'bg-red-700 hover:bg-red-800 shadow-red-700/25',
     rose: 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/25',
     slate: 'bg-gradient-to-br from-slate-700 to-teal-900 hover:from-slate-600 hover:to-teal-800 shadow-teal-900/30',
   }[color];
   return (
-    <button onClick={onClick} className={`menu-game-card w-full ${colorClasses} text-white rounded-3xl p-4 grid grid-cols-[48px_1fr_48px] items-center text-center shadow-xl transition-all duration-200 active:scale-[0.97]`}>
-      <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">{icon}</div>
-      <div><p className="text-lg font-black">{title}</p><p className="text-sm text-white/80">{description}</p></div>
-      <span className="w-12" aria-hidden="true" />
+    <button onClick={onClick} className={`menu-game-card w-full ${colorClasses} text-white rounded-3xl ${compact ? 'p-3 flex flex-col gap-1.5 justify-center min-h-[104px]' : 'p-4 grid grid-cols-[48px_1fr_48px] items-center'} text-center shadow-xl transition-all duration-200 active:scale-[0.97]`}>
+      <div className={`${compact ? 'w-10 h-10 mx-auto rounded-xl' : 'w-12 h-12 rounded-2xl'} bg-white/20 flex items-center justify-center shrink-0`}>{icon}</div>
+      <div><p className={`${compact ? 'text-base' : 'text-lg'} font-black leading-tight`}>{title}</p><p className={`${compact ? 'text-xs' : 'text-sm'} text-white/80 leading-tight`}>{description}</p></div>
+      {!compact && <span className="w-12" aria-hidden="true" />}
     </button>
   );
 }
@@ -1659,11 +1809,11 @@ function TimeGuesserHub({
   const settingsMotionDuration = reducedMotion ? 0 : 0.28;
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 text-center ${CARD_HEIGHT} flex flex-col justify-center gap-5`}>
-      <div className="space-y-2">
+    <div className={`bg-white rounded-3xl shadow-xl p-6 text-center ${CARD_HEIGHT} flex flex-col`}>
+      <div className="space-y-2 mb-5 shrink-0">
         <div className="flex justify-center">
           <div className="w-14 h-14 bg-teal-500 rounded-2xl flex items-center justify-center">
-            <Clock className="w-8 h-8 text-white" />
+            <Timer className="w-8 h-8 text-white" />
           </div>
         </div>
 
@@ -1676,7 +1826,7 @@ function TimeGuesserHub({
         </p>
       </div>
 
-      <div className="h-[82px] bg-slate-50 border border-slate-200 rounded-2xl flex items-stretch overflow-hidden relative">
+      <div className="rank-summary-card h-[82px] bg-slate-50 border border-slate-200 rounded-2xl flex items-stretch overflow-hidden relative mb-5 shrink-0">
         <div className="flex-1 min-w-0 relative overflow-hidden">
           <AnimatePresence initial={false} mode="wait">
             <motion.div
@@ -1730,21 +1880,14 @@ function TimeGuesserHub({
         )}
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 shrink-0">
         <GameMenuCard color="teal" icon={<Timer className="w-6 h-6" />} title={`Single Player ${rankedMode ? 'Ranked' : 'Casual'}`} description={rankedMode ? 'Build rating.' : 'No rating pressure.'} onClick={onSinglePlayer} />
-        <GameMenuCard
-          color="indigo"
-          icon={<CalendarDays className="w-6 h-6" />}
-          title="Daily Challenge"
-          description={todayResult
-            ? `🔥 ${dailyStreak} day streak · Tomorrow's rating bonus +${nextDailyReward} · New in ${dailyCountdown}`
-            : `${dailyStreak > 0 ? `🔥 ${dailyStreak} day streak · ` : ''}Clock Rating bonus +${nextDailyReward} · Next in ${dailyCountdown}`}
-          onClick={onChallengeMode}
-        />
         <GameMenuCard color="rose" icon={<Users className="w-6 h-6" />} title="Party Mode" description="Compete to be closest with friends." onClick={onPartyMode} />
       </div>
 
-      <div>
+      <div className="flex-1 min-h-[90px]" aria-hidden="true" />
+
+      <div className="mt-auto shrink-0">
         <button
           onClick={onBack}
           className="w-full app-secondary-action font-semibold py-3.5 px-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
@@ -1778,6 +1921,8 @@ function DailyChallengeHub({
 }) {
   const today = getLocalDateKey();
   const todayResult = results[today];
+  const todayRank = todayLeaderboard?.playerRank ?? todayResult?.globalRank ?? todayResult?.simulatedRank;
+  const todayBest = todayLeaderboard?.bestScoreToday ?? todayResult?.bestScoreToday ?? null;
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-7 text-center ${CARD_HEIGHT} flex flex-col`}>
@@ -1786,10 +1931,10 @@ function DailyChallengeHub({
           <CalendarDays className="w-8 h-8 text-white" />
         </div>
         <h1 className="text-3xl font-black text-slate-800">Daily Challenge</h1>
-        <p className="text-slate-500">{todayResult ? "Today's attempt is complete. Come back tomorrow!" : 'Play today from the Time Guesser menu.'}</p>
+        <p className="text-slate-500">{todayResult ? "Today's attempt is complete. Come back tomorrow!" : 'Play today from the Home menu.'}</p>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-3 pr-1">
+      <div className={todayResult ? 'flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-3 pr-1' : 'flex-1 min-h-0 flex flex-col justify-center space-y-3 px-1 pt-2'}>
       {todayResult && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3 mb-3">
           <p className="text-xs uppercase tracking-[0.2em] font-bold text-indigo-500">Today's score</p>
@@ -1800,22 +1945,34 @@ function DailyChallengeHub({
         </div>
       )}
 
-      {todayResult && todayLeaderboard && (
+      {todayResult && todayRank != null && (
         <div className="bg-white border border-indigo-200 rounded-2xl p-3 mb-3">
           <p className="text-xs uppercase tracking-[0.2em] font-bold text-indigo-500">Global leaderboard</p>
           <p className="font-black text-indigo-700 mt-1">
-            {todayLeaderboard.playerRank ? `Rank #${todayLeaderboard.playerRank.toLocaleString()}` : 'Submitted'}
+            Rank #{todayRank.toLocaleString()}
           </p>
-          {todayLeaderboard.bestScoreToday !== null && (
-            <p className="text-xs text-slate-500">Best today {todayLeaderboard.bestScoreToday.toFixed(2)}s off</p>
+          {todayBest !== null && todayBest !== undefined && (
+            <p className="text-xs text-slate-500">Best today {todayBest.toFixed(2)}s off</p>
           )}
         </div>
       )}
 
       {!todayResult && (
-        <button onClick={onPlayToday} className="w-full max-w-xs mx-auto bg-teal-500 hover:bg-teal-600 text-white font-black py-4 rounded-2xl mb-4 transition-colors shadow-lg shadow-teal-500/20">
-          Play Today's Challenge
-        </button>
+        <div className="w-full max-w-[18rem] mx-auto mt-2 mb-4">
+          <button onClick={onPlayToday} className="w-full min-h-[16.25rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 hover:from-emerald-300 hover:via-teal-400 hover:to-cyan-500 text-white rounded-[2rem] px-6 py-4 transition-all shadow-2xl shadow-teal-500/40 ring-4 ring-teal-200/70 active:scale-[0.97] flex flex-col items-center justify-center gap-3.5">
+            <span className="w-14 h-14 rounded-2xl bg-white/25 flex items-center justify-center shadow-inner">
+              <CalendarDays className="w-8 h-8" />
+            </span>
+            <span className="text-3xl font-black leading-tight">Tap to Play</span>
+            <span className="text-sm font-black uppercase tracking-[0.18em] text-white/90">Today's Daily Challenge</span>
+            <span className="rounded-full bg-white/15 border border-white/20 px-4 py-2 text-sm font-black">
+              +{nextDailyReward} Clock Rating
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white text-teal-700 px-5 py-2 text-sm font-black shadow-lg shadow-slate-900/10">
+              Start Challenge <ArrowRight className="w-4 h-4" />
+            </span>
+          </button>
+        </div>
       )}
 
       {todayResult && (
@@ -1841,9 +1998,9 @@ function DailyChallengeHub({
         <button onClick={onPrevious} className="w-full app-secondary-action font-black py-3 rounded-2xl transition-colors">
           Challenge Archive
         </button>
-        <button onClick={onBack} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2">
+        <button onClick={onBack} className="w-full app-secondary-action font-black py-3 rounded-2xl transition-colors flex items-center justify-center gap-2">
           <ArrowLeft className="w-5 h-5" />
-          Back
+          All Games
         </button>
       </div>
     </div>
@@ -1986,7 +2143,7 @@ function StatsScreen({
         </div>
       </div>
 
-      <div className="space-y-3 pt-4 shrink-0 bg-white relative z-10 app-bottom-actions">
+      <div className="space-y-3 pt-4 shrink-0 relative z-10 app-bottom-actions">
         <button
           onClick={onBack}
           className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
@@ -2162,10 +2319,12 @@ function SettingsScreen({
         </div>
       </div>
 
-      <button onClick={onBack} className="mt-4 w-full shrink-0 bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 relative z-10 app-bottom-actions">
-        <ArrowLeft className="w-5 h-5" />
-        Back
-      </button>
+      <div className="pt-4 shrink-0 app-bottom-actions">
+        <button onClick={onBack} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]">
+          <ArrowLeft className="w-5 h-5" />
+          Back
+        </button>
+      </div>
     </div>
   );
 }
@@ -2382,8 +2541,8 @@ function CountdownScreen({ value, tabletop = false }: { value: number; tabletop?
     return (
       <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
         <div className="tabletop-landscape-shell">
-          <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-5 flex items-center justify-center">
-            <div className="tabletop-countdown font-black leading-none text-teal-200">{display}</div>
+          <div className="tabletop-landscape-surface tabletop-plain-surface text-slate-800 p-5 flex items-center justify-center">
+            <div className="tabletop-countdown font-black leading-none text-teal-600">{display}</div>
           </div>
         </div>
       </div>
@@ -2404,10 +2563,10 @@ function PlayingScreen({ tabletop = false }: { tabletop?: boolean }) {
     return (
       <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
         <div className="tabletop-landscape-shell">
-          <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-5 flex items-center justify-center">
+          <div className="tabletop-landscape-surface tabletop-plain-surface text-slate-800 p-5 flex items-center justify-center">
             <div>
               <p className="text-7xl font-black leading-none">Stay Ready</p>
-              <p className="text-2xl text-teal-200 font-bold mt-4">The hidden timer is running</p>
+              <p className="text-2xl text-teal-600 font-bold mt-4">The hidden timer is running</p>
             </div>
           </div>
         </div>
@@ -2447,8 +2606,8 @@ function StoppedScreen({ tabletop = false }: { tabletop?: boolean }) {
     return (
       <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
         <div className="tabletop-landscape-shell">
-          <div className="tabletop-landscape-surface bg-gradient-to-br from-red-950 via-slate-950 to-indigo-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-5 flex items-center justify-center">
-            <div className="tabletop-stop font-black leading-none text-red-300">STOP</div>
+          <div className="tabletop-landscape-surface tabletop-plain-surface text-slate-800 p-5 flex items-center justify-center">
+            <div className="tabletop-stop font-black leading-none text-red-500">STOP</div>
           </div>
         </div>
       </div>
@@ -2479,6 +2638,8 @@ function PartyGuessesScreen({
 }) {
   const atLeastOneGuessEntered = players.some(player => isValidTimeInput(player.guess));
   const [activeIndex, setActiveIndex] = useState(0);
+  const [keypadOpen, setKeypadOpen] = useState(false);
+  const activeCardRef = useRef<HTMLButtonElement | null>(null);
   const activePlayer = players[activeIndex] ?? players[0];
   const activeGuess = activePlayer?.guess ?? '';
 
@@ -2489,27 +2650,29 @@ function PartyGuessesScreen({
     onGuessBlur(activePlayer.id, formatted);
     const nextIndex = players.findIndex((player, index) => index > activeIndex && !isValidTimeInput(player.guess));
     setActiveIndex(nextIndex === -1 ? Math.min(activeIndex + 1, players.length - 1) : nextIndex);
+    window.setTimeout(() => activeCardRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
   }, [activeGuess, activeIndex, activePlayer, onGuessBlur, onGuessChange, players]);
 
-  return (
-    <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex flex-col`}>
-      <div className="space-y-2 mb-5">
-        <h1 className="text-3xl font-black text-slate-800">
-  Enter Guesses
-</h1>
+  useEffect(() => {
+    if (!keypadOpen) return;
+    activeCardRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [activeIndex, keypadOpen]);
 
-<p className="text-slate-500">
-  Add guesses for whoever wants to play this round.
-</p>
+  return (
+    <div className={`bg-white rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col`}>
+      <div className="space-y-1.5 mb-3 shrink-0">
+        <h1 className="text-3xl font-black text-slate-800">Enter Guesses</h1>
+        <p className="text-sm text-slate-500">Tap a guess box, enter a time, then Save & Next.</p>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-3 pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-2.5 pr-1">
         {players.map((player, index) => (
           <button
             key={player.id}
+            ref={index === activeIndex ? activeCardRef : undefined}
             type="button"
             onClick={() => setActiveIndex(index)}
-            className={`w-full text-left border rounded-2xl p-4 space-y-2 transition-all ${
+            className={`w-full text-left border rounded-2xl p-3 space-y-2 transition-all ${
               index === activeIndex
                 ? 'bg-teal-50 border-teal-300 ring-2 ring-teal-100'
                 : 'bg-slate-50 border-slate-200'
@@ -2525,7 +2688,16 @@ function PartyGuessesScreen({
               </span>
             </div>
 
-            <div className="w-full text-center text-2xl font-semibold py-3 px-5 bg-white border-2 border-slate-200 rounded-2xl text-slate-800">
+            <div
+              role="textbox"
+              aria-label={`${player.name}'s guess`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setActiveIndex(index);
+                setKeypadOpen(true);
+              }}
+              className="w-full text-center text-2xl font-semibold py-3 px-5 bg-white border-2 border-slate-200 rounded-2xl text-slate-800"
+            >
               {player.guess || <span className="text-slate-300">Tap to enter</span>}
               {player.guess && <span className="text-slate-400 ml-1">s</span>}
             </div>
@@ -2534,11 +2706,14 @@ function PartyGuessesScreen({
       </div>
 
       <div className="space-y-2 pt-4 shrink-0 app-bottom-actions">
-        {activePlayer && (
+        {activePlayer && keypadOpen && (
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-2">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
-              {activePlayer.name}'s guess
-            </p>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                {activePlayer.name}'s guess
+              </p>
+              <button type="button" onClick={() => setKeypadOpen(false)} className="text-xs font-black text-slate-400 hover:text-slate-700">Hide</button>
+            </div>
             <NumberKeypad
               value={activeGuess}
               onChange={(value) => onGuessChange(activePlayer.id, sanitizeTimeInput(value))}
@@ -2770,14 +2945,14 @@ function TabletopReadyScreen({
   return (
     <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
       <div className="tabletop-landscape-shell">
-        <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-5 flex items-center justify-between gap-5">
+        <div className="tabletop-landscape-surface tabletop-plain-surface text-slate-800 p-5 flex items-center justify-between gap-5">
           <div className="text-left min-w-0">
-            <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center mb-3">
-              <Eye className="w-8 h-8 text-teal-200" />
+            <div className="w-14 h-14 rounded-2xl bg-teal-500/15 flex items-center justify-center mb-3">
+              <Eye className="w-8 h-8 text-teal-500" />
             </div>
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-teal-200">Tabletop Mode</p>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-teal-600">Tabletop Mode</p>
             <h1 className="text-4xl font-black leading-none mt-1">Ready?</h1>
-            <p className="text-sm text-white/70 mt-2 max-w-[220px]">Start the hidden timer, then everyone guesses together.</p>
+            <p className="text-sm text-slate-500 mt-2 max-w-[220px]">Start the hidden timer, then everyone guesses together.</p>
           </div>
 
           <button
@@ -2818,22 +2993,22 @@ function TabletopRevealScreen({
   return (
     <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
       <div className="tabletop-landscape-shell">
-        <div className="tabletop-landscape-surface bg-gradient-to-br from-indigo-950 via-slate-950 to-teal-950 text-white border border-white/15 rounded-[2rem] shadow-2xl p-4 flex gap-4">
+        <div className="tabletop-landscape-surface tabletop-plain-surface text-slate-800 p-4 flex gap-4">
           {!revealed ? (
             <button
               type="button"
               onClick={onReveal}
-              className="flex-1 rounded-[1.5rem] border border-white/15 bg-white/10 flex flex-col items-center justify-center text-white transition-all active:scale-[0.98]"
+              className="flex-1 flex flex-col items-center justify-center text-slate-800 transition-all active:scale-[0.98]"
               aria-label="Reveal tabletop time"
             >
               <div className="text-8xl font-black tracking-widest leading-none">???</div>
-              <p className="text-sm font-black uppercase tracking-[0.3em] text-teal-200 mt-5">Tap to reveal</p>
+              <p className="text-sm font-black uppercase tracking-[0.3em] text-teal-600 mt-5">Tap to reveal</p>
             </button>
           ) : (
             <>
-              <div className="flex-1 rounded-[1.5rem] border border-white/15 bg-white/10 flex flex-col items-center justify-center min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.3em] text-teal-200 mb-2">Secret Time</p>
-                <div className="tabletop-time font-black text-teal-200 tracking-tight leading-none">
+              <div className="flex-1 flex flex-col items-center justify-center min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.3em] text-teal-600 mb-2">Secret Time</p>
+                <div className="tabletop-time font-black text-teal-600 tracking-tight leading-none">
                   {targetTime.toFixed(2)}s
                 </div>
               </div>
@@ -2910,7 +3085,7 @@ function RevealScreen({
   onEnableRanked: () => void;
   onDisableRanked: () => void;
   onGuessChange: (value: string) => void;
-  onSubmitGuess: () => void;
+  onSubmitGuess: (guessOverride?: string) => void;
   onPlayAgain: () => void;
   dailyStreak: number;
   nextDailyReward: number;
@@ -2918,7 +3093,12 @@ function RevealScreen({
   dailyLeaderboard: DailyLeaderboardSummary | null;
   onGoHome: () => void;
 }) {
-  const hasGuess = isValidTimeInput(playerGuess);
+  const [draftGuess, setDraftGuess] = useState(playerGuess);
+  useEffect(() => {
+    if (!timeRevealed) setDraftGuess(playerGuess);
+  }, [playerGuess, timeRevealed]);
+  const activeGuess = timeRevealed ? playerGuess : draftGuess;
+  const hasGuess = isValidTimeInput(activeGuess);
   const isChallenge = mode === 'challenge';
   const resultRankInfo = getRank(clockRating);
   const resultMessage = (() => {
@@ -2948,10 +3128,14 @@ function RevealScreen({
   const displayResultMessage = guessDistance !== null && guessDistance < 0.005
     ? '\u{1F3AF} Spot On!'
     : resultMessage;
+  const dailyRank = dailyLeaderboard?.playerRank;
+  const dailyBestScore = dailyLeaderboard?.bestScoreToday ?? null;
   const submitCurrentGuess = () => {
     if (!hasGuess) return;
-    onGuessChange(Number(playerGuess).toFixed(2));
-    onSubmitGuess();
+    const formattedGuess = Number(activeGuess).toFixed(2);
+    setDraftGuess(formattedGuess);
+    onGuessChange(formattedGuess);
+    onSubmitGuess(formattedGuess);
   };
 
   const toneClasses = {
@@ -2988,13 +3172,13 @@ function RevealScreen({
                 </p>
 
                 <div className="w-full text-center text-3xl font-black py-3.5 sm:py-4 px-6 bg-white border-2 border-slate-200 rounded-2xl text-slate-800">
-                  {playerGuess || <span className="text-slate-300">--.--</span>}
-                  {playerGuess && <span className="text-slate-400 ml-1 text-xl">s</span>}
+                  {activeGuess || <span className="text-slate-300">--.--</span>}
+                  {activeGuess && <span className="text-slate-400 ml-1 text-xl">s</span>}
                 </div>
 
                 <NumberKeypad
-                  value={playerGuess}
-                  onChange={(value) => onGuessChange(sanitizeTimeInput(value))}
+                  value={activeGuess}
+                  onChange={(value) => setDraftGuess(sanitizeTimeInput(value))}
                   onSubmit={submitCurrentGuess}
                   submitDisabled={!hasGuess}
                   submitLabel="Submit Guess"
@@ -3105,10 +3289,10 @@ function RevealScreen({
                     <ResultRow label="Your Guess" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
                     <ResultRow label="Your Error" value={`${guessDistance.toFixed(2)}s`} accent />
                   </div>
-                  {dailyOfficial && dailyLeaderboard && (
+                  {dailyOfficial && dailyRank != null && (
                     <div className="bg-white border border-indigo-200 rounded-2xl p-3 space-y-2 text-left">
-                      <ResultRow label="Global Rank" value={dailyLeaderboard.playerRank ? `#${dailyLeaderboard.playerRank.toLocaleString()}` : 'Submitted'} />
-                      <ResultRow label="Best Score Today" value={dailyLeaderboard.bestScoreToday === null ? '-' : `${dailyLeaderboard.bestScoreToday.toFixed(2)}s off`} />
+                      <ResultRow label="Global Rank" value={`#${dailyRank.toLocaleString()}`} />
+                      <ResultRow label="Best Score Today" value={dailyBestScore === null ? '-' : `${dailyBestScore.toFixed(2)}s off`} />
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-2">
@@ -3142,7 +3326,7 @@ function RevealScreen({
                 className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
               >
                 <Home className="w-5 h-5" />
-                Back to Time Guesser
+                {isChallenge ? 'Back to Home' : 'Back to Time Guesser'}
               </button>
             </div>
           </div>

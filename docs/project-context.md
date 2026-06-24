@@ -9,12 +9,12 @@ The Home screen is the top-level game collection. It contains:
 - Time Guesser card
 - Time Ladder card
 - Hardcore Mode card
-- Stats card
-- Settings card
+- Daily Challenge card
+- Compact half-width Stats and Settings cards
 
-Home card descriptions are intentionally short and punchy so the mobile menu breathes: Time Guesser says `Beat the clock`, Time Ladder says `Climb from 1 to 20`, Hardcore says `Three lives only`, Stats says `Track progress` and Settings says `Tune the feel`. Time Guesser uses a stopwatch icon, Time Ladder uses a ladder icon and Hardcore uses a skull icon.
+Home card descriptions are intentionally short and punchy so the mobile menu breathes: Time Guesser says `Beat the clock`, Time Ladder says `Climb from 1 to 20`, Hardcore says `Three lives only`, Daily Challenge highlights completion/streak reward state, Stats says `Progress` and Settings says `Tweak`. Time Guesser uses a stopwatch-style timer icon, Time Ladder uses a ladder icon and Hardcore uses a skull icon.
 
-Daily Challenge, Party Mode and Single Player are not top-level games. They live inside Time Guesser.
+Party Mode and Single Player live inside Time Guesser. Daily Challenge is a top-level Home card because it is a primary retention feature; returning from the Daily Challenge flow goes back to Home.
 
 Clock Rating and rank progress appear inside Time Guesser only because ranked Time Guesser is the only game that changes rating.
 
@@ -24,7 +24,7 @@ Shared game-menu cards use a fixed icon column, centered text column and matchin
 
 The layout uses a responsive app-card system. Desktop and roomy web screens preserve the polished 680px card presentation, while mobile/native-sized screens use the full available dynamic viewport height with safe-area padding for phone status bars, Dynamic Island/notches and home indicators. The HTML viewport uses `viewport-fit=cover` so iOS exposes safe-area insets correctly. On narrow phone screens the card itself fills the device frame and extends its light/dark background into the safe-area regions, avoiding mismatched top or bottom strips while keeping content padded away from notches and home indicators. Desktop keeps the floating rounded-card look. Content-heavy screens keep key navigation controls outside their scrollable content so actions such as Back remain visible. Scrollable content uses `flex-1 min-h-0 overflow-y-auto` plus modest bottom padding for the action area and safe-area inset, so final settings and stats can scroll fully above persistent bottom controls without oversized blank overscroll gaps.
 
-The app opens with a tap-to-start TimeGames splash sequence that matches the saved light/dark theme. While waiting, the clock logo, title, tagline and start prompt use a slow subtle wave/shake so the entry screen feels alive without becoming distracting. Tapping or pressing Enter/Space first pulls all text beneath the logo upward in one smooth motion until it becomes tiny and hidden behind the clock icon, then the same splash clock icon immediately launches toward the actual measured center of the home header icon. The launch destination is measured and frozen at tap time so the moving icon does not re-target after it lands. During the first Home reveal, the Home header remains position-stable while the moving splash icon overlaps the real Home icon, its launch glow fades away, and the handoff crossfades so it feels like one continuous icon settling into place. The Home title, tagline and menu cards start tiny near the icon and quickly grow/drop down in a tight waterfall as if being released from the landed logo. The help question mark is excluded from the waterfall and fades in separately. Theme music attempts to autoplay on launch, and the start tap provides the fallback user gesture needed when platforms such as iOS/WebKit block audible autoplay until interaction. Reduced Motion shortens the sequence to simple state changes.
+The app opens with a tap-to-start TimeGames splash sequence that matches the saved light/dark theme. While waiting, the clock logo, title, tagline and start prompt use a slow subtle wave/shake so the entry screen feels alive without becoming distracting. Tapping or pressing Enter/Space first pulls all text beneath the logo upward in one smooth motion until it becomes tiny and visually passes behind the higher-stacked clock icon, then the same splash clock icon immediately launches toward the actual measured center of the home header icon. The launch destination is measured and frozen at tap time so the moving icon does not re-target after it lands. During the first Home reveal, the Home header remains position-stable while the moving splash icon overlaps the real Home icon, its launch glow fades away, and the handoff crossfades so it feels like one continuous icon settling into place. The Home title, tagline and menu cards start tiny near the icon and quickly grow/drop down in a tight waterfall as if being released from the landed logo. The help question mark is excluded from the waterfall and fades in separately. Theme music attempts to autoplay on launch, and the start tap provides the fallback user gesture needed when platforms such as iOS/WebKit block audible autoplay until interaction. Reduced Motion shortens the sequence to simple state changes.
 
 Top-level menu, game-hub, Stats and Settings screen changes use very subtle content-only transitions inside the app card. On desktop the rounded 680px card frame stays stationary; only the contents inside it animate. These one-shot transitions are intentionally gentle, are disabled during active timing windows and are also disabled by the saved or operating-system Reduced Motion preferences.
 
@@ -37,7 +37,6 @@ Time Guesser is the original hidden-clock game. A hidden clock runs for a secret
 Its menu contains:
 - Single Player, dynamically labelled Ranked or Casual
 - Party Mode
-- Daily Challenge
 
 Challenge Archive is accessed from the Daily Challenge hub rather than through a separate Time Guesser menu button. The immediate gameplay result only offers a return to Time Guesser.
 
@@ -66,13 +65,13 @@ Desktop/web pointer layouts may continue to show the standard scored Party flow 
 
 In Standard Party Mode, at least two players are required. After the fixed 3-second countdown and hidden clock, players enter guesses. Blank players are skipped.
 
-Party guesses use the shared in-app number keypad rather than the native device keyboard. Selecting a player makes them active, and submitting a valid guess formats it and advances to the next player who still needs a guess. Desktop keyboard entry and Enter submission are preserved through the custom keypad handler.
+Party guesses use the shared in-app number keypad rather than the native device keyboard. Selecting a player makes them active, but the keypad opens only when the player's guess box is tapped. Submitting a valid guess formats it, advances to the next player who still needs a guess and scrolls the active player into view. Desktop keyboard entry and Enter submission are preserved through the custom keypad handler.
 
 The result ranks participating players by absolute error. Players within 0.005 seconds of the best error tie for first and each receive one point. The in-session scoreboard, players and scores are not persisted across reloads. Party Mode never affects Clock Rating or general stats.
 
 Party results use the same flip-card reveal language as Time Guesser for the secret time before showing the ranked round outcome.
 
-Tabletop Mode is a mobile-first Party variant for a group sitting around one device. It does not ask for player names, guesses or scores. Selecting Tabletop opens a dedicated Start Timer screen rather than immediately starting the timer. The countdown, hidden-timer ready state, stop prompt and reveal all use a large rotated tabletop board so the content reads horizontally across a table while the app remains portrait-locked. After the hidden timer stops, the screen shows large question marks. The group can discuss the answer, then tap the board itself to dramatically flip/reveal the secret time in very large type. After reveal, Play Again and Home are stacked on the right side of the rotated board. Tabletop sound effects are deliberately louder than normal solo-play tones so the group can hear round state changes. Tabletop Mode uses the Party target range setting but never affects Clock Rating, stats or the scored Party leaderboard. The app remains portrait-locked globally; Tabletop does not force physical device landscape. Instead, its central content is rotated into a landscape-style board inside the portrait shell so it reads well when the phone is placed on a table.
+Tabletop Mode is a mobile-first Party variant for a group sitting around one device. It does not ask for player names, guesses or scores. Selecting Tabletop opens a dedicated Start Timer screen rather than immediately starting the timer. The countdown, hidden-timer ready state, stop prompt and reveal all use large rotated tabletop text so the content reads horizontally across a table while the app remains portrait-locked. After the hidden timer stops, the screen shows large question marks. The group can discuss the answer, then tap the reveal area to dramatically flip/reveal the secret time in very large but clamped type. After reveal, Play Again and Home are stacked on the right side of the rotated layout. Tabletop sound effects are deliberately louder than normal solo-play tones so the group can hear round state changes. Tabletop Mode uses the Party target range setting but never affects Clock Rating, stats or the scored Party leaderboard. The app remains portrait-locked globally; Tabletop does not force physical device landscape. Instead, its central content is rotated into a landscape-style layout inside the portrait shell so it reads well when the phone is placed on a table.
 
 Party target ranges:
 - Short: 2–6 seconds
@@ -85,7 +84,7 @@ Each local calendar date has a deterministic target between 0.5 and 10 seconds. 
 
 After completing today's challenge, the Daily screen shows:
 - Guess, target and error
-- Global leaderboard placement when Supabase is configured
+- Global leaderboard placement when Supabase is configured, with stored/local fallback placement when available
 - Best score today when leaderboard data is available
 - Clock Rating participation bonus, current streak and tomorrow's reward
 - A live countdown to the next local calendar day
@@ -113,7 +112,7 @@ Daily completion streak rewards:
 - Day 9: +90
 - Day 10 and every maintained day thereafter: +100
 
-The active streak, last completed date and claimed dates persist locally. Missing a local calendar day resets the next completion to Day 1. A live `HH:MM:SS` countdown on the Time Guesser Daily card, Daily hub and Daily result counts down to the user's next local midnight.
+The active streak, last completed date and claimed dates persist locally. Missing a local calendar day resets the next completion to Day 1. A live `HH:MM:SS` countdown on the Home Daily card, Daily hub and Daily result counts down to the user's next local midnight.
 
 ### Standard Target Generation
 
@@ -194,8 +193,9 @@ Rank thresholds:
 - 3000+: Chrono Master, ⏳
 
 Base gains by absolute error:
-- Under 0.005 seconds: 110
-- Under 0.1 seconds: 85
+- Under 0.005 seconds: 260
+- Under 0.05 seconds: 180
+- Under 0.1 seconds: 115
 - Under 0.25 seconds: 65
 - Under 0.5 seconds: 48
 - Under 1 second: 30
@@ -218,13 +218,15 @@ Settings persist in localStorage. Current settings:
 - Dark mode
 - Party timer range
 
+New installs default to Dark Mode so the starfield/space presentation is the primary visual theme. Users can still switch to the light theme in Settings.
+
 Countdown length and high contrast are not configurable. Time Guesser uses its fixed 3-second countdown. Time Ladder and Hardcore use explicit Start/Stop timer controls with no countdown. Larger Controls is not currently implemented and is not reintroduced.
 
 The operating system reduced-motion preference is respected in addition to the saved setting.
 
 Music is optional, defaults on at 35% volume and loops the bundled theme at `public/audio/themev4.mp3`. Playback is attempted on app load and still falls back to gesture-unlock when desktop/mobile autoplay rules block immediate playback. Its volume is controlled by a persisted 0-100% slider in Settings and the implementation uses a Web Audio gain node where available so volume and fades work more reliably across native wrappers and mobile browsers. The theme behaves like waiting music: during active timing and guess-entry states it slowly fades down over about 5 seconds instead of stopping abruptly. It does not fade back in during any guessing element. After the game reaches a result or menu state, it waits about 10 seconds and then fades back in over about 5 seconds. Turning Music off immediately mutes and pauses the track without resetting it to the start; re-enabling resumes from the current position when playback is allowed.
 
-The Music volume slider uses a larger custom thumb/track and horizontal touch handling so it is easier to grab on mobile without accidentally scrolling the Settings page.
+The Music volume slider uses a larger custom thumb/track and horizontal touch handling so it is easier to grab on mobile without accidentally scrolling the Settings page. Slider movement updates the audible volume immediately when music is not ducked.
 
 Turning Haptic Feedback on immediately triggers a short confirmation buzz through the shared haptic system. Capacitor Haptics is used on native Android/iOS builds, with `navigator.vibrate` retained as a browser fallback.
 
@@ -276,8 +278,8 @@ Party players and scores remain in React state only.
 - Screens with a bottom “All Games” action should not duplicate it with a top-left back button.
 - Time Ladder and Hardcore selection/gameplay screens should fit without internal scrolling on normal phone sizes, but the global app viewport may scroll on especially small screens rather than clipping content.
 - Preserve rounded cards and teal, indigo and rose accents.
-- The global frame uses a subtle dark navy radial background, a faint logo glow, card highlight gradients and slightly deeper menu-card shadows so the app feels more physical and premium without changing the core clean style.
-- Menu cards use a small press-scale response and may use a very subtle non-gameplay breathing glow on menu screens only. Active timing gameplay must not use repeating or rhythmic animation that could help players count time.
+- Dark mode uses the same full-screen starfield backdrop language on the splash and main app. The star distribution is denser around the central gameplay area while still extending across the whole viewport, with occasional brighter shooting stars and subtle trails. The fixed game area itself is visually transparent in dark mode rather than an obvious solid rectangle, but it still constrains layout and scrolling. These particles pause during active timing windows and are disabled by Reduced Motion. Light mode keeps the cleaner classic light background without the starfield.
+- Menu cards use a small press-scale response. Active timing gameplay must not use repeating or rhythmic animation that could help players count time.
 - Preserve the result flip card, hidden-clock shimmer, Spot On glow and confetti.
 - Time Guesser's reveal card flips horizontally from right to left.
 - Preserve reduced-motion and dark-mode support.

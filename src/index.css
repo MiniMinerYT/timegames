@@ -42,10 +42,24 @@ button {
   padding: calc(1rem + env(safe-area-inset-top, 0px)) 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at 50% 5%, rgb(20 184 166 / 16%), transparent 30%),
-    radial-gradient(circle at 85% 18%, rgb(99 102 241 / 14%), transparent 28%),
-    linear-gradient(180deg, #0b1d33 0%, #071426 48%, #020617 100%) !important;
+  position: relative;
+  background: #ffffff !important;
+}
+
+.app-viewport > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-viewport > .app-splash-overlay {
+  position: fixed;
+  z-index: 90;
+}
+
+.app-viewport > .card-starfield {
+  position: fixed;
+  z-index: 0;
+  border-radius: 0;
 }
 
 .app-modal-safe-padding {
@@ -59,25 +73,115 @@ button {
   min-height: 0;
   position: relative;
   isolation: isolate;
+  background: #ffffff !important;
   box-shadow:
-    0 28px 70px rgb(2 6 23 / 28%),
+    0 28px 70px rgb(2 6 23 / 18%),
     0 1px 0 rgb(255 255 255 / 58%) inset;
   overflow: hidden;
 }
 
 .app-card::before {
   content: '';
+  display: none;
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
   border-radius: inherit;
-  background: linear-gradient(180deg, rgb(255 255 255 / 6%), transparent 32%);
+  background: transparent;
 }
 
 .app-card > * {
   position: relative;
-  z-index: 1;
+  z-index: 2;
+}
+
+.app-viewport:not(.dark-mode) .home-screen-card.app-card {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.app-viewport:not(.dark-mode) .home-screen-card.app-card::before {
+  display: none !important;
+  background: transparent !important;
+}
+
+.card-starfield {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  pointer-events: none;
+}
+
+.card-starfield-splash {
+  position: fixed;
+  border-radius: 0;
+  z-index: 0;
+}
+
+.app-viewport:not(.dark-mode) .card-starfield {
+  display: none;
+}
+
+.card-starfield .star-dot {
+  position: absolute;
+  display: block;
+  border-radius: 9999px;
+  background: currentColor;
+  color: rgb(20 184 166 / 86%);
+  box-shadow:
+    0 0 8px currentColor,
+    0 0 18px rgb(99 102 241 / 24%);
+  animation: star-wander var(--star-duration) ease-in-out var(--star-delay) infinite alternate;
+  will-change: transform, opacity;
+}
+
+.card-starfield .star-dot:nth-child(3n) {
+  color: rgb(99 102 241 / 72%);
+}
+
+.card-starfield .star-dot:nth-child(4n) {
+  color: rgb(255 255 255 / 78%);
+}
+
+.card-starfield .star-dot:nth-child(5n) {
+  color: rgb(244 114 182 / 42%);
+}
+
+.card-starfield-paused span {
+  animation-play-state: paused;
+}
+
+.card-starfield .shooting-star {
+  position: absolute;
+  display: block;
+  width: 112px;
+  height: 2px;
+  border-radius: 9999px;
+  opacity: 0;
+  transform: translate3d(0, 0, 0) rotate(var(--shoot-angle));
+  transform-origin: right center;
+  overflow: hidden;
+  background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 10%) 44%, rgb(255 255 255 / 95%) 100%);
+  box-shadow:
+    0 0 10px rgb(255 255 255 / 60%),
+    0 0 22px rgb(45 212 191 / 38%);
+  animation: shooting-star var(--shoot-duration) linear var(--shoot-delay) infinite;
+  will-change: transform, opacity;
+}
+
+.card-starfield .shooting-star::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent 0%, rgb(125 211 252 / 20%) 38%, rgb(255 255 255 / 95%) 100%);
+  transform: translateX(-42%);
+  animation: shooting-trail 640ms ease-out infinite;
 }
 
 .scroll-content-with-actions {
@@ -104,6 +208,17 @@ button {
 
 .safe-top-toast {
   top: calc(1rem + env(safe-area-inset-top, 0px));
+}
+
+.hardcore-locked-popover {
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  top: calc(5.5rem + env(safe-area-inset-top, 0px));
+  z-index: 60;
+  max-width: 20rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .screen-transition-scope:not(.screen-transition-disabled) .app-card > * {
@@ -149,12 +264,8 @@ button {
   z-index: 1;
 }
 
-.screen-transition-scope:not(.screen-transition-disabled) .menu-game-card {
-  animation: menu-card-breathe 5.5s ease-in-out infinite;
-}
-
-.screen-transition-disabled .menu-game-card {
-  animation: none;
+.app-viewport:not(.dark-mode) .home-screen-card .menu-game-card {
+  box-shadow: 0 1px 0 rgb(255 255 255 / 28%) inset !important;
 }
 
 .dark-mode .app-secondary-action {
@@ -209,6 +320,8 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .menu-game-card,
+  .card-starfield span,
+  .card-starfield span::after,
   .screen-transition-scope:not(.screen-transition-disabled) .menu-game-card,
   .screen-transition-scope:not(.screen-transition-disabled) .app-card > * {
     animation: none;
@@ -247,6 +360,54 @@ button {
   }
 }
 
+@keyframes star-wander {
+  from {
+    transform: translate3d(0, 0, 0) scale(0.82);
+  }
+
+  to {
+    transform: translate3d(var(--star-x), var(--star-y), 0) scale(1.25);
+  }
+}
+
+@keyframes shooting-star {
+  0%, 86% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(var(--shoot-angle)) scaleX(0.72);
+  }
+
+  88% {
+    opacity: 0.95;
+  }
+
+  94% {
+    opacity: 0;
+    transform: translate3d(var(--shoot-x), var(--shoot-y), 0) rotate(var(--shoot-angle)) scaleX(1.08);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--shoot-x), var(--shoot-y), 0) rotate(var(--shoot-angle)) scaleX(1.08);
+  }
+}
+
+@keyframes shooting-trail {
+  0% {
+    transform: translateX(-48%) scaleX(0.72);
+    opacity: 0.42;
+  }
+
+  52% {
+    transform: translateX(0%) scaleX(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(18%) scaleX(0.82);
+    opacity: 0.35;
+  }
+}
+
 .ladder-victory { animation: ladder-victory 650ms cubic-bezier(0.16, 1, 0.3, 1); }
 .ladder-confetti-secondary .confetti-piece { animation-delay: 0.48s; }
 
@@ -258,8 +419,31 @@ button {
   background: linear-gradient(to bottom, #020617, #0f172a);
 }
 
+.app-viewport.dark-mode {
+  background:
+    radial-gradient(circle at 50% 4%, rgb(20 184 166 / 18%), transparent 34%),
+    radial-gradient(circle at 82% 14%, rgb(99 102 241 / 13%), transparent 28%),
+    linear-gradient(180deg, #020617 0%, #071426 46%, #020617 100%) !important;
+}
+
+.dark-mode .splash-surface {
+  background:
+    radial-gradient(circle at 50% 4%, rgb(20 184 166 / 18%), transparent 34%),
+    radial-gradient(circle at 82% 14%, rgb(99 102 241 / 13%), transparent 28%),
+    linear-gradient(180deg, #020617 0%, #071426 46%, #020617 100%) !important;
+}
+
+.app-viewport:not(.dark-mode) .splash-surface {
+  background: #ffffff !important;
+}
+
 .dark-mode .bg-white {
   background-color: #0f172a;
+}
+
+.dark-mode .app-card {
+  background: transparent !important;
+  box-shadow: none;
 }
 
 .dark-mode .bg-slate-50 {
@@ -357,18 +541,33 @@ button {
   background-image: linear-gradient(to bottom right, #172033, #0f2f2d);
 }
 
+.dark-mode .rank-summary-card {
+  background-color: #172033;
+  border-color: #334155;
+}
+
+.dark-mode .rank-summary-card button:hover {
+  background-color: #1e293b;
+}
+
 .dark-mode .menu-game-card.bg-gradient-to-br {
   background-image: linear-gradient(to bottom right, #334155, #0f766e);
 }
 
-.dark-mode .tabletop-landscape-surface {
-  background-image:
-    radial-gradient(circle at 20% 10%, rgb(20 184 166 / 20%), transparent 34%),
-    linear-gradient(to bottom right, #172554, #020617 48%, #0f766e) !important;
+.dark-mode .tabletop-plain-surface {
+  color: #f8fafc;
 }
 
-.dark-mode .tabletop-landscape-surface .text-red-300 {
-  color: #fca5a5;
+.dark-mode .tabletop-plain-surface .text-slate-500 {
+  color: #cbd5e1;
+}
+
+.dark-mode .tabletop-plain-surface .text-slate-800 {
+  color: #f8fafc;
+}
+
+.dark-mode .tabletop-plain-surface .text-teal-600 {
+  color: #5eead4;
 }
 
 /* Hardcore GOD difficulty: dramatic but timing-neutral ambient treatment. */
@@ -497,7 +696,7 @@ input[type='number'] {
 }
 
 .tabletop-card .tabletop-time {
-  font-size: clamp(7rem, 25vh, 13rem);
+  font-size: clamp(5.6rem, 20vh, 10rem);
 }
 
 .tabletop-card .tabletop-actions button {
@@ -539,6 +738,9 @@ input[type='number'] {
   height: 2.75rem;
   touch-action: pan-x;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
 }
 
 .volume-slider::-webkit-slider-runnable-track {
@@ -550,10 +752,10 @@ input[type='number'] {
 .volume-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 1.8rem;
-  height: 1.8rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 9999px;
-  margin-top: -0.625rem;
+  margin-top: -0.725rem;
   background: #ffffff;
   border: 3px solid #14b8a6;
   box-shadow: 0 8px 18px rgb(15 23 42 / 24%);
@@ -566,8 +768,8 @@ input[type='number'] {
 }
 
 .volume-slider::-moz-range-thumb {
-  width: 1.8rem;
-  height: 1.8rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 9999px;
   background: #ffffff;
   border: 3px solid #14b8a6;

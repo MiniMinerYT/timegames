@@ -5,7 +5,7 @@ const THEME_SRC = '/audio/themev4.mp3';
 const FADE_OUT_MS = 5000;
 const FADE_IN_DELAY_MS = 10000;
 const FADE_IN_MS = 5000;
-const VOLUME_CHANGE_FADE_MS = 300;
+const VOLUME_CHANGE_FADE_MS = 0;
 const DUCKED_VOLUME = 0.001;
 const CONTROLLER_TICK_MS = 100;
 
@@ -61,10 +61,6 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
   }, [ducked]);
 
   useEffect(() => {
-    volumeRef.current = volume;
-  }, [volume]);
-
-  useEffect(() => {
     const audio = new Audio(THEME_SRC);
     audio.loop = true;
     audio.preload = 'auto';
@@ -99,6 +95,14 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
     const audio = audioRef.current;
     if (audio) audio.volume = clamped;
   }, []);
+
+  useEffect(() => {
+    volumeRef.current = volume;
+    if (enabledRef.current && !duckedRef.current && !hasDuckedRef.current) {
+      fadeRef.current = null;
+      setOutputLevel(volume);
+    }
+  }, [setOutputLevel, volume]);
 
   const ensureAudioGraph = useCallback(() => {
     if (gainRef.current) return;
@@ -235,7 +239,7 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
         returnAtRef.current ??= Date.now() + FADE_IN_DELAY_MS;
 
         if (Date.now() < returnAtRef.current) {
-          startFade(DUCKED_VOLUME, 0);
+          startFade(DUCKED_VOLUME, FADE_OUT_MS);
           applyFade();
           return;
         }

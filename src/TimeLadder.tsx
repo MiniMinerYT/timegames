@@ -217,7 +217,7 @@ export default function TimeLadder({
                     {isResult && (
                       <div className="grid grid-cols-3 gap-1 mt-1 pt-1 border-t border-current/20 text-[10px] font-black">
                         <span>{elapsed.toFixed(2)}s actual</span>
-                        <span>{difference.toFixed(2)}s off</span>
+                        <span className={difference < 0.005 ? 'text-yellow-500' : ''}>{difference < 0.005 ? 'Spot On!' : `${difference.toFixed(2)}s off`}</span>
                         <span className={success ? 'text-teal-700' : 'text-rose-700'}>{success ? 'Passed' : 'Failed'}</span>
                       </div>
                     )}

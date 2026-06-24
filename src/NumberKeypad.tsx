@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react';
+import type { SyntheticEvent } from 'react';
 import { Delete } from 'lucide-react';
 
 function sanitizeKeypadValue(value: string, maxWholeDigits: number, maxFractionDigits: number) {
@@ -84,27 +85,37 @@ export default function NumberKeypad({
   const keyClass = 'min-h-12 rounded-2xl bg-white border border-slate-200 text-slate-800 text-2xl font-black shadow-sm transition-all active:scale-95 hover:border-teal-300';
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
+  const stopEvent = (event: SyntheticEvent) => {
+    event.stopPropagation();
+  };
+
   return (
-    <div className="grid grid-cols-3 gap-2" aria-label="Number keypad">
+    <div
+      className="grid grid-cols-3 gap-2"
+      aria-label="Number keypad"
+      onClick={stopEvent}
+      onPointerDown={stopEvent}
+      onTouchStart={stopEvent}
+    >
       {keys.map(key => (
-        <button key={key} type="button" onClick={() => append(key)} className={keyClass}>
+        <button key={key} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); append(key); }} className={keyClass}>
           {key}
         </button>
       ))}
 
-      <button type="button" onClick={() => append('.')} className={keyClass} aria-label="Decimal point">
+      <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); append('.'); }} className={keyClass} aria-label="Decimal point">
         .
       </button>
-      <button type="button" onClick={() => append('0')} className={keyClass}>
+      <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); append('0'); }} className={keyClass}>
         0
       </button>
-      <button type="button" onClick={backspace} className={keyClass} aria-label="Delete">
+      <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); backspace(); }} className={keyClass} aria-label="Delete">
         <Delete className="w-6 h-6 mx-auto" />
       </button>
 
       <button
         type="button"
-        onClick={onSubmit}
+        onClick={(event) => { event.preventDefault(); event.stopPropagation(); onSubmit(); }}
         disabled={submitDisabled}
         className="col-span-3 min-h-12 rounded-2xl bg-teal-500 hover:bg-teal-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-lg font-black shadow-lg shadow-teal-500/25 disabled:shadow-none transition-all active:scale-[0.98]"
       >

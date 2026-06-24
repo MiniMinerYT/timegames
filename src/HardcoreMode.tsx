@@ -223,11 +223,11 @@ export default function HardcoreMode({
       </div>
 
       {phase === 'select' ? (
-        <div className="flex-1 min-h-0 overflow-y-auto card-scroll hardcore-difficulty-scroll">
+        <div className="flex-1 min-h-0 overflow-y-auto card-scroll hardcore-difficulty-scroll px-1">
           <div className="mb-2">
             <p className="text-sm font-black text-slate-500 uppercase tracking-[0.18em]">Choose Difficulty</p>
           </div>
-          <div className="grid grid-cols-2 gap-2 pb-1">
+          <div className="grid grid-cols-2 gap-2 pb-2 pr-0.5">
             {visibleDifficulties.map(item => {
               const unlocked = isUnlocked(item.id, bestScores);
               const mysterious = (item.id === 'god' || item.id === 'literal') && !unlocked;
@@ -329,7 +329,7 @@ export default function HardcoreMode({
             animate={reducedMotion ? { opacity: 1 } : { y: 0, opacity: 1 }}
             exit={reducedMotion ? { opacity: 0 } : { y: -24, opacity: 0 }}
             transition={{ duration: reducedMotion ? 0 : 0.42, ease: 'easeInOut' }}
-            className="safe-top-toast absolute inset-x-4 z-30 rounded-2xl border border-yellow-400/80 bg-slate-950/95 text-white shadow-xl shadow-yellow-500/20 px-4 py-3"
+            className="safe-top-toast absolute inset-x-4 z-50 rounded-2xl border border-yellow-400/80 bg-slate-950/95 text-white shadow-xl shadow-yellow-500/20 px-4 py-3"
           >
             <div className="flex items-center gap-3 text-left">
               <div className="w-10 h-10 rounded-xl bg-yellow-400 text-slate-950 flex items-center justify-center shrink-0">
@@ -349,14 +349,22 @@ export default function HardcoreMode({
           </motion.div>
         )}
       </AnimatePresence>
-      {lockedNotice && (
-        <div className="absolute inset-x-6 top-28 z-30 rounded-3xl border border-slate-400 bg-slate-950 text-white shadow-2xl p-5 animate-fade-in">
-          <Lock className="w-9 h-9 mx-auto text-slate-300" />
-          <p className="font-black mt-2">Difficulty Locked</p>
-          <p className="text-sm text-slate-300 mt-1">{lockedNotice}</p>
-          <button onClick={() => setLockedNotice(null)} className="mt-3 bg-teal-500 hover:bg-teal-400 border border-teal-300 text-white font-black px-5 py-2 rounded-xl transition-colors">Got it</button>
-        </div>
-      )}
+      <AnimatePresence>
+        {lockedNotice && (
+          <motion.div
+            initial={reducedMotion ? { opacity: 0 } : { y: -36, opacity: 0, scale: 0.94 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={reducedMotion ? { opacity: 0 } : { y: -36, opacity: 0, scale: 0.94 }}
+            transition={{ duration: reducedMotion ? 0 : 0.32, ease: [0.16, 1, 0.3, 1] }}
+            className="hardcore-locked-popover rounded-3xl border border-slate-400 bg-slate-950 text-white shadow-2xl p-5"
+          >
+            <Lock className="w-9 h-9 mx-auto text-slate-300" />
+            <p className="font-black mt-2">Difficulty Locked</p>
+            <p className="text-sm text-slate-300 mt-1">{lockedNotice}</p>
+            <button onClick={() => setLockedNotice(null)} className="mt-3 bg-teal-500 hover:bg-teal-400 border border-teal-300 text-white font-black px-5 py-2 rounded-xl transition-colors">Got it</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {(phase === 'result' || phase === 'gameOver') && shownError === 0 && (
         <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
       )}
