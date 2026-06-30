@@ -4073,11 +4073,22 @@ function CinematicReveal({
   const targetStages = [`${targetWhole}...`, `${targetWhole}.${targetDecimal[0]}...`, `${targetText}s`];
   const [stage, setStage] = useState(reducedMotion ? 4 : 0);
   const isChallenge = mode === 'challenge';
+  const onCompleteRef = useRef(onComplete);
+  const onToneRef = useRef(onTone);
+  const onHapticRef = useRef(onHaptic);
+  const onCelebrateRef = useRef(onCelebrate);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onToneRef.current = onTone;
+    onHapticRef.current = onHaptic;
+    onCelebrateRef.current = onCelebrate;
+  }, [onCelebrate, onComplete, onHaptic, onTone]);
 
   useEffect(() => {
     if (reducedMotion) {
       setStage(4);
-      const done = window.setTimeout(onComplete, 80);
+      const done = window.setTimeout(() => onCompleteRef.current(), 80);
       return () => window.clearTimeout(done);
     }
 
@@ -4090,39 +4101,39 @@ function CinematicReveal({
     const timers = [
       window.setTimeout(() => {
         setStage(1);
-        onTone(520, 0.045, quality === 'normal' ? 0.035 : 0.055);
-        onHaptic(quality === 'normal' ? 10 : 18);
+        onToneRef.current(520, 0.045, quality === 'normal' ? 0.035 : 0.055);
+        onHapticRef.current(quality === 'normal' ? 10 : 18);
       }, tickOne),
       window.setTimeout(() => {
         setStage(2);
-        onTone(640, 0.045, quality === 'normal' ? 0.035 : 0.055);
+        onToneRef.current(640, 0.045, quality === 'normal' ? 0.035 : 0.055);
       }, tickTwo),
       window.setTimeout(() => {
         setStage(3);
-        onTone(760, 0.055, quality === 'normal' ? 0.04 : 0.065);
+        onToneRef.current(760, 0.055, quality === 'normal' ? 0.04 : 0.065);
       }, tickThree),
       window.setTimeout(() => {
         setStage(4);
         if (quality === 'spotOn') {
           if (!isTroll || trollPresentationLevel <= 3) {
-            onCelebrate();
+            onCelebrateRef.current();
           }
           if (!isTroll || trollPresentationLevel <= 2) {
-            onHaptic([25, 35, 45, 35, 60]);
+            onHapticRef.current([25, 35, 45, 35, 60]);
           } else {
-            onHaptic(12);
+            onHapticRef.current(12);
           }
         } else {
           const impactFrequency = quality === 'amazing' ? 980 : quality === 'great' ? 880 : quality === 'good' ? 760 : 520;
-          onTone(impactFrequency, quality === 'normal' ? 0.09 : 0.14, quality === 'normal' ? 0.055 : 0.085);
-          onHaptic(quality === 'normal' ? 22 : [25, 35, 25]);
+          onToneRef.current(impactFrequency, quality === 'normal' ? 0.09 : 0.14, quality === 'normal' ? 0.055 : 0.085);
+          onHapticRef.current(quality === 'normal' ? 22 : [25, 35, 25]);
         }
       }, impact),
-      window.setTimeout(onComplete, complete),
+      window.setTimeout(() => onCompleteRef.current(), complete),
     ];
 
     return () => timers.forEach(timer => window.clearTimeout(timer));
-  }, [decimalSuspense, durationMs, isTroll, onCelebrate, onComplete, onHaptic, onTone, quality, reducedMotion, trollPresentationLevel]);
+  }, [decimalSuspense, durationMs, isTroll, quality, reducedMotion, trollPresentationLevel]);
 
   const glowClasses = {
     normal: '',
@@ -4159,7 +4170,7 @@ function CinematicReveal({
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
             {isChallenge ? 'Your Stop' : 'Your Guess'}
           </p>
-          <p className="mt-1 text-5xl sm:text-6xl font-black text-slate-900 dark:text-slate-50 leading-none">
+          <p className="mt-1 text-5xl sm:text-6xl font-black text-white leading-none drop-shadow-[0_2px_14px_rgba(15,23,42,0.5)]">
             {playerGuess.toFixed(2)}s
           </p>
         </motion.div>
