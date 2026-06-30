@@ -1332,9 +1332,7 @@ function App() {
       setRankUpNotice(newRankName);
       window.setTimeout(() => setRankUpNotice(current => current === newRankName ? null : current), 4200);
     }
-    if (distance < 0.005) playCelebration();
-    else playTone(distance < 0.5 ? 880 : 520, 0.12);
-    vibrate(distance < 0.5 ? [30, 40, 30] : 30);
+    playTone(520, 0.045, 0.045);
 
     setGame(prev => ({
       ...prev,
@@ -1343,7 +1341,7 @@ function App() {
       timeRevealed: true,
       ratingChange,
     }));
-}, [game, dailyResults, dailyRetention, settings.rankedMode, stats.clockRating, updateStats, playTone, playCelebration, vibrate, playerId]);
+}, [game, dailyResults, dailyRetention, settings.rankedMode, stats.clockRating, updateStats, playTone, playerId]);
 
   const stopDailyChallenge = useCallback(() => {
     if (game.mode !== 'challenge' || game.phase !== 'playing') return;
@@ -1962,6 +1960,10 @@ function App() {
             nextDailyReward={nextDailyReward}
             dailyCountdown={dailyCountdown}
             dailyLeaderboard={revealDailyLeaderboard}
+            reducedMotion={settings.reducedMotion}
+            onTone={playTone}
+            onHaptic={vibrate}
+            onCelebrate={playCelebration}
             onGoHome={game.mode === 'challenge' ? goHome : showTimeGuesser}
           />
         )}
@@ -3624,6 +3626,10 @@ function RevealScreen({
   nextDailyReward,
   dailyCountdown,
   dailyLeaderboard,
+  reducedMotion,
+  onTone,
+  onHaptic,
+  onCelebrate,
   onGoHome,
 }: {
   mode: GameMode;
@@ -3646,15 +3652,29 @@ function RevealScreen({
   nextDailyReward: number;
   dailyCountdown: string;
   dailyLeaderboard: DailyLeaderboardSummary | null;
+  reducedMotion: boolean;
+  onTone: (frequency?: number, duration?: number, volume?: number) => void;
+  onHaptic: (pattern: number | number[]) => void;
+  onCelebrate: () => void;
   onGoHome: () => void;
 }) {
   const [draftGuess, setDraftGuess] = useState(playerGuess);
+  const [cinematicComplete, setCinematicComplete] = useState(false);
   useEffect(() => {
     if (!timeRevealed) setDraftGuess(playerGuess);
   }, [playerGuess, timeRevealed]);
   const activeGuess = timeRevealed ? playerGuess : draftGuess;
   const hasGuess = isValidTimeInput(activeGuess);
   const isChallenge = mode === 'challenge';
+  const showCinematic = timeRevealed && hasGuess && guessDistance !== null && (mode === 'single' || mode === 'challenge');
+  const handleCinematicComplete = useCallback(() => setCinematicComplete(true), []);
+  useEffect(() => {
+    if (!showCinematic) {
+      setCinematicComplete(false);
+      return;
+    }
+    setCinematicComplete(reducedMotion);
+  }, [playerGuess, reducedMotion, showCinematic, targetTime]);
   const resultRankInfo = getRank(clockRating);
   const resultMessage = (() => {
     if (!isChallenge && (!hasGuess || guessDistance === null)) return 'No guess submitted.';
@@ -3743,7 +3763,7 @@ function RevealScreen({
           </div>
 
           <div className={`flip-face flip-back result-scroll absolute inset-0 bg-slate-50 border border-slate-200 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden ${resultTone === 'spoton' ? 'spoton-glow' : ''}`}>
-            {(resultTone === 'spoton' || resultTone === 'elite') && (
+            {cinematicComplete && (resultTone === 'spoton' || resultTone === 'elite') && (
               <div className="confetti">
                 {Array.from({ length: 14 }).map((_, index) => (
                   <span key={index} className={`confetti-piece confetti-${index + 1}`} />
@@ -3752,21 +3772,42 @@ function RevealScreen({
             )}
 
             <div className="flex-1 min-h-0 overflow-y-auto result-scroll space-y-3 sm:space-y-5 relative z-10 pb-3">
-              <div>
-                <p className="text-slate-400 text-sm font-semibold uppercase tracking-[0.25em] mb-2">
-                  {isChallenge ? 'Daily Target' : 'Secret Time'}
-                </p>
-
-                <div data-guide-id="result-time" className={`${isChallenge ? 'text-4xl sm:text-5xl' : 'text-5xl sm:text-7xl'} font-black text-teal-600 tracking-tight leading-none`}>
-                  {targetTime.toFixed(2)}s
-                </div>
-              </div>
-
-              {displayResultMessage && (
-                <div className={`inline-flex px-4 py-2 rounded-full border text-sm font-bold ${toneClasses}`}>
-                  {displayResultMessage}
-                </div>
+              {showCinematic && (
+                <CinematicReveal
+                  key={`${mode}-${playerGuess}-${targetTime}`}
+                  targetTime={targetTime}
+                  playerGuess={parseFloat(playerGuess)}
+                  error={guessDistance}
+                  mode={mode}
+                  reducedMotion={reducedMotion}
+                  onComplete={handleCinematicComplete}
+                  onTone={onTone}
+                  onHaptic={onHaptic}
+                  onCelebrate={onCelebrate}
+                />
               )}
+
+              {(!showCinematic || cinematicComplete) && (
+                <>
+                  {!showCinematic && (
+                    <>
+                      <div>
+                        <p className="text-slate-400 text-sm font-semibold uppercase tracking-[0.25em] mb-2">
+                          {isChallenge ? 'Daily Target' : 'Secret Time'}
+                        </p>
+
+                        <div data-guide-id="result-time" className={`${isChallenge ? 'text-4xl sm:text-5xl' : 'text-5xl sm:text-7xl'} font-black text-teal-600 tracking-tight leading-none`}>
+                          {targetTime.toFixed(2)}s
+                        </div>
+                      </div>
+
+                      {displayResultMessage && (
+                        <div className={`inline-flex px-4 py-2 rounded-full border text-sm font-bold ${toneClasses}`}>
+                          {displayResultMessage}
+                        </div>
+                      )}
+                    </>
+                  )}
 
               {mode === 'single' && (
                 <div className="space-y-3">
@@ -3889,8 +3930,11 @@ function RevealScreen({
                   <p className="text-xs font-bold text-slate-500">Tomorrow's Clock Rating bonus: +{nextDailyReward} · Next challenge in {dailyCountdown}</p>
                 </div>
               )}
+                </>
+              )}
             </div>
 
+            {(!showCinematic || cinematicComplete) && (
             <div className="space-y-3 pt-3 relative z-10 shrink-0">
               {!isChallenge && (
                 <button
@@ -3910,8 +3954,209 @@ function RevealScreen({
                 {isChallenge ? 'Back to Home' : 'Back to Time Guesser'}
               </button>
             </div>
+            )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+type RevealQuality = 'normal' | 'good' | 'great' | 'amazing' | 'spotOn';
+
+function getRevealQuality(error: number): RevealQuality {
+  if (error < 0.005) return 'spotOn';
+  if (error < 0.05) return 'amazing';
+  if (error < 0.1) return 'great';
+  if (error < 0.25) return 'good';
+  return 'normal';
+}
+
+function getRevealCopy(quality: RevealQuality, error: number) {
+  if (quality === 'spotOn') return { title: 'SPOT ON', subtitle: 'Perfect timing.' };
+  if (quality === 'amazing') return { title: `${error.toFixed(2)}s OFF`, subtitle: 'Unreal timing.' };
+  if (quality === 'great') return { title: `${error.toFixed(2)}s OFF`, subtitle: 'So close.' };
+  if (quality === 'good') return { title: `${error.toFixed(2)}s OFF`, subtitle: 'Nice timing.' };
+  return { title: `${error.toFixed(2)}s OFF`, subtitle: '' };
+}
+
+function getRevealDurationMs(quality: RevealQuality) {
+  switch (quality) {
+    case 'spotOn':
+    case 'amazing':
+      return 1450;
+    case 'great':
+      return 1100;
+    case 'good':
+      return 820;
+    default:
+      return 600;
+  }
+}
+
+function CinematicReveal({
+  targetTime,
+  playerGuess,
+  error,
+  mode,
+  reducedMotion,
+  onComplete,
+  onTone,
+  onHaptic,
+  onCelebrate,
+}: {
+  targetTime: number;
+  playerGuess: number;
+  error: number;
+  mode: GameMode;
+  reducedMotion: boolean;
+  onComplete: () => void;
+  onTone: (frequency?: number, duration?: number, volume?: number) => void;
+  onHaptic: (pattern: number | number[]) => void;
+  onCelebrate: () => void;
+}) {
+  const quality = getRevealQuality(error);
+  const copy = getRevealCopy(quality, error);
+  const durationMs = getRevealDurationMs(quality);
+  const targetText = targetTime.toFixed(2);
+  const [targetWhole, targetDecimal = '00'] = targetText.split('.');
+  const targetStages = [`${targetWhole}...`, `${targetWhole}.${targetDecimal[0]}...`, `${targetText}s`];
+  const [stage, setStage] = useState(reducedMotion ? 4 : 0);
+  const isChallenge = mode === 'challenge';
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setStage(4);
+      const done = window.setTimeout(onComplete, 80);
+      return () => window.clearTimeout(done);
+    }
+
+    setStage(0);
+    const tickOne = Math.max(120, durationMs * 0.28);
+    const tickTwo = Math.max(220, durationMs * 0.5);
+    const tickThree = Math.max(340, durationMs * 0.72);
+    const impact = Math.max(480, durationMs);
+    const complete = impact + (quality === 'spotOn' ? 620 : 360);
+    const timers = [
+      window.setTimeout(() => {
+        setStage(1);
+        onTone(520, 0.045, quality === 'normal' ? 0.035 : 0.055);
+        onHaptic(quality === 'normal' ? 10 : 18);
+      }, tickOne),
+      window.setTimeout(() => {
+        setStage(2);
+        onTone(640, 0.045, quality === 'normal' ? 0.035 : 0.055);
+      }, tickTwo),
+      window.setTimeout(() => {
+        setStage(3);
+        onTone(760, 0.055, quality === 'normal' ? 0.04 : 0.065);
+      }, tickThree),
+      window.setTimeout(() => {
+        setStage(4);
+        if (quality === 'spotOn') {
+          onCelebrate();
+          onHaptic([25, 35, 45, 35, 60]);
+        } else {
+          const impactFrequency = quality === 'amazing' ? 980 : quality === 'great' ? 880 : quality === 'good' ? 760 : 520;
+          onTone(impactFrequency, quality === 'normal' ? 0.09 : 0.14, quality === 'normal' ? 0.055 : 0.085);
+          onHaptic(quality === 'normal' ? 22 : [25, 35, 25]);
+        }
+      }, impact),
+      window.setTimeout(onComplete, complete),
+    ];
+
+    return () => timers.forEach(timer => window.clearTimeout(timer));
+  }, [durationMs, onCelebrate, onComplete, onHaptic, onTone, quality, reducedMotion]);
+
+  const glowClasses = {
+    normal: 'border-slate-200 bg-white shadow-slate-900/5',
+    good: 'border-teal-200 bg-teal-50/70 shadow-teal-400/15',
+    great: 'border-cyan-200 bg-cyan-50/80 shadow-cyan-400/20',
+    amazing: 'border-amber-200 bg-amber-50/85 shadow-amber-400/30',
+    spotOn: 'border-yellow-300 bg-gradient-to-br from-yellow-50 via-amber-50 to-white shadow-yellow-400/40',
+  }[quality];
+  const resultTextClasses = {
+    normal: 'text-slate-800',
+    good: 'text-teal-700',
+    great: 'text-cyan-700',
+    amazing: 'text-amber-600',
+    spotOn: 'text-yellow-600',
+  }[quality];
+  const targetDisplay = stage === 0 ? '--.--' : targetStages[Math.min(2, Math.max(0, stage - 1))];
+
+  return (
+    <div className={`cinematic-reveal relative overflow-hidden rounded-3xl border p-4 sm:p-5 shadow-2xl ${glowClasses}`}>
+      {(quality === 'spotOn' || quality === 'amazing') && (
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(250,204,21,0.24),transparent_52%)]" aria-hidden="true" />
+      )}
+      <div className="relative z-10 min-h-[17.5rem] flex flex-col items-center justify-center gap-4">
+        <motion.div
+          layout
+          initial={reducedMotion ? false : { scale: 1.08, y: 8, opacity: 0 }}
+          animate={{
+            scale: stage === 0 ? 1 : 0.74,
+            y: stage === 0 ? 0 : -8,
+            opacity: 1,
+          }}
+          transition={{ duration: reducedMotion ? 0 : 0.36, ease: [0.16, 1, 0.3, 1] }}
+          className="text-center"
+        >
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+            {isChallenge ? 'Your Stop' : 'Your Guess'}
+          </p>
+          <p className="mt-1 text-5xl sm:text-6xl font-black text-slate-800 leading-none">
+            {playerGuess.toFixed(2)}s
+          </p>
+        </motion.div>
+
+        <AnimatePresence>
+          {stage >= 1 && (
+            <motion.div
+              key="actual-time"
+              data-guide-id="result-time"
+              initial={reducedMotion ? { opacity: 1 } : { opacity: 0, y: 14, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
+              className="text-center"
+            >
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-600">
+                {isChallenge ? 'Target Time' : 'Actual Time'}
+              </p>
+              <motion.p
+                key={targetDisplay}
+                initial={reducedMotion ? false : { opacity: 0, y: 8, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: reducedMotion ? 0 : 0.18 }}
+                className="mt-1 text-6xl sm:text-7xl font-black text-teal-600 leading-none tracking-tight"
+              >
+                {targetDisplay}
+              </motion.p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {stage >= 4 && (
+            <motion.div
+              key="final-result"
+              data-guide-id="result-error"
+              initial={reducedMotion ? { opacity: 1 } : { opacity: 0, y: 18, scale: quality === 'spotOn' ? 0.78 : 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: quality === 'spotOn' ? [1, 1.08, 1] : 1 }}
+              transition={{ duration: reducedMotion ? 0 : quality === 'spotOn' ? 0.55 : 0.28, ease: [0.16, 1, 0.3, 1] }}
+              className="text-center"
+            >
+              <p className={`text-4xl sm:text-5xl font-black leading-none ${resultTextClasses}`}>
+                {copy.title}
+              </p>
+              {copy.subtitle && (
+                <p className="mt-2 text-sm font-black text-slate-500">
+                  {copy.subtitle}
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
