@@ -41,6 +41,7 @@ Time Guesser is the original hidden-clock game. A hidden clock runs for a secret
 Its menu contains:
 - Single Player, dynamically labelled Ranked or Casual
 - Party Mode
+- Troll Mode, shown only when enabled in Settings
 - A locked Multiplayer placeholder labelled Coming Soon so the hub has room for future expansion without changing the structure
 
 Challenge Archive is accessed from the Daily Challenge hub rather than through a separate Time Guesser menu button. The immediate gameplay result only offers a return to Time Guesser.
@@ -58,13 +59,17 @@ The result shows:
 - Feedback message
 - Clock Rating change and rank progress for ranked rounds
 
-Time Guesser and Daily Challenge results use a cinematic reveal sequence inside the existing result card rather than a separate popup. After submission, the card first shows the player's guess/stop time, smoothly moves it upward, reveals the actual/target time below in staged suspense beats, then lands the final error result. The cinematic owns the guess/stop and error display, so the post-reveal detail area prioritises rank, leaderboard, streak and action controls instead of duplicating those same numbers. Reveal pacing adapts to accuracy: normal misses reveal quickly, good/great results pause slightly longer, and amazing/Spot On attempts build extra suspense so the player cannot immediately tell whether they are merely very close or perfect. If the answer is within 0.10 seconds and the first decimal matches the player's guess, the reveal deliberately slows before showing the second decimal to build a game-show style suspense beat. Final wording is short and punchy, such as `0.02s OFF`, `Unreal timing.` or `SPOT ON`, `Perfect timing.`.
+Time Guesser and Daily Challenge results use a cinematic reveal sequence inside the existing result card rather than a separate popup. After submission, the card first shows the player's guess/stop time, reveals the actual/target time below in staged suspense beats, then lands the final error result. The player's guess and the revealed target keep stable positions during the sequence, and the target digits reveal inside a fixed-width slot so adding decimal places does not shift the layout. The cinematic owns the guess/stop and error display, so the post-reveal detail area prioritises rank, leaderboard, streak and action controls instead of duplicating those same numbers. Reveal pacing adapts to accuracy and is intentionally readable even for normal misses; good/great results pause longer, and amazing/Spot On attempts build extra suspense so the player cannot immediately tell whether they are merely very close or perfect. If the answer is within 0.10 seconds and the first decimal matches the player's guess, the reveal deliberately slows before showing the second decimal to build a game-show style suspense beat. Opening the rank list from a completed result and returning does not replay the reveal animation; the completed result state is restored immediately. Final wording is short and punchy, such as `0.02s OFF`, `Unreal timing.` or `SPOT ON`, `Perfect timing.`.
 
 The cinematic reveal uses Framer Motion for subtle slide, scale, fade and glow effects directly on the result face rather than inside a separate bordered panel, so the flip from guess entry into reveal stays clean and readable. The guess-entry and reveal faces use the transparent app-card treatment instead of bright inner white panels, with the keypad and large typed guess/stop value providing the focus before that value visually flows into the reveal. The guess-entry face intentionally avoids placeholder question marks or extra instructions so the typed value aligns with the cinematic opening beat. Close results receive stronger glow treatment, and Spot On uses a gold celebration treatment with the existing confetti/celebration language. Result sounds are moved into the reveal sequence rather than firing immediately on submission: small tick/pop tones play as the actual time is revealed, an impact tone lands with the final error, and Spot On triggers the unique celebration sting. Haptic feedback mirrors those reveal beats when enabled. Reduced Motion skips the suspense movement and immediately exposes the final result/details while preserving the normal result information.
 
 In ranked results, the Clock Rating/rank progress card is interactive. Tapping it opens the full Clock Ranks list as a compact fitted panel without an internal scrolling rank section, and Back returns to the same revealed result screen rather than leaving the round summary.
 
 Casual and ranked rounds update general stats. Only ranked rounds affect Clock Rating. The casual-result ranked control can enable or disable ranked mode for the next round.
+
+### Troll Mode
+
+Troll Mode is an optional prank variant of Time Guesser that appears only when the Settings toggle is enabled. It uses the normal hidden-clock, countdown, guess-entry and reveal flow, but every result is presented as if it were Spot On. Consecutive fake perfects intentionally become less exciting and more suspicious; after roughly three in a row the celebration/copy becomes deliberately dull to reveal the joke. Troll Mode is presentation-only and does not affect Clock Rating or competitive progression.
 
 ### Party Mode
 
@@ -187,7 +192,7 @@ Reaching zero lives plays a short descending run-over sound when sounds are enab
 
 Hardcore START is always green and STOP is always red, regardless of selected difficulty. Result feedback only shakes on failure/life-loss; passed rounds stay stable so success does not create an unnecessary screen wobble.
 
-Difficulty themes progress from calm emerald/teal through orange, red and dark fuchsia/purple to a black/gold GOD theme and stark black LITERAL CLOCK theme. Cards and active screens use stronger, distinct color/effect treatments as difficulty increases while staying readable in light and dark mode. Ambient styling is visual only, provides no timing information and respects reduced-motion behavior.
+Difficulty themes progress from calm emerald/teal through orange, red and dark fuchsia/purple to a black/gold GOD theme and stark black LITERAL CLOCK theme. Cards and active screens use stronger, distinct color/effect treatments as difficulty increases while staying readable in light and dark mode. Expert and LITERAL CLOCK selection cards now match their outline colours with stronger themed backgrounds. Hardcore also has subtle difficulty-coloured smoke/particle atmosphere. Ambient styling is visual only, provides no timing information and respects reduced-motion behavior.
 
 The Home Hardcore card uses the skull icon. Dark mode must preserve readable foreground/background contrast across every Hardcore difficulty as well as the shared game cards.
 
@@ -204,7 +209,7 @@ Rank thresholds:
 - 2000–2999: Master Clock, 👑
 - 3000+: Chrono Master, ⏳
 
-Base gains by absolute error:
+Base gains by absolute error before rank-based scaling:
 - Under 0.005 seconds: 260
 - Under 0.05 seconds: 180
 - Under 0.1 seconds: 115
@@ -215,7 +220,7 @@ Base gains by absolute error:
 - Under 3 seconds: 8
 - 3 seconds or more: 0
 
-Gains taper at higher ratings. Losses begin at Platinum Clock for errors of at least 3 seconds and currently range from 4 to 20 points.
+Gains taper more aggressively at higher ratings so long-term progression is more competitive and Platinum/Diamond become natural settling ranks for many active players. Losses now begin from Gold Clock for errors of at least 2 seconds, scale by rank and miss severity, and can reach up to 60 points for severe high-rank misses.
 
 Clock Rating is unaffected by Casual Single Player, Party Mode, Time Ladder and Hardcore Mode. Daily Challenge performance never changes rating, but completing the current official challenge awards its once-per-day streak bonus. Archived days cannot award rating.
 
@@ -228,6 +233,7 @@ Settings persist in localStorage. Current settings:
 - Haptic feedback
 - Reduced motion
 - Light mode toggle, inverted so off means the default dark theme is active
+- Troll Mode, which reveals the optional prank mode inside Time Guesser
 - Party timer range
 
 New installs default to Dark Mode so the starfield/space presentation is the primary visual theme. The Settings switch is labelled Light Mode and is off by default; turning it on switches to the cleaner classic light theme.
@@ -256,7 +262,7 @@ A Spot On result in any implemented game plays a celebration sound, shows confet
 
 The Stats screen contains:
 - Global: total Spot Ons across implemented modes
-- Time Guesser: Clock Rating, current rank, games played, best accuracy and average error
+- Time Guesser: Clock Rating, current rank, games played, best accuracy and average error. Best Accuracy is hidden once it reaches exactly 0.00 because Spot Ons are already tracked separately and a zero best becomes less meaningful as a statistic.
 - Daily Challenge: best official Daily accuracy and official challenges completed
 - Time Ladder: best ladder level
 - Hardcore Mode: best Easy, Medium, Hard and Expert scores

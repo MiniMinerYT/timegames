@@ -36,6 +36,18 @@ function getTargetRect(targetId: string): TargetRect | null {
   };
 }
 
+function getSafeInsetPx(name: 'top' | 'bottom') {
+  const probe = document.createElement('div');
+  probe.style.position = 'fixed';
+  probe.style.pointerEvents = 'none';
+  probe.style.visibility = 'hidden';
+  probe.style[name] = `env(safe-area-inset-${name})`;
+  document.body.appendChild(probe);
+  const value = parseFloat(getComputedStyle(probe)[name]) || 0;
+  probe.remove();
+  return value;
+}
+
 export default function CoachmarkOverlay({
   guide,
   reducedMotion,
@@ -50,6 +62,8 @@ export default function CoachmarkOverlay({
   const step = guide.steps[stepIndex];
   const isLast = stepIndex === guide.steps.length - 1;
   const isTargetTapStep = step.action === 'tap-target';
+  const safeTop = typeof document === 'undefined' ? 18 : Math.max(18, getSafeInsetPx('top') + 12);
+  const safeBottom = typeof document === 'undefined' ? 18 : Math.max(18, getSafeInsetPx('bottom') + 12);
   const advance = useCallback(() => {
     if (isLast) onComplete();
     else setStepIndex(index => index + 1);
@@ -97,7 +111,7 @@ export default function CoachmarkOverlay({
 
   const padded = targetRect
     ? {
-        top: Math.max(8, targetRect.top - 8),
+        top: Math.max(safeTop, targetRect.top - 8),
         left: Math.max(8, targetRect.left - 8),
         width: targetRect.width + 16,
         height: targetRect.height + 16,
@@ -106,9 +120,9 @@ export default function CoachmarkOverlay({
   const bubbleBelow = !padded || padded.top + padded.height < window.innerHeight * 0.58;
   const bubbleTop = padded
     ? bubbleBelow
-      ? Math.min(window.innerHeight - 212, padded.top + padded.height + 18)
-      : Math.max(18, padded.top - 194)
-    : window.innerHeight * 0.5 - 96;
+      ? Math.min(window.innerHeight - safeBottom - 212, padded.top + padded.height + 18)
+      : Math.max(safeTop, padded.top - 194)
+    : Math.max(safeTop, window.innerHeight * 0.5 - 96);
   const bubbleLeft = Math.min(
     window.innerWidth - 340,
     Math.max(14, (padded ? padded.left + padded.width / 2 : window.innerWidth / 2) - 160)

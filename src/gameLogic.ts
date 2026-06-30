@@ -33,10 +33,18 @@ export function getRank(rating: number) {
 }
 
 export function calculateRatingChange(error: number, rating: number) {
-  if (rating >= 800 && error >= 3) {
-    const severity = error >= 5 ? 2 : 1;
-    const rankPressure = rating >= 2000 ? 10 : rating >= 1300 ? 7 : 4;
-    return -Math.min(30, rankPressure * severity);
+  if (rating >= 450 && error >= 2) {
+    const severity =
+      error >= 6 ? 3 :
+      error >= 4 ? 2 :
+      1;
+    const rankPressure =
+      rating >= 3000 ? 18 :
+      rating >= 2000 ? 15 :
+      rating >= 1300 ? 12 :
+      rating >= 800 ? 9 :
+      5;
+    return -Math.min(60, rankPressure * severity);
   }
 
   const baseGain =
@@ -50,11 +58,11 @@ export function calculateRatingChange(error: number, rating: number) {
     error < 3 ? 8 : 0;
 
   const difficulty =
-    rating < 450 ? 1 :
-    rating < 800 ? 0.85 :
-    rating < 1300 ? 0.65 :
-    rating < 2000 ? 0.45 :
-    rating < 3000 ? 0.3 : 0.2;
+    rating < 450 ? 0.92 :
+    rating < 800 ? 0.72 :
+    rating < 1300 ? 0.5 :
+    rating < 2000 ? 0.34 :
+    rating < 3000 ? 0.22 : 0.14;
 
   return baseGain === 0 ? 0 : Math.max(1, Math.round(baseGain * difficulty));
 }

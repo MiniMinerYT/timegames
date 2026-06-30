@@ -55,7 +55,7 @@ import {
   getUnlockedAchievementIds,
 } from './achievements';
 
-type GameMode = 'home' | 'single' | 'party' | 'tabletop' | 'challenge';
+type GameMode = 'home' | 'single' | 'party' | 'tabletop' | 'challenge' | 'troll';
 
 type GamePhase =
   | 'ready'
@@ -107,6 +107,7 @@ interface SettingsState {
   reducedMotion: boolean;
   partyTimerRange: 'short' | 'standard' | 'long';
   darkMode: boolean;
+  trollMode: boolean;
 }
 
 type ToggleSettingKey =
@@ -115,7 +116,8 @@ type ToggleSettingKey =
   | 'haptics'
   | 'rankedMode'
   | 'reducedMotion'
-  | 'darkMode';
+  | 'darkMode'
+  | 'trollMode';
 
 interface PartyPlayer {
   id: string;
@@ -685,6 +687,7 @@ const defaultSettings: SettingsState = {
   reducedMotion: false,
   partyTimerRange: 'standard',
   darkMode: true,
+  trollMode: false,
 };
 
 const defaultHardcoreScores: HardcoreScores = {
@@ -806,6 +809,7 @@ function App() {
           ? parsed.partyTimerRange
           : defaultSettings.partyTimerRange,
         darkMode: typeof parsed.darkMode === 'boolean' ? parsed.darkMode : defaultSettings.darkMode,
+        trollMode: typeof parsed.trollMode === 'boolean' ? parsed.trollMode : defaultSettings.trollMode,
       };
     } catch {
       return defaultSettings;
@@ -893,6 +897,8 @@ function App() {
 
   const [rankUpNotice, setRankUpNotice] = useState<string | null>(null);
   const [rankingsBackTarget, setRankingsBackTarget] = useState<'guesser' | 'result'>('guesser');
+  const [trollPerfectStreak, setTrollPerfectStreak] = useState(0);
+  const [completedRevealKeys, setCompletedRevealKeys] = useState<string[]>([]);
   const [partyPlayers, setPartyPlayers] = useState<PartyPlayer[]>([]);
 
   const [newPlayerName, setNewPlayerName] = useState('');
@@ -1251,6 +1257,10 @@ function App() {
     const ratingChange = game.mode === 'single' && settings.rankedMode
       ? calculateRatingChange(distance, stats.clockRating)
       : null;
+
+    if (game.mode === 'troll') {
+      setTrollPerfectStreak(prev => prev + 1);
+    }
 
     if (game.mode === 'single' || game.dailyOfficial) {
       updateStats(distance);
@@ -1654,6 +1664,9 @@ function App() {
       topTen: [],
     } satisfies DailyLeaderboardSummary;
   })();
+  const activeRevealKey = game.phase === 'reveal' && game.timeRevealed
+    ? `${game.mode}:${game.challengeDate ?? 'round'}:${game.targetTime.toFixed(2)}:${game.playerGuess}`
+    : null;
 
   const handleMenuClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
     if (!(event.target as HTMLElement).closest('button')) return;
@@ -1682,6 +1695,7 @@ function App() {
   const activeCoachmarkGuide =
     splashPhase === 'done' &&
     !standaloneTimingActive &&
+    (!activeRevealKey || completedRevealKeys.includes(activeRevealKey)) &&
     (game.phase !== 'hardcore' || hardcoreHelpVisible) &&
     screenGuide &&
     !seenScreenGuides.includes(screenGuide.id)
@@ -1784,9 +1798,11 @@ function App() {
           <TimeGuesserHub
             stats={stats}
             rankedMode={settings.rankedMode}
+            trollModeEnabled={settings.trollMode}
             reducedMotion={settings.reducedMotion}
             onRankedModeChange={(value) => updateSetting('rankedMode', value)}
             onSinglePlayer={() => startCountdown('single')}
+            onTrollMode={() => startCountdown('troll')}
             onPartyMode={openPartySetup}
             onBack={goHome}
             onRankings={showRankings}
@@ -1961,6 +1977,12 @@ function App() {
             dailyCountdown={dailyCountdown}
             dailyLeaderboard={revealDailyLeaderboard}
             reducedMotion={settings.reducedMotion}
+            revealAlreadyPlayed={activeRevealKey ? completedRevealKeys.includes(activeRevealKey) : false}
+            trollPresentationLevel={game.mode === 'troll' ? trollPerfectStreak : 0}
+            onRevealPlayed={() => {
+              if (!activeRevealKey) return;
+              setCompletedRevealKeys(prev => prev.includes(activeRevealKey) ? prev : [...prev.slice(-12), activeRevealKey]);
+            }}
             onTone={playTone}
             onHaptic={vibrate}
             onCelebrate={playCelebration}
@@ -2114,8 +2136,9 @@ function SplashScreen({
 }
 
 function CardStarField({ active, splash = false }: { active: boolean; splash?: boolean }) {
+  const shouldAnimate = splash ? true : active;
   return (
-    <div className={`card-starfield ${splash ? 'card-starfield-splash' : ''} ${active ? '' : 'card-starfield-paused'}`} aria-hidden="true">
+    <div className={`card-starfield ${splash ? 'card-starfield-splash' : ''} ${shouldAnimate ? '' : 'card-starfield-paused'}`} aria-hidden="true">
       {splash && <span className="splash-opening-comet" />}
       {STAR_FIELD_STARS.map(star => (
         <span
@@ -2256,7 +2279,7 @@ function GameMenuCard({ color, icon, title, description, onClick, compact = fals
     teal: 'bg-teal-500 hover:bg-teal-600 shadow-teal-500/25',
     indigo: 'bg-indigo-500 hover:bg-indigo-600 shadow-indigo-500/25',
     cyan: 'bg-cyan-600 hover:bg-cyan-700 shadow-cyan-600/25',
-    red: 'bg-red-700 hover:bg-red-800 shadow-red-700/25',
+    red: 'bg-red-700 hover:bg-red-700 shadow-red-700/25',
     rose: 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/25',
     slate: 'bg-gradient-to-br from-slate-700 to-teal-900 hover:from-slate-600 hover:to-teal-800 shadow-teal-900/30',
   }[color];
@@ -2273,18 +2296,22 @@ function GameMenuCard({ color, icon, title, description, onClick, compact = fals
 function TimeGuesserHub({
   stats,
   rankedMode,
+  trollModeEnabled,
   reducedMotion,
   onRankedModeChange,
   onSinglePlayer,
+  onTrollMode,
   onPartyMode,
   onBack,
   onRankings,
 }: {
   stats: StatsState;
   rankedMode: boolean;
+  trollModeEnabled: boolean;
   reducedMotion: boolean;
   onRankedModeChange: (value: boolean) => void;
   onSinglePlayer: () => void;
+  onTrollMode: () => void;
   onPartyMode: () => void;
   onBack: () => void;
   onRankings: () => void;
@@ -2366,6 +2393,9 @@ function TimeGuesserHub({
 
       <div className="space-y-2.5 shrink-0">
         <GameMenuCard guideId="guesser-single" color="teal" icon={<Timer className="w-6 h-6" />} title={`Single Player ${rankedMode ? 'Ranked' : 'Casual'}`} description={rankedMode ? 'Build rating.' : 'No rating pressure.'} onClick={onSinglePlayer} />
+        {trollModeEnabled && (
+          <GameMenuCard color="slate" icon={<Sparkles className="w-6 h-6" />} title="Troll Mode" description="Definitely real perfects." onClick={onTrollMode} />
+        )}
         <GameMenuCard guideId="guesser-party" color="rose" icon={<Users className="w-6 h-6" />} title="Party Mode" description="Compete to be closest with friends." onClick={onPartyMode} />
         <GameMenuCard disabled color="slate" icon={<Lock className="w-6 h-6" />} title="Multiplayer" description="Coming soon." onClick={() => undefined} />
       </div>
@@ -2611,7 +2641,9 @@ function StatsScreen({
         <ResultRow label="Clock Rating" value={stats.clockRating.toString()} accent />
         <ResultRow label="Current Rank" value={rankInfo.rank.name} />
         <ResultRow label="Games Played" value={stats.gamesPlayed.toString()} />
-        <ResultRow label="Best Accuracy" value={stats.bestAccuracy === null ? '-' : `${stats.bestAccuracy.toFixed(2)}s`} />
+        {stats.bestAccuracy !== 0 && (
+          <ResultRow label="Best Accuracy" value={stats.bestAccuracy === null ? '-' : `${stats.bestAccuracy.toFixed(2)}s`} />
+        )}
         <ResultRow label="Average Error" value={stats.averageError === null ? '-' : `${stats.averageError.toFixed(2)}s`} />
 
         <StatsSectionLabel>Daily Challenge</StatsSectionLabel>
@@ -2740,6 +2772,7 @@ function SettingsScreen({
     { key: 'haptics', label: 'Haptic Feedback', description: 'Vibration on supported devices', icon: Smartphone },
     { key: 'reducedMotion', label: 'Reduced Motion', description: 'Disable animations and transitions', icon: Sparkles },
     { key: 'darkMode', label: 'Light Mode', description: 'Use the clean light theme', icon: Sun },
+    { key: 'trollMode', label: 'Troll Mode', description: 'Unlock a harmless prank mode', icon: Sparkles },
   ];
 
   const segmentClass = (active: boolean) =>
@@ -3626,6 +3659,9 @@ function RevealScreen({
   dailyCountdown,
   dailyLeaderboard,
   reducedMotion,
+  revealAlreadyPlayed,
+  trollPresentationLevel,
+  onRevealPlayed,
   onTone,
   onHaptic,
   onCelebrate,
@@ -3652,6 +3688,9 @@ function RevealScreen({
   dailyCountdown: string;
   dailyLeaderboard: DailyLeaderboardSummary | null;
   reducedMotion: boolean;
+  revealAlreadyPlayed: boolean;
+  trollPresentationLevel: number;
+  onRevealPlayed: () => void;
   onTone: (frequency?: number, duration?: number, volume?: number) => void;
   onHaptic: (pattern: number | number[]) => void;
   onCelebrate: () => void;
@@ -3665,15 +3704,19 @@ function RevealScreen({
   const activeGuess = timeRevealed ? playerGuess : draftGuess;
   const hasGuess = isValidTimeInput(activeGuess);
   const isChallenge = mode === 'challenge';
-  const showCinematic = timeRevealed && hasGuess && guessDistance !== null && (mode === 'single' || mode === 'challenge');
-  const handleCinematicComplete = useCallback(() => setCinematicComplete(true), []);
+  const isTroll = mode === 'troll';
+  const showCinematic = timeRevealed && hasGuess && guessDistance !== null && (mode === 'single' || mode === 'challenge' || isTroll);
+  const handleCinematicComplete = useCallback(() => {
+    setCinematicComplete(true);
+    onRevealPlayed();
+  }, [onRevealPlayed]);
   useEffect(() => {
     if (!showCinematic) {
       setCinematicComplete(false);
       return;
     }
-    setCinematicComplete(reducedMotion);
-  }, [playerGuess, reducedMotion, showCinematic, targetTime]);
+    setCinematicComplete(reducedMotion || revealAlreadyPlayed);
+  }, [playerGuess, reducedMotion, revealAlreadyPlayed, showCinematic, targetTime]);
   const resultRankInfo = getRank(clockRating);
   const resultMessage = (() => {
     if (!isChallenge && (!hasGuess || guessDistance === null)) return 'No guess submitted.';
@@ -3773,7 +3816,8 @@ function RevealScreen({
                   playerGuess={parseFloat(playerGuess)}
                   error={guessDistance}
                   mode={mode}
-                  reducedMotion={reducedMotion}
+                  reducedMotion={reducedMotion || revealAlreadyPlayed}
+                  trollPresentationLevel={trollPresentationLevel}
                   onComplete={handleCinematicComplete}
                   onTone={onTone}
                   onHaptic={onHaptic}
@@ -3965,6 +4009,13 @@ function getRevealCopy(quality: RevealQuality, error: number) {
   return { title: `${error.toFixed(2)}s OFF`, subtitle: '' };
 }
 
+function getTrollRevealCopy(level: number) {
+  if (level <= 1) return { title: 'SPOT ON', subtitle: 'Perfect timing.' };
+  if (level === 2) return { title: 'SPOT ON', subtitle: 'Again. Obviously.' };
+  if (level === 3) return { title: 'Spot on', subtitle: 'What are the odds...' };
+  return { title: 'spot on', subtitle: 'Yeah, sure.' };
+}
+
 function shouldUseDecimalSuspense(targetTime: number, playerGuess: number, error: number) {
   const targetTenths = Math.floor(Math.abs(targetTime) * 10);
   const guessTenths = Math.floor(Math.abs(playerGuess) * 10);
@@ -3972,17 +4023,18 @@ function shouldUseDecimalSuspense(targetTime: number, playerGuess: number, error
 }
 
 function getRevealDurationMs(quality: RevealQuality, decimalSuspense = false) {
-  if (decimalSuspense) return quality === 'spotOn' ? 1650 : 1450;
+  if (decimalSuspense) return quality === 'spotOn' || quality === 'amazing' ? 2200 : quality === 'great' ? 1900 : 1600;
   switch (quality) {
     case 'spotOn':
+      return 1900;
     case 'amazing':
-      return 1450;
+      return 1700;
     case 'great':
-      return 1100;
+      return 1350;
     case 'good':
-      return 820;
+      return 1050;
     default:
-      return 600;
+      return 820;
   }
 }
 
@@ -3992,6 +4044,7 @@ function CinematicReveal({
   error,
   mode,
   reducedMotion,
+  trollPresentationLevel,
   onComplete,
   onTone,
   onHaptic,
@@ -4002,16 +4055,20 @@ function CinematicReveal({
   error: number;
   mode: GameMode;
   reducedMotion: boolean;
+  trollPresentationLevel: number;
   onComplete: () => void;
   onTone: (frequency?: number, duration?: number, volume?: number) => void;
   onHaptic: (pattern: number | number[]) => void;
   onCelebrate: () => void;
 }) {
-  const quality = getRevealQuality(error);
-  const copy = getRevealCopy(quality, error);
-  const decimalSuspense = shouldUseDecimalSuspense(targetTime, playerGuess, error);
+  const isTroll = mode === 'troll';
+  const displayError = isTroll ? 0 : error;
+  const displayTargetTime = isTroll ? playerGuess : targetTime;
+  const quality = isTroll ? 'spotOn' : getRevealQuality(error);
+  const copy = isTroll ? getTrollRevealCopy(trollPresentationLevel) : getRevealCopy(quality, error);
+  const decimalSuspense = shouldUseDecimalSuspense(displayTargetTime, playerGuess, displayError);
   const durationMs = getRevealDurationMs(quality, decimalSuspense);
-  const targetText = targetTime.toFixed(2);
+  const targetText = displayTargetTime.toFixed(2);
   const [targetWhole, targetDecimal = '00'] = targetText.split('.');
   const targetStages = [`${targetWhole}...`, `${targetWhole}.${targetDecimal[0]}...`, `${targetText}s`];
   const [stage, setStage] = useState(reducedMotion ? 4 : 0);
@@ -4027,7 +4084,7 @@ function CinematicReveal({
     setStage(0);
     const tickOne = Math.max(120, durationMs * (decimalSuspense ? 0.2 : 0.28));
     const tickTwo = Math.max(220, durationMs * (decimalSuspense ? 0.38 : 0.5));
-    const tickThree = Math.max(340, durationMs * (decimalSuspense ? 0.78 : 0.72));
+    const tickThree = Math.max(340, durationMs * (decimalSuspense ? 0.84 : 0.72));
     const impact = Math.max(480, durationMs);
     const complete = impact + (quality === 'spotOn' ? 620 : 360);
     const timers = [
@@ -4047,8 +4104,14 @@ function CinematicReveal({
       window.setTimeout(() => {
         setStage(4);
         if (quality === 'spotOn') {
-          onCelebrate();
-          onHaptic([25, 35, 45, 35, 60]);
+          if (!isTroll || trollPresentationLevel <= 3) {
+            onCelebrate();
+          }
+          if (!isTroll || trollPresentationLevel <= 2) {
+            onHaptic([25, 35, 45, 35, 60]);
+          } else {
+            onHaptic(12);
+          }
         } else {
           const impactFrequency = quality === 'amazing' ? 980 : quality === 'great' ? 880 : quality === 'good' ? 760 : 520;
           onTone(impactFrequency, quality === 'normal' ? 0.09 : 0.14, quality === 'normal' ? 0.055 : 0.085);
@@ -4059,7 +4122,7 @@ function CinematicReveal({
     ];
 
     return () => timers.forEach(timer => window.clearTimeout(timer));
-  }, [decimalSuspense, durationMs, onCelebrate, onComplete, onHaptic, onTone, quality, reducedMotion]);
+  }, [decimalSuspense, durationMs, isTroll, onCelebrate, onComplete, onHaptic, onTone, quality, reducedMotion, trollPresentationLevel]);
 
   const glowClasses = {
     normal: '',
@@ -4069,11 +4132,11 @@ function CinematicReveal({
     spotOn: 'drop-shadow-[0_0_32px_rgba(234,179,8,0.38)]',
   }[quality];
   const resultTextClasses = {
-    normal: 'text-slate-800',
-    good: 'text-teal-700',
-    great: 'text-cyan-700',
-    amazing: 'text-amber-600',
-    spotOn: 'text-yellow-600',
+    normal: 'text-slate-800 dark:text-slate-100',
+    good: 'text-teal-700 dark:text-teal-300',
+    great: 'text-cyan-700 dark:text-cyan-300',
+    amazing: 'text-amber-600 dark:text-amber-300',
+    spotOn: 'text-yellow-600 dark:text-yellow-300',
   }[quality];
   const targetDisplay = stage === 0 ? '--.--' : targetStages[Math.min(2, Math.max(0, stage - 1))];
 
@@ -4084,11 +4147,10 @@ function CinematicReveal({
       )}
       <div className="relative z-10 min-h-[17.5rem] flex flex-col items-center justify-center gap-4">
         <motion.div
-          layout
-          initial={reducedMotion ? false : { scale: 1.08, y: 8, opacity: 0 }}
+          initial={reducedMotion ? false : { scale: 1.02, y: 10, opacity: 0 }}
           animate={{
-            scale: stage === 0 ? 1 : 0.74,
-            y: stage === 0 ? 0 : -8,
+            scale: 0.74,
+            y: -8,
             opacity: 1,
           }}
           transition={{ duration: reducedMotion ? 0 : 0.36, ease: [0.16, 1, 0.3, 1] }}
@@ -4102,32 +4164,26 @@ function CinematicReveal({
           </p>
         </motion.div>
 
-        <AnimatePresence>
-          {stage >= 1 && (
-            <motion.div
-              key="actual-time"
-              data-guide-id="result-time"
-              initial={reducedMotion ? { opacity: 1 } : { opacity: 0, y: 14, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
-              className="text-center"
-            >
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-700">
-                {isChallenge ? 'Target Time' : 'Actual Time'}
-              </p>
-              <motion.p
-                key={targetDisplay}
-                initial={reducedMotion ? false : { opacity: 0, y: 8, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                transition={{ duration: reducedMotion ? 0 : 0.18 }}
-                className="mt-1 text-6xl sm:text-7xl font-black text-teal-700 leading-none tracking-tight drop-shadow-[0_2px_0_rgba(255,255,255,0.85)]"
-              >
-                {targetDisplay}
-              </motion.p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <motion.div
+          data-guide-id="result-time"
+          initial={false}
+          animate={{ opacity: stage >= 1 ? 1 : 0.28, y: 0, scale: 1 }}
+          transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
+          className="text-center"
+        >
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-700 dark:text-teal-300">
+            {isChallenge ? 'Target Time' : isTroll ? 'Actual Time' : 'Actual Time'}
+          </p>
+          <motion.p
+            key={targetDisplay}
+            initial={reducedMotion ? false : { opacity: 0, y: 6, filter: 'blur(3px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: reducedMotion ? 0 : decimalSuspense && stage === 3 ? 0.34 : 0.2, ease: 'easeOut' }}
+            className="mt-1 inline-block min-w-[6.6ch] text-center text-6xl sm:text-7xl font-black text-teal-700 dark:text-teal-300 leading-none tracking-tight"
+          >
+            {targetDisplay}
+          </motion.p>
+        </motion.div>
 
         <AnimatePresence>
           {stage >= 4 && (

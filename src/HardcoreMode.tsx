@@ -25,9 +25,9 @@ const difficulties: DifficultyDefinition[] = [
   { id: 'easy', name: 'Easy', threshold: 1, unlockText: 'Unlocked', panel: 'bg-emerald-100 border-emerald-400 text-emerald-950 shadow-emerald-400/20', button: 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/30', accent: 'text-emerald-500' },
   { id: 'medium', name: 'Medium', threshold: 0.5, unlockText: 'Score 3 on Easy', panel: 'bg-orange-200 border-orange-500 text-orange-950 shadow-orange-400/25', button: 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/30', accent: 'text-orange-400' },
   { id: 'hard', name: 'Hard', threshold: 0.25, unlockText: 'Score 3 on Medium', panel: 'bg-red-700 border-red-300 text-white shadow-red-500/35', button: 'bg-red-600 hover:bg-red-700 shadow-red-600/35', accent: 'text-red-300' },
-  { id: 'expert', name: 'Expert', threshold: 0.1, unlockText: 'Score 3 on Hard', panel: 'bg-gradient-to-br from-fuchsia-950 to-red-950 border-fuchsia-500 text-white shadow-fuchsia-700/40', button: 'bg-fuchsia-700 hover:bg-fuchsia-800 shadow-fuchsia-700/40', accent: 'text-fuchsia-300' },
+  { id: 'expert', name: 'Expert', threshold: 0.1, unlockText: 'Score 3 on Hard', panel: 'bg-gradient-to-br from-fuchsia-950 via-purple-950 to-fuchsia-900 border-fuchsia-500 text-white shadow-fuchsia-700/40', button: 'bg-fuchsia-700 hover:bg-fuchsia-800 shadow-fuchsia-700/40', accent: 'text-fuchsia-300' },
   { id: 'god', name: 'GOD', threshold: 0.05, unlockText: 'Score 3 on Expert', panel: 'hardcore-god-panel border-yellow-400 text-white shadow-yellow-400/40', button: 'bg-yellow-400 hover:bg-yellow-300 !text-black shadow-yellow-400/40', accent: 'text-yellow-300' },
-  { id: 'literal', name: 'LITERAL CLOCK', threshold: 0, unlockText: 'Score 3 on GOD', panel: 'bg-gradient-to-br from-black via-slate-950 to-white/10 border-white text-white shadow-white/25', button: 'bg-white hover:bg-slate-200 !text-black shadow-white/30', accent: 'text-white', exact: true },
+  { id: 'literal', name: 'LITERAL CLOCK', threshold: 0, unlockText: 'Score 3 on GOD', panel: 'hardcore-literal-panel border-white text-white shadow-white/25', button: 'bg-white hover:bg-slate-200 !text-black shadow-white/30', accent: 'text-white', exact: true },
 ];
 
 function isUnlocked(difficulty: HardcoreDifficulty, scores: HardcoreScores) {
@@ -218,6 +218,9 @@ export default function HardcoreMode({
 
   return (
     <div className={`${screenTheme} relative rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col ${inRun && difficulty !== 'easy' ? 'text-white' : ''}`}>
+      <div className={`hardcore-atmosphere hardcore-atmosphere-${difficulty}`} aria-hidden="true">
+        {Array.from({ length: 9 }, (_, index) => <span key={index} />)}
+      </div>
       <div className="text-center space-y-1 mb-3">
         <div className="w-14 h-14 mx-auto rounded-2xl bg-red-600 flex items-center justify-center text-white"><Skull className="w-8 h-8" /></div>
         <h1 className="text-3xl font-black">Hardcore Mode</h1>
