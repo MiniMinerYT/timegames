@@ -227,7 +227,7 @@ function getHelpContent(game: GameState): HelpContent {
   if (game.phase === 'dailyHistory') return {
     title: 'Challenge Archive',
     intro: 'Review recent Daily Challenge outcomes without replaying old targets.',
-    items: ['Played days show the target, stop time, official error and placement.', 'Missed dates are marked Not played without revealing the target.', 'Placements are local simulations until a real online leaderboard is added.'],
+    items: ['Played days show the target, stop time, official error and placement.', 'Missed dates are marked Not played.', 'Placements are local simulations until a real online leaderboard is added.'],
   };
   if (game.phase === 'rankings') return {
     title: 'Clock Ranks',
@@ -333,7 +333,7 @@ function getGuideContent(game: GameState): HelpContent {
     steps: [
       { title: 'Scan recent days', body: 'Each item shows the date and whether you played.' },
       { title: 'Compare errors', body: 'Played days show the target, your stop time, error and placement data when available.' },
-      { title: 'Spot missed days', body: 'Missed dates are marked Not played without revealing the target.' },
+      { title: 'Spot missed days', body: 'Missed dates are simply marked Not played.' },
     ],
     tips: ['Old challenges cannot be replayed because played targets are already visible.'],
   };
@@ -2542,9 +2542,7 @@ function PreviousDailyChallengesScreen({
                     <p className="text-sm font-semibold text-indigo-600">Error: {result.error.toFixed(2)}s</p>
                   )}
                 </>
-              ) : (
-                <p className="text-sm font-semibold text-slate-400 mt-1">Not played — target hidden</p>
-              )}
+              ) : null}
             </div>
           );
         })}
