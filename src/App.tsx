@@ -3762,7 +3762,7 @@ function RevealScreen({
             )}
           </div>
 
-          <div className={`flip-face flip-back result-scroll absolute inset-0 bg-slate-50 border border-slate-200 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden ${resultTone === 'spoton' ? 'spoton-glow' : ''}`}>
+          <div className={`flip-face flip-back result-scroll absolute inset-0 bg-gradient-to-b from-white via-slate-50 to-white border border-slate-100 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden ${resultTone === 'spoton' ? 'spoton-glow' : ''}`}>
             {cinematicComplete && (resultTone === 'spoton' || resultTone === 'elite') && (
               <div className="confetti">
                 {Array.from({ length: 14 }).map((_, index) => (
@@ -4069,11 +4069,11 @@ function CinematicReveal({
   }, [decimalSuspense, durationMs, onCelebrate, onComplete, onHaptic, onTone, quality, reducedMotion]);
 
   const glowClasses = {
-    normal: 'border-slate-200 bg-white shadow-slate-900/5',
-    good: 'border-teal-200 bg-white shadow-teal-400/15',
-    great: 'border-cyan-200 bg-white shadow-cyan-400/20',
-    amazing: 'border-amber-200 bg-white shadow-amber-400/30',
-    spotOn: 'border-yellow-300 bg-white shadow-yellow-400/40',
+    normal: '',
+    good: 'drop-shadow-[0_0_18px_rgba(20,184,166,0.16)]',
+    great: 'drop-shadow-[0_0_22px_rgba(6,182,212,0.2)]',
+    amazing: 'drop-shadow-[0_0_26px_rgba(245,158,11,0.28)]',
+    spotOn: 'drop-shadow-[0_0_32px_rgba(234,179,8,0.38)]',
   }[quality];
   const resultTextClasses = {
     normal: 'text-slate-800',
@@ -4085,10 +4085,9 @@ function CinematicReveal({
   const targetDisplay = stage === 0 ? '--.--' : targetStages[Math.min(2, Math.max(0, stage - 1))];
 
   return (
-    <div className={`cinematic-reveal relative overflow-hidden rounded-3xl border p-4 sm:p-5 shadow-2xl ${glowClasses}`}>
-      <div className="absolute inset-0 bg-gradient-to-b from-white via-white to-slate-50" aria-hidden="true" />
+    <div className={`cinematic-reveal relative overflow-visible px-2 py-3 sm:px-3 sm:py-4 ${glowClasses}`}>
       {(quality === 'spotOn' || quality === 'amazing') && (
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(250,204,21,0.18),transparent_46%)]" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-52 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(250,204,21,0.18),transparent_62%)]" aria-hidden="true" />
       )}
       <div className="relative z-10 min-h-[17.5rem] flex flex-col items-center justify-center gap-4">
         <motion.div
@@ -4102,10 +4101,10 @@ function CinematicReveal({
           transition={{ duration: reducedMotion ? 0 : 0.36, ease: [0.16, 1, 0.3, 1] }}
           className="text-center"
         >
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
             {isChallenge ? 'Your Stop' : 'Your Guess'}
           </p>
-          <p className="mt-1 text-5xl sm:text-6xl font-black text-slate-800 leading-none">
+          <p className="mt-1 text-5xl sm:text-6xl font-black text-slate-900 leading-none">
             {playerGuess.toFixed(2)}s
           </p>
         </motion.div>
@@ -4121,7 +4120,7 @@ function CinematicReveal({
               transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
               className="text-center"
             >
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-600">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-700">
                 {isChallenge ? 'Target Time' : 'Actual Time'}
               </p>
               <motion.p
@@ -4129,7 +4128,7 @@ function CinematicReveal({
                 initial={reducedMotion ? false : { opacity: 0, y: 8, filter: 'blur(4px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ duration: reducedMotion ? 0 : 0.18 }}
-                className="mt-1 text-6xl sm:text-7xl font-black text-teal-600 leading-none tracking-tight"
+                className="mt-1 text-6xl sm:text-7xl font-black text-teal-700 leading-none tracking-tight drop-shadow-[0_2px_0_rgba(255,255,255,0.85)]"
               >
                 {targetDisplay}
               </motion.p>
