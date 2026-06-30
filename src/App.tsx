@@ -226,8 +226,8 @@ function getHelpContent(game: GameState): HelpContent {
   };
   if (game.phase === 'dailyHistory') return {
     title: 'Challenge Archive',
-    intro: 'Review recent Daily Challenge outcomes without replaying revealed targets.',
-    items: ['Played days show the secret time, best official error and simulated placement.', 'Missed dates are marked Not played.', 'Placements are local simulations until a real online leaderboard is added.'],
+    intro: 'Review recent Daily Challenge outcomes without replaying old targets.',
+    items: ['Played days show the target, stop time, official error and placement.', 'Missed dates are marked Not played without revealing the target.', 'Placements are local simulations until a real online leaderboard is added.'],
   };
   if (game.phase === 'rankings') return {
     title: 'Clock Ranks',
@@ -332,10 +332,10 @@ function getGuideContent(game: GameState): HelpContent {
     items: [],
     steps: [
       { title: 'Scan recent days', body: 'Each item shows the date and whether you played.' },
-      { title: 'Compare errors', body: 'Played days show your official error and placement data when available.' },
-      { title: 'Spot missed days', body: 'Missed dates are clearly marked Not played.' },
+      { title: 'Compare errors', body: 'Played days show the target, your stop time, error and placement data when available.' },
+      { title: 'Spot missed days', body: 'Missed dates are marked Not played without revealing the target.' },
     ],
-    tips: ['Old challenges cannot be replayed because the secret time is already visible.'],
+    tips: ['Old challenges cannot be replayed because played targets are already visible.'],
   };
 
   if (game.phase === 'rankings') return {
@@ -2529,11 +2529,21 @@ function PreviousDailyChallengesScreen({
                 <p className="font-black text-slate-800">{formatDate(dateKey)}</p>
                 <span className={`text-[10px] uppercase tracking-wider font-black px-2 py-1 rounded-full ${result ? 'bg-teal-500 text-white' : 'bg-slate-200 text-slate-600'}`}>{result ? 'Played' : 'Not played'}</span>
               </div>
-              <p className="text-sm text-slate-500 mt-1">Secret time: <span className="font-bold text-slate-700">{getDailyTarget(dateKey).toFixed(2)}s</span></p>
-              {result && rank !== undefined && players !== undefined ? (
-                <p className="text-sm font-semibold text-indigo-600">Best error: {result.error.toFixed(2)}s · Global #{rank.toLocaleString()} of {players.toLocaleString()}</p>
+              {result ? (
+                <>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Target: <span className="font-bold text-slate-700">{result.target.toFixed(2)}s</span>
+                    <span className="mx-1">·</span>
+                    Stopped: <span className="font-bold text-slate-700">{result.guess.toFixed(2)}s</span>
+                  </p>
+                  {rank !== undefined && players !== undefined ? (
+                    <p className="text-sm font-semibold text-indigo-600">Error: {result.error.toFixed(2)}s · Global #{rank.toLocaleString()} of {players.toLocaleString()}</p>
+                  ) : (
+                    <p className="text-sm font-semibold text-indigo-600">Error: {result.error.toFixed(2)}s</p>
+                  )}
+                </>
               ) : (
-                <p className="text-sm font-semibold text-slate-400">Not played</p>
+                <p className="text-sm font-semibold text-slate-400 mt-1">Not played — target hidden</p>
               )}
             </div>
           );

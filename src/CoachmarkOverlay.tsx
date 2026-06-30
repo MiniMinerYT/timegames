@@ -170,14 +170,25 @@ export default function CoachmarkOverlay({
           role="dialog"
           aria-modal="true"
           aria-labelledby="coachmark-title"
-          onClick={event => event.stopPropagation()}
+          onClick={event => {
+            event.stopPropagation();
+            if (!isTargetTapStep) advance();
+          }}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-teal-600">{guide.eyebrow}</p>
               <h2 id="coachmark-title" className="mt-1 text-xl font-black leading-tight text-slate-900">{step.title}</h2>
             </div>
-            <button type="button" onClick={onComplete} aria-label="Close guide" className="w-9 h-9 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onComplete();
+              }}
+              aria-label="Close guide"
+              className="w-9 h-9 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shrink-0"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -192,7 +203,10 @@ export default function CoachmarkOverlay({
                   key={item.targetId}
                   type="button"
                   aria-label={`Go to guide step ${index + 1}`}
-                  onClick={() => setStepIndex(index)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setStepIndex(index);
+                  }}
                   className={`h-2 rounded-full transition-all ${index === stepIndex ? 'w-7 bg-teal-500' : 'w-2 bg-slate-200'}`}
                 />
               ))}
@@ -200,7 +214,10 @@ export default function CoachmarkOverlay({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setStepIndex(index => Math.max(0, index - 1))}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setStepIndex(index => Math.max(0, index - 1));
+                }}
                 disabled={stepIndex === 0}
                 className="px-3 py-2 rounded-xl app-secondary-action text-xs font-black disabled:opacity-40"
               >
@@ -208,7 +225,8 @@ export default function CoachmarkOverlay({
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={(event) => {
+                  event.stopPropagation();
                   if (isTargetTapStep) {
                     activateTarget();
                     return;
