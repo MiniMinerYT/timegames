@@ -627,14 +627,14 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
           body: 'This is how long the hidden clock actually ran.',
         },
         {
-          targetId: 'result-error',
-          title: 'Your accuracy',
-          body: 'The smaller this number is, the better your internal clock was.',
-        },
-        {
           targetId: 'result-rating',
           title: 'Rank progress',
-          body: 'Ranked rounds show your Clock Rating change and progress toward the next rank.',
+          body: 'This shows your Clock Rating change and progress toward the next rank.',
+        },
+        {
+          targetId: 'result-actions',
+          title: 'Play again',
+          body: 'Start another round or return to the Time Guesser menu.',
         },
       ],
     };
@@ -653,7 +653,7 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
         {
           targetId: 'daily-result-score',
           title: 'Your result',
-          body: 'Your stop time and error decide your global Daily Challenge rank.',
+          body: 'Your Daily Challenge rank is based on how close your stop was.',
         },
         {
           targetId: 'daily-result-bonus',
@@ -3813,10 +3813,6 @@ function RevealScreen({
                 <div className="space-y-3">
                   {hasGuess && guessDistance !== null ? (
                     <>
-                      <ResultRow label="Your Guess" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
-                      <div data-guide-id="result-error">
-                        <ResultRow label="You were off by" value={`${guessDistance.toFixed(2)}s`} accent />
-                      </div>
                       {rankedMode && ratingChange !== null ? (
                         <button
                           type="button"
@@ -3894,12 +3890,8 @@ function RevealScreen({
               {mode === 'challenge' && guessDistance !== null && (
                 <div className="space-y-3">
                   <p className="font-black text-teal-700">🔥 Daily Challenge Complete</p>
-                  <div data-guide-id="daily-result-score" className="bg-white border border-slate-200 rounded-2xl p-3 space-y-2">
-                    <ResultRow label="Your Stop" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
-                    <ResultRow label="Your Error" value={`${guessDistance.toFixed(2)}s`} accent />
-                  </div>
                   {dailyOfficial && dailyRank != null && (
-                    <div className="bg-white border border-indigo-200 rounded-2xl p-3 space-y-2 text-left">
+                    <div data-guide-id="daily-result-score" className="bg-white border border-indigo-200 rounded-2xl p-3 space-y-2 text-left">
                       <ResultRow label="Global Rank" value={`#${dailyRank.toLocaleString()}`} />
                       <ResultRow label="Best Score Today" value={dailyBestScore === null ? '-' : `${dailyBestScore.toFixed(2)}s off`} />
                       {dailyLeaderboard?.topTen.length ? (
@@ -3935,7 +3927,7 @@ function RevealScreen({
             </div>
 
             {(!showCinematic || cinematicComplete) && (
-            <div className="space-y-3 pt-3 relative z-10 shrink-0">
+            <div data-guide-id="result-actions" className="space-y-3 pt-3 relative z-10 shrink-0">
               {!isChallenge && (
                 <button
                   onClick={onPlayAgain}
@@ -3980,7 +3972,14 @@ function getRevealCopy(quality: RevealQuality, error: number) {
   return { title: `${error.toFixed(2)}s OFF`, subtitle: '' };
 }
 
-function getRevealDurationMs(quality: RevealQuality) {
+function shouldUseDecimalSuspense(targetTime: number, playerGuess: number, error: number) {
+  const targetTenths = Math.floor(Math.abs(targetTime) * 10);
+  const guessTenths = Math.floor(Math.abs(playerGuess) * 10);
+  return error < 0.1 && targetTenths === guessTenths;
+}
+
+function getRevealDurationMs(quality: RevealQuality, decimalSuspense = false) {
+  if (decimalSuspense) return quality === 'spotOn' ? 1650 : 1450;
   switch (quality) {
     case 'spotOn':
     case 'amazing':
@@ -4017,7 +4016,8 @@ function CinematicReveal({
 }) {
   const quality = getRevealQuality(error);
   const copy = getRevealCopy(quality, error);
-  const durationMs = getRevealDurationMs(quality);
+  const decimalSuspense = shouldUseDecimalSuspense(targetTime, playerGuess, error);
+  const durationMs = getRevealDurationMs(quality, decimalSuspense);
   const targetText = targetTime.toFixed(2);
   const [targetWhole, targetDecimal = '00'] = targetText.split('.');
   const targetStages = [`${targetWhole}...`, `${targetWhole}.${targetDecimal[0]}...`, `${targetText}s`];
@@ -4032,9 +4032,9 @@ function CinematicReveal({
     }
 
     setStage(0);
-    const tickOne = Math.max(120, durationMs * 0.28);
-    const tickTwo = Math.max(220, durationMs * 0.5);
-    const tickThree = Math.max(340, durationMs * 0.72);
+    const tickOne = Math.max(120, durationMs * (decimalSuspense ? 0.2 : 0.28));
+    const tickTwo = Math.max(220, durationMs * (decimalSuspense ? 0.38 : 0.5));
+    const tickThree = Math.max(340, durationMs * (decimalSuspense ? 0.78 : 0.72));
     const impact = Math.max(480, durationMs);
     const complete = impact + (quality === 'spotOn' ? 620 : 360);
     const timers = [
@@ -4066,14 +4066,14 @@ function CinematicReveal({
     ];
 
     return () => timers.forEach(timer => window.clearTimeout(timer));
-  }, [durationMs, onCelebrate, onComplete, onHaptic, onTone, quality, reducedMotion]);
+  }, [decimalSuspense, durationMs, onCelebrate, onComplete, onHaptic, onTone, quality, reducedMotion]);
 
   const glowClasses = {
     normal: 'border-slate-200 bg-white shadow-slate-900/5',
-    good: 'border-teal-200 bg-teal-50/70 shadow-teal-400/15',
-    great: 'border-cyan-200 bg-cyan-50/80 shadow-cyan-400/20',
-    amazing: 'border-amber-200 bg-amber-50/85 shadow-amber-400/30',
-    spotOn: 'border-yellow-300 bg-gradient-to-br from-yellow-50 via-amber-50 to-white shadow-yellow-400/40',
+    good: 'border-teal-200 bg-white shadow-teal-400/15',
+    great: 'border-cyan-200 bg-white shadow-cyan-400/20',
+    amazing: 'border-amber-200 bg-white shadow-amber-400/30',
+    spotOn: 'border-yellow-300 bg-white shadow-yellow-400/40',
   }[quality];
   const resultTextClasses = {
     normal: 'text-slate-800',
@@ -4086,8 +4086,9 @@ function CinematicReveal({
 
   return (
     <div className={`cinematic-reveal relative overflow-hidden rounded-3xl border p-4 sm:p-5 shadow-2xl ${glowClasses}`}>
+      <div className="absolute inset-0 bg-gradient-to-b from-white via-white to-slate-50" aria-hidden="true" />
       {(quality === 'spotOn' || quality === 'amazing') && (
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(250,204,21,0.24),transparent_52%)]" aria-hidden="true" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(250,204,21,0.18),transparent_46%)]" aria-hidden="true" />
       )}
       <div className="relative z-10 min-h-[17.5rem] flex flex-col items-center justify-center gap-4">
         <motion.div
