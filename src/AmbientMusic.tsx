@@ -71,7 +71,6 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
     audio.loop = true;
     audio.preload = 'auto';
     audio.autoplay = true;
-    audio.playsInline = true;
     audio.setAttribute('playsinline', 'true');
     audio.setAttribute('webkit-playsinline', 'true');
     audio.volume = 0;

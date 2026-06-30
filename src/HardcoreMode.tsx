@@ -226,7 +226,7 @@ export default function HardcoreMode({
       </div>
 
       {phase === 'select' ? (
-        <div className="flex-1 min-h-0 overflow-y-auto card-scroll hardcore-difficulty-scroll px-1">
+        <div data-guide-id="hardcore-difficulty-grid" className="flex-1 min-h-0 overflow-y-auto card-scroll hardcore-difficulty-scroll px-1">
           <div className="mb-2">
             <p className="text-sm font-black text-slate-500 uppercase tracking-[0.18em]">Choose Difficulty</p>
           </div>
@@ -238,7 +238,7 @@ export default function HardcoreMode({
                 ? 'Score 3 on ????'
                 : item.unlockText;
               return (
-                <button key={item.id} aria-disabled={!unlocked} onClick={() => unlocked ? startRun(item.id) : setLockedNotice(`${mysterious ? 'The mystery difficulty' : item.name} is locked. ${unlockText} to unlock it.`)} className={`w-full rounded-2xl border p-2 text-center transition-colors shadow-lg ${item.panel} ${unlocked ? 'hover:brightness-110' : 'border-dashed ring-2 ring-slate-400/40 grayscale-[0.25] brightness-75'}`}>
+                <button data-guide-id={item.id === 'easy' ? 'hardcore-difficulty-easy' : undefined} key={item.id} aria-disabled={!unlocked} onClick={() => unlocked ? startRun(item.id) : setLockedNotice(`${mysterious ? 'The mystery difficulty' : item.name} is locked. ${unlockText} to unlock it.`)} className={`w-full rounded-2xl border p-2 text-center transition-colors shadow-lg ${item.panel} ${unlocked ? 'hover:brightness-110' : 'border-dashed ring-2 ring-slate-400/40 grayscale-[0.25] brightness-75'}`}>
                   <div className="flex flex-col items-center justify-center gap-1">
                     <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">{mysterious ? <span className="font-black text-lg">?</span> : unlocked ? <ShieldAlert className="w-4 h-4" /> : <Lock className="w-4 h-4" />}</div>
                     <div>
@@ -379,7 +379,7 @@ export default function HardcoreMode({
             Change Difficulty
           </button>
         )}
-        <button onClick={onBack} className="w-full app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+        <button data-guide-id="hardcore-all-games" onClick={onBack} className="w-full app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
           <ArrowLeft className="w-5 h-5" />
           All Games
         </button>

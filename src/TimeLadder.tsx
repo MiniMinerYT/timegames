@@ -49,7 +49,6 @@ export default function TimeLadder({
   const [bestCelebration, setBestCelebration] = useState(false);
   const [instantReset, setInstantReset] = useState(false);
   const [rewinding, setRewinding] = useState(false);
-  const [rewindLevels, setRewindLevels] = useState(0);
   const [runResults, setRunResults] = useState<Record<number, LadderRunResult>>({});
   const startRef = useRef<number | null>(null);
   const ladderScrollRef = useRef<HTMLDivElement | null>(null);
@@ -161,7 +160,6 @@ export default function TimeLadder({
 
   const restartRun = () => {
     if (level > 1 && !reducedMotion) {
-      setRewindLevels(level - 1);
       setRewinding(true);
     } else {
       setInstantReset(true);
@@ -217,6 +215,7 @@ export default function TimeLadder({
 
       <div className="flex-1 min-h-0 flex flex-col items-center justify-start gap-2 pt-1 px-1">
         <div
+          data-guide-id="ladder-scroll-lane"
           ref={ladderScrollRef}
           className="relative w-full h-[250px] shrink-0 overflow-y-auto overflow-x-hidden card-scroll rounded-2xl"
           aria-label="Scrollable ladder progress"
@@ -263,6 +262,7 @@ export default function TimeLadder({
               return (
                 <div key={rungLevel} className="h-[84px] relative flex items-center justify-center px-4">
                   <motion.div
+                    data-guide-id={isCurrent ? 'ladder-rung-active' : undefined}
                     className={`relative z-10 w-full h-[66px] rounded-2xl border-2 px-3 py-1.5 shadow-sm flex flex-col justify-center overflow-hidden ${rungClass}`}
                     initial={false}
                     animate={rungAnimate}
@@ -299,6 +299,7 @@ export default function TimeLadder({
         </div>
 
         <motion.button
+          data-guide-id="ladder-main-button"
           onClick={phase === 'ready' ? startLevel : phase === 'playing' ? stopTimer : success ? continueRun : restartRun}
           className={`relative z-20 pointer-events-auto w-48 h-48 shrink-0 rounded-full text-white text-2xl font-black shadow-xl transition-colors ${phase === 'ready' ? 'bg-emerald-500 hover:bg-emerald-600' : phase === 'playing' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-indigo-500 hover:bg-indigo-600'}`}
           whileTap={reducedMotion ? undefined : { scale: 0.96 }}

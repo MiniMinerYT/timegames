@@ -12,7 +12,7 @@ The Home screen is the top-level game collection. It contains:
 - Daily Challenge card
 - Compact half-width Stats and Settings cards
 
-Home card descriptions are intentionally short and punchy so the mobile menu breathes: Time Guesser says `Beat the clock`, Time Ladder says `Climb from 1 to 20`, Hardcore says `Three lives only`, Daily Challenge highlights completion/streak reward state, Stats says `Progress` and Settings says `Tweak`. Time Guesser uses a stopwatch-style timer icon, Time Ladder uses a ladder icon and Hardcore uses a skull icon.
+Home card descriptions are intentionally short and punchy so the mobile menu breathes. Time Guesser shows the current Ranked/Casual state, Time Ladder can show the saved best level, Hardcore can show the saved best score, Daily Challenge highlights completion/streak/reward state, Stats says `Progress` and Settings says `Tweak`. Time Guesser uses a stopwatch-style timer icon, Time Ladder uses a ladder icon and Hardcore uses a skull icon.
 
 Party Mode and Single Player live inside Time Guesser. Daily Challenge is a top-level Home card because it is a primary retention feature; returning from the Daily Challenge flow goes back to Home.
 
@@ -26,9 +26,13 @@ The layout uses a responsive app-card system designed mobile-first rather than l
 
 The app opens with a tap-to-start TimeGames splash sequence that matches the saved light/dark theme. While waiting, the clock logo, title, tagline and start prompt use a slow subtle wave/shake so the entry screen feels alive without becoming distracting. Tapping or pressing Enter/Space first pulls all text beneath the logo upward in one smooth motion until it becomes tiny and visually passes behind the higher-stacked clock icon, then the same splash clock icon immediately launches toward the actual measured center of the home header icon. The launch destination is measured and frozen at tap time so the moving icon does not re-target after it lands. During the first Home reveal, the Home header remains position-stable while the moving splash icon overlaps the real Home icon, its launch glow fades away, and the handoff crossfades so it feels like one continuous icon settling into place. The Home title, tagline and menu cards start tiny near the icon and quickly grow/drop down in a tight waterfall as if being released from the landed logo. The help question mark is excluded from the waterfall and fades in separately. Theme music attempts to autoplay on launch, and the start tap provides the fallback user gesture needed when platforms such as iOS/WebKit block audible autoplay until interaction. Reduced Motion shortens the sequence to simple state changes.
 
+First-run onboarding uses contextual coachmarks rather than a wall-of-text tutorial. After the splash, the first visit to each major menu can trigger a short guided showcase for that actual screen. The coachmark system measures real UI elements marked with `data-guide-id`, scrolls them into view when needed, dims the rest of the app, draws a bright target ring/zoom highlight, points to the element with an arrow and shows one concise explanation at a time. Each guide has progress dots plus Back, Next, Got it and close controls. Reduced Motion keeps the same structure but removes movement-heavy transitions.
+
+Coachmark guides are currently defined for Home, Time Guesser, Daily Challenge, Time Ladder, Hardcore difficulty selection, Party setup, Stats and Settings. They are intentionally shown only on safe menu/explanation screens, not during active timing windows. The Home guide also sets the legacy `timegames-onboarding-seen` flag when completed, while all per-screen guide completions are stored in `timegames-screen-guides-seen`.
+
 Top-level menu, game-hub, Stats and Settings screen changes use very subtle content-only transitions inside the app card. On desktop the rounded 680px card frame stays stationary; only the contents inside it animate. These one-shot transitions are intentionally gentle, are disabled during active timing windows and are also disabled by the saved or operating-system Reduced Motion preferences.
 
-Menu screens expose a contextual question-mark button in the card's top-left corner. It opens a reusable help dialog over the current screen with page-specific rules and explanations. The dialog respects the available viewport and safe areas, keeps its X close control visible in the top-right, scrolls its body internally when necessary, closes from the backdrop or Escape key and supports light/dark themes. Active Time Guesser gameplay, timing, guess-entry and result screens hide the help control so it does not distract or overlap play. Time Ladder keeps its help entry available, and Hardcore keeps help visible on the difficulty-selection screen only.
+Menu screens expose a contextual question-mark button in the card's top-left corner. It remains the reusable reminder system for returning players: a short intro, a clear "Your goal" callout, numbered step cards and optional "Good to know" tips. This keeps first-run teaching and later reminders consistent without forcing the player through coachmarks again. The dialog animates in with Framer Motion, respects the available viewport and safe areas, keeps its X close control visible in the top-right, scrolls its body internally when necessary, closes from the backdrop or Escape key and supports light/dark themes. Active Time Guesser gameplay, timing, guess-entry and result screens hide the help control so it does not distract or overlap play. Time Ladder keeps its help entry available, and Hardcore keeps help visible on the difficulty-selection screen only. Help content is written as simple player-facing instructions rather than developer rules, with the goal of making every mode understandable to someone opening the app for the first time.
 
 ## Game 1: Time Guesser
 
@@ -89,6 +93,7 @@ After completing today's challenge, the Daily screen shows:
 - Guess, target and error
 - Global leaderboard placement when Supabase is configured, with stored/local fallback placement when available
 - Best score today when leaderboard data is available
+- A compact top-today leaderboard preview when Supabase top entries are available
 - Clock Rating participation bonus, current streak and tomorrow's reward
 - A live countdown to the next local calendar day
 - A link to Challenge Archive on the Daily hub
@@ -253,10 +258,22 @@ The Stats screen contains:
 - Hardcore Mode: best Easy, Medium, Hard and Expert scores
 - Hardcore GOD best only after GOD is unlocked or has a recorded score
 - Hardcore LITERAL CLOCK best only after it is unlocked or has a recorded score
+- Achievements, with unlocked/locked state for major milestones across Time Guesser, Daily Challenge, Time Ladder, Hardcore Mode and Clock Rating
 
 General accuracy stats include Single Player and official Daily Challenge attempts. Party Mode and Time Ladder are excluded. Errors of 100 seconds or more are excluded from average error to avoid accidental inputs skewing the result.
 
-Stats reset clears all local progress after confirmation, including Time Guesser accuracy stats, Clock Rating, Daily history/retention state, Time Ladder best level, Hardcore best scores/unlocks and current Party players.
+Stats reset clears all local progress after confirmation, including Time Guesser accuracy stats, Clock Rating, Daily history/retention state, Time Ladder best level, Hardcore best scores/unlocks, achievements and current Party players.
+
+Current achievements are intentionally lightweight local milestones:
+- First Tick: complete a Time Guesser round
+- Sharp Clock: finish within 0.10 seconds in a tracked guess
+- Spot On: record at least one perfect result
+- Daily Habit: complete a Daily Challenge
+- One Week Hot: reach a 7 day Daily streak
+- Getting Higher: clear Level 5 in Time Ladder
+- Top of Time: complete the full Time Ladder
+- Godlike Nerve: unlock GOD difficulty in Hardcore Mode
+- Chrono Master: reach 3000 Clock Rating
 
 ## Persistence
 
@@ -269,6 +286,9 @@ localStorage keys:
 - `timegames-daily-retention`: current streak, last completed date and dates whose rating bonus was claimed
 - `timegames-ladder-best`: highest successfully cleared Time Ladder level
 - `timegames-hardcore-bests`: best Hardcore score for each difficulty
+- `timegames-achievements`: locally unlocked achievement ids
+- `timegames-onboarding-seen`: first-run guide dismissal state
+- `timegames-screen-guides-seen`: ids of contextual coachmark guides already completed on this device
 
 Party players and scores remain in React state only.
 
@@ -301,6 +321,40 @@ Party players and scores remain in React state only.
 - @capacitor/haptics
 - @supabase/supabase-js
 - localStorage persistence
+
+## Current Implementation Map
+
+The project has historically kept a large amount of UI state in `src/App.tsx`, but newer systems should continue moving toward focused helper files/components where practical.
+
+Important files:
+- `src/App.tsx`: top-level game state, navigation, Time Guesser, Daily Challenge, Party Mode, Stats, Settings, splash/onboarding wiring and shared app-shell flow.
+- `src/CoachmarkOverlay.tsx`: contextual first-visit onboarding overlay that highlights real UI elements, points to them with arrows and advances through per-screen guide steps.
+- `src/TimeLadder.tsx`: Time Ladder gameplay, ladder scroll/animation, rung results, completion celebration and Ladder persistence callbacks.
+- `src/HardcoreMode.tsx`: Hardcore Mode gameplay, difficulty unlocks, difficulty themes, lives/score display and Hardcore persistence callbacks.
+- `src/HelpOverlay.tsx`: reusable question-mark reminder modal used by menu/help screens. It supports intro, goal, numbered steps and tips.
+- `src/NumberKeypad.tsx`: shared in-app numeric keypad used for guess entry instead of the native device keyboard.
+- `src/AmbientMusic.tsx`: looping theme music, volume handling, duck/fade behaviour and gesture/autoplay fallback.
+- `src/haptics.ts`: shared haptic helper using Capacitor Haptics where available with browser vibration fallback.
+- `src/dailyLeaderboard.ts`: Supabase Daily Challenge submission/fetch helpers and leaderboard summary shape.
+- `src/supabaseClient.ts`: environment-driven Supabase client creation using `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+- `src/gameLogic.ts`: deterministic gameplay helpers for rank thresholds, rating changes, Daily Challenge target/reward logic, simulated Daily fallback placement and keypad sanitising.
+- `src/achievements.ts`: local achievement definitions and unlock evaluation.
+- `src/index.css`: global layout, safe-area handling, dark/light theme overrides, starfield/shooting-star effects, card styling and shared animation keyframes.
+- `scripts/gameLogic.test.mjs`: dependency-free Node test harness for the extracted deterministic gameplay helpers.
+
+Core deterministic gameplay helpers live in `src/gameLogic.ts` so rank thresholds, rating changes, Daily Challenge target/reward logic and keypad input sanitising can be verified outside the large UI component. `npm run test:logic` runs the small Node test harness against that source file. `npm run typecheck` runs the TypeScript compiler with the app config.
+
+Current useful verification commands:
+- `npm run test:logic`
+- `npm run typecheck`
+- `npm run build`
+
+Known technical direction:
+- Prefer new focused components/helpers over growing `App.tsx`.
+- Keep animation logic outside active timing windows unless it is instantaneous or non-rhythmic.
+- Keep backend leaderboard logic isolated behind `dailyLeaderboard.ts`/`supabaseClient.ts`.
+- Preserve localStorage key compatibility when adding new persistence.
+- Keep mobile/native layout and safe areas as the primary UI target while preserving the compact desktop card.
 
 ## Important Development Rules
 
