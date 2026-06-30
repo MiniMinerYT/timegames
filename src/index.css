@@ -773,6 +773,51 @@ input[type='number'] {
   transform: rotateY(-180deg);
 }
 
+.reveal-flow-card,
+.reveal-flow-card.is-flipped {
+  transform: none;
+  transition: none;
+}
+
+.reveal-flow-card .flip-face {
+  transform: none;
+  opacity: 1;
+  transition: opacity 0.34s ease-out, filter 0.34s ease-out;
+}
+
+.reveal-flow-card .flip-back {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reveal-flow-card.is-flipped > .flip-face:not(.flip-back) {
+  opacity: 0;
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.reveal-flow-card.is-flipped .flip-back {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tg-theme-strong {
+  color: #0f172a;
+}
+
+.dark-mode .tg-theme-strong {
+  color: #fff;
+  filter: drop-shadow(0 2px 14px rgb(15 23 42 / 50%));
+}
+
+.tg-theme-muted {
+  color: #64748b;
+}
+
+.dark-mode .tg-theme-muted {
+  color: #cbd5e1;
+}
+
 .tabletop-landscape-shell {
   position: relative;
   flex: 1;

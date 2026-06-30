@@ -58,7 +58,7 @@ The result shows:
 - Feedback message
 - Clock Rating change and rank progress for ranked rounds
 
-Time Guesser and Daily Challenge results use a cinematic reveal sequence inside the existing result card rather than a separate popup. After submission, the card first shows the player's guess/stop time, reveals the actual/target time below in staged suspense beats, then lands the final error result. The player's guess and the revealed target keep stable positions during the sequence, and the target digits reveal inside a fixed-width slot so adding decimal places does not shift the layout. The cinematic owns the guess/stop and error display, so the post-reveal detail area prioritises rank, leaderboard, streak and action controls instead of duplicating those same numbers. Reveal pacing adapts to accuracy and is intentionally readable even for normal misses; good/great results pause longer, and amazing/Spot On attempts build extra suspense so the player cannot immediately tell whether they are merely very close or perfect. If the answer is within 0.10 seconds and the first decimal matches the player's guess, the reveal deliberately slows before showing the second decimal to build a game-show style suspense beat. Opening the rank list from a completed result and returning does not replay the reveal animation; the completed result state is restored immediately. Final wording is short and punchy, such as `0.02s OFF`, `Unreal timing.` or `SPOT ON`, `Perfect timing.`.
+Time Guesser and Daily Challenge results use a cinematic reveal sequence inside the existing result card rather than a separate popup. In Time Guesser, the card first shows the player's guess, reveals the actual time below in staged suspense beats, then lands the final error result. In Daily Challenge, the known target stays in the smaller reference position and the player's stopped time is the value revealed with suspense. The player's reference value and the revealed time keep stable positions during the sequence, and the revealed digits sit inside a fixed-width slot so adding decimal places does not shift the layout. The cinematic owns the guess/stop and error display, so the post-reveal detail area prioritises rank, leaderboard, streak and action controls instead of duplicating those same numbers. Reveal pacing adapts to accuracy and is intentionally readable even for normal misses; results under 0.10 seconds off reveal much more slowly, and Spot On attempts build extra suspense so the player cannot immediately tell whether they are merely very close or perfect. If the answer is within 0.10 seconds and the first decimal matches the player's guess, the reveal deliberately slows before showing the second decimal to build a game-show style suspense beat. Opening the rank list from a completed result and returning does not replay the reveal animation or confetti; the completed result state is restored immediately. Final wording is short and punchy, such as `0.02s OFF`, `Unreal timing.` or `SPOT ON`, `Perfect timing.`.
 
 The cinematic reveal uses Framer Motion for subtle slide, scale, fade and glow effects directly on the result face rather than inside a separate bordered panel, so the flip from guess entry into reveal stays clean and readable. The guess-entry and reveal faces use the transparent app-card treatment instead of bright inner white panels, with the keypad and large typed guess/stop value providing the focus before that value visually flows into the reveal. The guess-entry face intentionally avoids placeholder question marks or extra instructions so the typed value aligns with the cinematic opening beat. Close results receive stronger glow treatment, and Spot On uses a gold celebration treatment with the existing confetti/celebration language. Result sounds are moved into the reveal sequence rather than firing immediately on submission: small tick/pop tones play as the actual time is revealed, an impact tone lands with the final error, and Spot On triggers the unique celebration sting. Haptic feedback mirrors those reveal beats when enabled. Reduced Motion skips the suspense movement and immediately exposes the final result/details while preserving the normal result information.
 
@@ -68,7 +68,7 @@ Casual and ranked rounds update general stats. Only ranked rounds affect Clock R
 
 ### Troll Mode
 
-Troll Mode is an optional prank variant launched directly from the Super Crazy section at the bottom of Settings. It uses the normal hidden-clock, countdown, guess-entry and reveal flow, but every result is presented as if it were Spot On. Consecutive fake perfects intentionally become less exciting and more suspicious; after roughly three in a row the celebration/copy becomes deliberately dull to reveal the joke. Troll Mode is presentation-only and does not affect Clock Rating or competitive progression.
+Troll Mode is an optional prank variant launched directly from the Super Crazy section at the bottom of Settings. It first opens a neutral ready screen with a simple Start button so the device can be handed to someone else without exposing the joke. After Start, it uses the normal hidden-clock, countdown, guess-entry and reveal flow, but every result is presented as if it were Spot On. Consecutive fake perfects intentionally become less exciting and more suspicious; after roughly three in a row the celebration/copy becomes deliberately dull and the reveal loses colour to reveal the joke. The degradation resets each time Troll Mode is entered from Settings. Troll Mode is presentation-only and does not affect Clock Rating or competitive progression.
 
 ### Party Mode
 
@@ -221,7 +221,7 @@ Base gains by absolute error before rank-based scaling:
 
 Gains taper more aggressively at higher ratings so long-term progression is more competitive and Platinum/Diamond become natural settling ranks for many active players. Losses now begin from Gold Clock for errors of at least 2 seconds, scale by rank and miss severity, and can reach up to 60 points for severe high-rank misses.
 
-Clock Rating is unaffected by Casual Single Player, Party Mode, Time Ladder and Hardcore Mode. Daily Challenge performance never changes rating, but completing the current official challenge awards its once-per-day streak bonus. Archived days cannot award rating.
+Clock Rating is unaffected by Casual Single Player, Party Mode, Time Ladder and Hardcore Mode. Daily Challenge performance never changes rating, but completing the current official challenge awards its once-per-day streak bonus. Archived days cannot award rating. Ranking up shows the existing rank-up banner and plays a short celebratory chime when sounds are enabled.
 
 ## Settings
 
@@ -234,7 +234,7 @@ Settings persist in localStorage. Current settings:
 - Light mode toggle, inverted so off means the default dark theme is active
 - Party timer range
 
-Settings also includes a Super Crazy section near the bottom with a direct Start Troll Mode button. This launches the optional prank mode immediately rather than toggling it into the Time Guesser menu.
+Settings also includes a Super Crazy section near the bottom with a direct Start Troll Mode button. This opens the optional prank mode's neutral ready screen rather than toggling it into the Time Guesser menu.
 
 New installs default to Dark Mode so the starfield/space presentation is the primary visual theme. The Settings switch is labelled Light Mode and is off by default; turning it on switches to the cleaner classic light theme.
 
@@ -272,7 +272,7 @@ The Stats screen contains:
 
 General accuracy stats include Single Player and official Daily Challenge attempts. Party Mode and Time Ladder are excluded. Errors of 100 seconds or more are excluded from average error to avoid accidental inputs skewing the result.
 
-Stats reset clears all local progress after confirmation, including Time Guesser accuracy stats, Clock Rating, Daily history/retention state, Time Ladder best level, Hardcore best scores/unlocks, achievements and current Party players.
+Stats reset clears all local progress after confirmation, including Time Guesser accuracy stats, Clock Rating, Daily history/retention state, Time Ladder best level, Hardcore best scores/unlocks, achievements, current Party players, completed reveal state and first-run walkthrough flags so onboarding can run again.
 
 Current achievements are intentionally lightweight local milestones:
 - First Tick: complete a Time Guesser round

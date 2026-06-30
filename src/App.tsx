@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type MouseEvent, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -71,6 +72,7 @@ type GamePhase =
   | 'hardcore'
   | 'dailyHub'
   | 'dailyHistory'
+  | 'trollIntro'
   | 'partySetup'
   | 'partyGuesses'
   | 'partyResults'
@@ -1336,6 +1338,9 @@ function App() {
     const newRankName = getRank(projectedRating).rank.name;
     if (newRankName !== startingRankName) {
       setRankUpNotice(newRankName);
+      playTone(740, 0.08, 0.075);
+      window.setTimeout(() => playTone(930, 0.1, 0.08), 90);
+      window.setTimeout(() => playTone(1180, 0.16, 0.085), 210);
       window.setTimeout(() => setRankUpNotice(current => current === newRankName ? null : current), 4200);
     }
     playTone(520, 0.045, 0.045);
@@ -1446,6 +1451,22 @@ function App() {
     setGame(prev => ({ ...prev, mode: 'home', phase: 'ready' }));
   }, []);
 
+  const openTrollIntro = useCallback(() => {
+    clearGameTimer();
+    setTrollPerfectStreak(0);
+    setGame(prev => ({
+      ...prev,
+      mode: 'troll',
+      phase: 'trollIntro',
+      targetTime: 0,
+      playerGuess: '',
+      timeRevealed: false,
+      challengeDate: null,
+      dailyOfficial: false,
+      ratingChange: null,
+    }));
+  }, [clearGameTimer]);
+
   const showRankings = useCallback((backTarget: 'guesser' | 'result' = 'guesser') => {
     setRankingsBackTarget(backTarget);
     setGame(prev => ({ ...prev, mode: 'home', phase: 'rankings' }));
@@ -1487,14 +1508,32 @@ function App() {
     setBestLadderLevel(0);
     setHardcoreScores(defaultHardcoreScores);
     setAchievements([]);
+    setSeenScreenGuides([]);
+    setCompletedRevealKeys([]);
+    setRankUpNotice(null);
+    setTrollPerfectStreak(0);
     setPartyPlayers([]);
     setNewPlayerName('');
+    setGame({
+      mode: 'home',
+      phase: 'ready',
+      targetTime: 0,
+      playerGuess: '',
+      countdownValue: 3,
+      timeRevealed: false,
+      challengeDate: null,
+      dailyOfficial: false,
+      ratingChange: null,
+    });
+    setSplashPhase('done');
     dailySubmissionRef.current = null;
     localStorage.removeItem('timegames-daily-results');
     localStorage.removeItem('timegames-daily-retention');
     localStorage.removeItem('timegames-ladder-best');
     localStorage.removeItem('timegames-hardcore-bests');
     localStorage.removeItem(ACHIEVEMENTS_KEY);
+    localStorage.removeItem(ONBOARDING_SEEN_KEY);
+    localStorage.removeItem(SCREEN_GUIDES_SEEN_KEY);
   }, []);
 
   const openPartySetup = useCallback(() => {
@@ -1863,7 +1902,14 @@ function App() {
           <SettingsScreen
             settings={settings}
             onChange={updateSetting}
-            onTrollMode={() => startCountdown('troll')}
+            onTrollMode={openTrollIntro}
+            onBack={hideSettings}
+          />
+        )}
+
+        {game.phase === 'trollIntro' && (
+          <TrollIntroScreen
+            onStart={() => startCountdown('troll')}
             onBack={hideSettings}
           />
         )}
@@ -2698,14 +2744,20 @@ function StatsScreen({
         </button>
       </div>
 
-      {showResetConfirmation && (
-        <div className="absolute inset-0 z-20 bg-slate-900/45 backdrop-blur-sm p-6 flex items-center justify-center">
+      {showResetConfirmation && createPortal(
+        <div
+          className="fixed inset-0 z-[100] bg-slate-900/55 backdrop-blur-sm p-4 flex items-center justify-center"
+          style={{
+            paddingTop: 'calc(env(safe-area-inset-top) + 1rem)',
+            paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)',
+          }}
+        >
           <div
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="reset-dialog-title"
             aria-describedby="reset-dialog-description"
-            className="w-full bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 text-center"
+            className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 text-center"
           >
             <div className="w-14 h-14 mx-auto bg-rose-100 rounded-2xl flex items-center justify-center mb-4">
               <Trash2 className="w-7 h-7 text-rose-600" />
@@ -2734,7 +2786,8 @@ function StatsScreen({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -2770,7 +2823,7 @@ function SettingsScreen({
     }`;
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 sm:p-8 ${CARD_HEIGHT} flex flex-col overflow-hidden`}>
+    <div className={`bg-white rounded-3xl shadow-xl p-6 sm:p-8 ${CARD_HEIGHT} flex flex-col overflow-hidden relative`}>
       <div className="text-center space-y-2 mb-5 shrink-0">
         <div className="w-14 h-14 mx-auto bg-slate-800 rounded-2xl flex items-center justify-center">
           <Settings className="w-8 h-8 text-white" />
@@ -2888,6 +2941,7 @@ function SettingsScreen({
             </button>
           </div>
         </div>
+
       </div>
 
       <div className="pt-4 shrink-0 app-bottom-actions">
@@ -2896,6 +2950,43 @@ function SettingsScreen({
           Back
         </button>
       </div>
+    </div>
+  );
+}
+
+function TrollIntroScreen({
+  onStart,
+  onBack,
+}: {
+  onStart: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div className={`home-screen-card rounded-3xl p-6 sm:p-8 ${CARD_HEIGHT} flex flex-col text-center`}>
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-5">
+        <div className="w-16 h-16 rounded-3xl bg-teal-500 flex items-center justify-center shadow-2xl shadow-teal-500/25">
+          <Timer className="w-9 h-9 text-white" />
+        </div>
+        <div>
+          <h1 className="text-4xl font-black text-white drop-shadow-[0_2px_14px_rgba(15,23,42,0.45)]">Ready?</h1>
+          <p className="mt-2 text-sm font-bold text-slate-300">Guess how long the clock will run!</p>
+        </div>
+        <button
+          type="button"
+          onClick={onStart}
+          className="w-full max-w-xs bg-teal-500 hover:bg-teal-400 text-white font-black py-5 px-6 rounded-3xl text-2xl transition-all active:scale-[0.98] shadow-2xl shadow-teal-500/25"
+        >
+          Start
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onBack}
+        className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
+      >
+        <ArrowLeft className="w-5 h-5" />
+        Back
+      </button>
     </div>
   );
 }
@@ -3778,23 +3869,25 @@ function RevealScreen({
     bad: 'bg-rose-50 text-rose-700 border-rose-200',
     neutral: 'bg-slate-50 text-slate-700 border-slate-200',
   }[resultTone];
+  const isSpotOnResult = guessDistance !== null && guessDistance < 0.005;
+  const showSpotOnCelebration = isSpotOnResult && cinematicComplete && !revealAlreadyPlayed;
 
   return (
     <div className={`home-screen-card rounded-3xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden`}>
       <div className="flip-scene h-full min-h-0">
-        <div className={`flip-card relative h-full ${timeRevealed ? 'is-flipped' : ''}`}>
+        <div className={`flip-card reveal-flow-card relative h-full ${timeRevealed ? 'is-flipped' : ''}`}>
           <div className="flip-face absolute inset-0 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden">
             {(mode === 'single' || isChallenge || isTroll) && (
               <div className="flex-1 min-h-0 flex flex-col justify-end">
                 <div className="flex-1 min-h-0 flex items-center justify-center px-3 py-2">
                   <div className="text-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-300">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 tg-theme-muted">
                       {guessEntryLabel}
                     </p>
 
-                    <div className={`mt-1 text-5xl sm:text-6xl font-black leading-none ${activeGuess ? 'text-white drop-shadow-[0_2px_14px_rgba(15,23,42,0.5)]' : 'text-slate-400'}`}>
+                    <div className={`mt-1 text-5xl sm:text-6xl font-black leading-none ${activeGuess ? 'tg-theme-strong' : 'text-slate-400'}`}>
                       {activeGuess || '--.--'}
-                      {activeGuess && <span className="text-slate-300 ml-1 text-2xl">s</span>}
+                      {activeGuess && <span className="tg-theme-muted ml-1 text-2xl">s</span>}
                     </div>
                   </div>
                 </div>
@@ -3812,8 +3905,8 @@ function RevealScreen({
             )}
           </div>
 
-          <div className={`flip-face flip-back result-scroll absolute inset-0 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden ${resultTone === 'spoton' ? 'spoton-glow' : ''}`}>
-            {cinematicComplete && (resultTone === 'spoton' || resultTone === 'elite') && (
+          <div className="flip-face flip-back result-scroll absolute inset-0 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden">
+            {showSpotOnCelebration && (
               <div className="confetti">
                 {Array.from({ length: 14 }).map((_, index) => (
                   <span key={index} className={`confetti-piece confetti-${index + 1}`} />
@@ -3940,7 +4033,6 @@ function RevealScreen({
 
               {mode === 'challenge' && guessDistance !== null && (
                 <div className="space-y-3">
-                  <p className="font-black text-teal-700">🔥 Daily Challenge Complete</p>
                   {dailyOfficial && dailyRank != null && (
                     <div data-guide-id="daily-result-score" className="bg-white border border-indigo-200 rounded-2xl p-3 space-y-2 text-left">
                       <ResultRow label="Global Rank" value={`#${dailyRank.toLocaleString()}`} />
@@ -4009,7 +4101,7 @@ type RevealQuality = 'normal' | 'good' | 'great' | 'amazing' | 'spotOn';
 function getRevealQuality(error: number): RevealQuality {
   if (error < 0.005) return 'spotOn';
   if (error < 0.05) return 'amazing';
-  if (error < 0.1) return 'great';
+  if (error <= 0.105) return 'great';
   if (error < 0.25) return 'good';
   return 'normal';
 }
@@ -4024,30 +4116,31 @@ function getRevealCopy(quality: RevealQuality, error: number) {
 
 function getTrollRevealCopy(level: number) {
   if (level <= 1) return { title: 'SPOT ON', subtitle: 'Perfect timing.' };
-  if (level === 2) return { title: 'SPOT ON', subtitle: 'Again. Obviously.' };
-  if (level === 3) return { title: 'Spot on', subtitle: 'What are the odds...' };
-  return { title: 'spot on', subtitle: 'Yeah, sure.' };
+  if (level === 2) return { title: 'SPOT ON', subtitle: 'Again. Totally normal.' };
+  if (level === 3) return { title: 'Spot on', subtitle: 'Hmm. Interesting.' };
+  if (level === 4) return { title: 'spot on', subtitle: 'The machine is very impressed.' };
+  return { title: 'spot on', subtitle: 'yep.' };
 }
 
 function shouldUseDecimalSuspense(targetTime: number, playerGuess: number, error: number) {
   const targetTenths = Math.floor(Math.abs(targetTime) * 10);
   const guessTenths = Math.floor(Math.abs(playerGuess) * 10);
-  return error < 0.1 && targetTenths === guessTenths;
+  return error <= 0.105 && targetTenths === guessTenths;
 }
 
 function getRevealDurationMs(quality: RevealQuality, decimalSuspense = false) {
-  if (decimalSuspense) return quality === 'spotOn' || quality === 'amazing' ? 2200 : quality === 'great' ? 1900 : 1600;
+  if (decimalSuspense) return quality === 'spotOn' || quality === 'amazing' ? 3600 : quality === 'great' ? 3300 : 2500;
   switch (quality) {
     case 'spotOn':
-      return 1900;
+      return 2800;
     case 'amazing':
-      return 1700;
+      return 2600;
     case 'great':
-      return 1350;
+      return 2450;
     case 'good':
-      return 1050;
+      return 1450;
     default:
-      return 820;
+      return 980;
   }
 }
 
@@ -4075,8 +4168,9 @@ function CinematicReveal({
   onCelebrate: () => void;
 }) {
   const isTroll = mode === 'troll';
+  const isChallenge = mode === 'challenge';
   const displayError = isTroll ? 0 : error;
-  const displayTargetTime = isTroll ? playerGuess : targetTime;
+  const displayTargetTime = isTroll || isChallenge ? playerGuess : targetTime;
   const quality = isTroll ? 'spotOn' : getRevealQuality(error);
   const copy = isTroll ? getTrollRevealCopy(trollPresentationLevel) : getRevealCopy(quality, error);
   const decimalSuspense = shouldUseDecimalSuspense(displayTargetTime, playerGuess, displayError);
@@ -4085,7 +4179,6 @@ function CinematicReveal({
   const [targetWhole, targetDecimal = '00'] = targetText.split('.');
   const targetStages = [`${targetWhole}...`, `${targetWhole}.${targetDecimal[0]}...`, `${targetText}s`];
   const [stage, setStage] = useState(reducedMotion ? 4 : 0);
-  const isChallenge = mode === 'challenge';
   const onCompleteRef = useRef(onComplete);
   const onToneRef = useRef(onTone);
   const onHapticRef = useRef(onHaptic);
@@ -4106,9 +4199,9 @@ function CinematicReveal({
     }
 
     setStage(0);
-    const tickOne = Math.max(120, durationMs * (decimalSuspense ? 0.2 : 0.28));
-    const tickTwo = Math.max(220, durationMs * (decimalSuspense ? 0.38 : 0.5));
-    const tickThree = Math.max(340, durationMs * (decimalSuspense ? 0.84 : 0.72));
+    const tickOne = Math.max(120, durationMs * (decimalSuspense ? 0.16 : 0.28));
+    const tickTwo = Math.max(220, durationMs * (decimalSuspense ? 0.32 : 0.5));
+    const tickThree = Math.max(340, durationMs * (decimalSuspense ? 0.9 : 0.72));
     const impact = Math.max(480, durationMs);
     const complete = impact + (quality === 'spotOn' ? 620 : 360);
     const timers = [
@@ -4155,81 +4248,124 @@ function CinematicReveal({
     amazing: 'drop-shadow-[0_0_26px_rgba(245,158,11,0.28)]',
     spotOn: 'drop-shadow-[0_0_32px_rgba(234,179,8,0.38)]',
   }[quality];
+  const trollDegradeClass = !isTroll ? '' :
+    trollPresentationLevel >= 5 ? 'grayscale opacity-70 saturate-0' :
+    trollPresentationLevel >= 4 ? 'grayscale-[0.85] saturate-[0.25] opacity-80' :
+    trollPresentationLevel >= 3 ? 'grayscale-[0.45] saturate-[0.55]' :
+    trollPresentationLevel >= 2 ? 'saturate-[0.8]' :
+    '';
   const resultTextClasses = {
-    normal: 'text-white drop-shadow-[0_2px_14px_rgba(15,23,42,0.5)]',
-    good: 'text-white drop-shadow-[0_2px_14px_rgba(15,23,42,0.5)]',
+    normal: 'tg-theme-strong',
+    good: 'tg-theme-strong',
     great: 'text-yellow-300 drop-shadow-[0_0_18px_rgba(250,204,21,0.35)]',
     amazing: 'text-yellow-300 drop-shadow-[0_0_22px_rgba(250,204,21,0.42)]',
     spotOn: 'text-yellow-300 drop-shadow-[0_0_26px_rgba(250,204,21,0.5)]',
   }[quality];
   const targetDisplay = stage === 0 ? '--.--' : targetStages[Math.min(2, Math.max(0, stage - 1))];
+  const targetColorClass = isTroll && trollPresentationLevel >= 4
+    ? 'text-slate-300'
+    : isTroll && trollPresentationLevel >= 3
+      ? 'text-slate-200'
+      : 'text-teal-600';
+  const labelColorClass = isTroll && trollPresentationLevel >= 4
+    ? 'text-slate-500'
+    : 'tg-theme-muted';
+  const closeGlowCloseness = displayError >= 0.35
+    ? 0
+    : quality === 'spotOn'
+      ? 1
+      : Math.pow(Math.max(0, Math.min(1, (0.35 - displayError) / 0.35)), 0.72);
+  const trollGlowMultiplier = !isTroll
+    ? 1
+    : trollPresentationLevel >= 5
+      ? 0.12
+      : trollPresentationLevel >= 4
+        ? 0.24
+        : trollPresentationLevel >= 3
+          ? 0.48
+          : 1;
+  const revealGlowIntensity = closeGlowCloseness * trollGlowMultiplier;
+  const revealGlowAlpha = 0.12 + revealGlowIntensity * 0.44;
+  const revealGlowDuration = reducedMotion ? 0 : Math.max(0.9, Math.min(1.9, durationMs / 1200));
 
   return (
-    <div className={`cinematic-reveal relative overflow-visible px-2 py-3 sm:px-3 sm:py-4 ${glowClasses}`}>
-      {(quality === 'spotOn' || quality === 'amazing') && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-52 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(250,204,21,0.18),transparent_62%)]" aria-hidden="true" />
-      )}
-      <div className="relative z-10 min-h-[17.5rem] flex flex-col items-center justify-center gap-4">
+    <div className={`cinematic-reveal relative overflow-visible px-2 py-3 sm:px-3 sm:py-4 ${glowClasses} ${trollDegradeClass}`}>
+      {revealGlowIntensity > 0 && (
         <motion.div
-          initial={reducedMotion ? false : { scale: 1.02, y: 10, opacity: 0 }}
+          className="pointer-events-none absolute inset-0"
+          initial={reducedMotion ? false : { opacity: 0 }}
+          animate={{
+            opacity: stage >= 1 ? revealGlowIntensity : 0,
+          }}
+          transition={{ duration: revealGlowDuration, ease: 'easeOut' }}
+          style={{
+            background: `radial-gradient(ellipse 46% 38% at 50% 42%, rgba(250, 204, 21, ${revealGlowAlpha}) 0%, rgba(245, 158, 11, ${revealGlowAlpha * 0.5}) 42%, rgba(250, 204, 21, ${revealGlowAlpha * 0.16}) 68%, transparent 100%)`,
+          }}
+          aria-hidden="true"
+        />
+      )}
+      <div className="relative z-10 min-h-[13.25rem] grid grid-rows-[3.45rem_6.15rem_3.15rem] items-center justify-items-center gap-1">
+        <motion.div
+          initial={reducedMotion ? false : { scale: 1.02, opacity: 0 }}
           animate={{
             scale: 0.74,
-            y: -8,
             opacity: 1,
           }}
           transition={{ duration: reducedMotion ? 0 : 0.36, ease: [0.16, 1, 0.3, 1] }}
           className="text-center"
         >
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-            {isChallenge ? 'Your Stop' : 'Your Guess'}
+          <p className={`text-[10px] font-black uppercase tracking-[0.24em] ${labelColorClass}`}>
+            {isChallenge ? 'Target Time' : 'Your Guess'}
           </p>
-          <p className="mt-1 text-5xl sm:text-6xl font-black text-white leading-none drop-shadow-[0_2px_14px_rgba(15,23,42,0.5)]">
-            {playerGuess.toFixed(2)}s
+          <p className="mt-0.5 text-4xl sm:text-5xl font-black tg-theme-strong leading-none">
+            {isChallenge ? targetTime.toFixed(2) : playerGuess.toFixed(2)}s
           </p>
         </motion.div>
 
         <motion.div
           data-guide-id="result-time"
           initial={false}
-          animate={{ opacity: stage >= 1 ? 1 : 0.28, y: 0, scale: 1 }}
-          transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: reducedMotion ? 0 : 0.18, ease: 'easeOut' }}
           className="text-center"
         >
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-700 dark:text-teal-300">
-            {isChallenge ? 'Target Time' : isTroll ? 'Actual Time' : 'Actual Time'}
+          <p className={`text-[10px] font-black uppercase tracking-[0.24em] ${targetColorClass}`}>
+            {isChallenge ? 'Your Stop' : isTroll ? 'Actual Time' : 'Actual Time'}
           </p>
           <motion.p
             key={targetDisplay}
-            initial={reducedMotion ? false : { opacity: 0, y: 6, filter: 'blur(3px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            transition={{ duration: reducedMotion ? 0 : decimalSuspense && stage === 3 ? 0.34 : 0.2, ease: 'easeOut' }}
-            className="mt-1 inline-block min-w-[6.6ch] text-center text-6xl sm:text-7xl font-black text-teal-700 dark:text-teal-300 leading-none tracking-tight"
+            initial={reducedMotion ? false : { opacity: 0.42, filter: 'blur(2px)' }}
+            animate={{ opacity: 1, filter: 'blur(0px)' }}
+            transition={{ duration: reducedMotion ? 0 : decimalSuspense && stage === 3 ? 0.5 : 0.24, ease: 'easeOut' }}
+            className={`mt-0.5 inline-block min-w-[6.6ch] text-center text-5xl sm:text-6xl font-black ${targetColorClass} leading-none tracking-tight`}
           >
             {targetDisplay}
           </motion.p>
         </motion.div>
 
-        <AnimatePresence>
-          {stage >= 4 && (
-            <motion.div
-              key="final-result"
-              data-guide-id="result-error"
-              initial={reducedMotion ? { opacity: 1 } : { opacity: 0, y: 18, scale: quality === 'spotOn' ? 0.78 : 0.92 }}
-              animate={{ opacity: 1, y: 0, scale: quality === 'spotOn' ? [1, 1.08, 1] : 1 }}
-              transition={{ duration: reducedMotion ? 0 : quality === 'spotOn' ? 0.55 : 0.28, ease: [0.16, 1, 0.3, 1] }}
-              className="text-center"
-            >
-              <p className={`text-4xl sm:text-5xl font-black leading-none ${resultTextClasses}`}>
-                {copy.title}
-              </p>
-              {copy.subtitle && (
-                <p className="mt-2 text-sm font-black text-slate-500">
-                  {copy.subtitle}
+        <div className="min-h-[3.15rem] flex items-center justify-center">
+          <AnimatePresence>
+            {stage >= 4 && (
+              <motion.div
+                key="final-result"
+                data-guide-id="result-error"
+                initial={reducedMotion ? { opacity: 1 } : { opacity: 0, y: 10, scale: quality === 'spotOn' ? 0.78 : 0.92 }}
+                animate={{ opacity: 1, y: 0, scale: quality === 'spotOn' ? [1, 1.08, 1] : 1 }}
+                transition={{ duration: reducedMotion ? 0 : quality === 'spotOn' ? 0.55 : 0.28, ease: [0.16, 1, 0.3, 1] }}
+                className="text-center"
+              >
+                <p className={`text-3xl sm:text-4xl font-black leading-none ${resultTextClasses}`}>
+                  {copy.title}
                 </p>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+                {copy.subtitle && (
+                  <p className={`mt-1 text-xs font-black ${isTroll && trollPresentationLevel >= 4 ? 'text-slate-500' : 'tg-theme-muted'}`}>
+                    {copy.subtitle}
+                  </p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
