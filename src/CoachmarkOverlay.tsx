@@ -7,6 +7,8 @@ export interface CoachmarkStep {
   title: string;
   body: string;
   hint?: string;
+  action?: 'tap-target';
+  actionLabel?: string;
 }
 
 export interface CoachmarkGuide {
@@ -47,10 +49,16 @@ export default function CoachmarkOverlay({
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
   const step = guide.steps[stepIndex];
   const isLast = stepIndex === guide.steps.length - 1;
+  const isTargetTapStep = step.action === 'tap-target';
   const advance = useCallback(() => {
     if (isLast) onComplete();
     else setStepIndex(index => index + 1);
   }, [isLast, onComplete]);
+  const activateTarget = useCallback(() => {
+    const element = document.querySelector<HTMLElement>(`[data-guide-id="${step.targetId}"]`);
+    onComplete();
+    window.setTimeout(() => element?.click(), 0);
+  }, [onComplete, step.targetId]);
 
   useEffect(() => {
     setStepIndex(0);
@@ -76,12 +84,16 @@ export default function CoachmarkOverlay({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onComplete();
       if (event.key === 'Enter') {
+        if (isTargetTapStep) {
+          activateTarget();
+          return;
+        }
         advance();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [advance, onComplete]);
+  }, [activateTarget, advance, isTargetTapStep, onComplete]);
 
   const padded = targetRect
     ? {
@@ -110,7 +122,7 @@ export default function CoachmarkOverlay({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={advance}
+        onClick={isTargetTapStep ? undefined : advance}
       >
         {padded && (
           <motion.div
@@ -126,6 +138,24 @@ export default function CoachmarkOverlay({
               height: padded.height,
             }}
             transition={{ duration: reducedMotion ? 0 : 0.22, ease: 'easeOut' }}
+          />
+        )}
+
+        {padded && isTargetTapStep && (
+          <button
+            type="button"
+            aria-label={step.actionLabel ?? step.title}
+            className="fixed rounded-[1.6rem] bg-transparent cursor-pointer"
+            style={{
+              top: padded.top,
+              left: padded.left,
+              width: padded.width,
+              height: padded.height,
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              activateTarget();
+            }}
           />
         )}
 
@@ -179,11 +209,15 @@ export default function CoachmarkOverlay({
               <button
                 type="button"
                 onClick={() => {
+                  if (isTargetTapStep) {
+                    activateTarget();
+                    return;
+                  }
                   advance();
                 }}
                 className="px-4 py-2 rounded-xl bg-teal-500 text-white text-xs font-black shadow-lg shadow-teal-500/25"
               >
-                {isLast ? 'Got it' : 'Next'}
+                {isTargetTapStep ? (step.actionLabel ?? 'Tap target') : isLast ? 'Got it' : 'Next'}
               </button>
             </div>
           </div>

@@ -435,13 +435,40 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
   if (game.mode === 'home' && game.phase === 'ready') {
     return {
       id: 'home',
-      eyebrow: 'Start here',
+      eyebrow: 'Welcome',
       steps: [
         {
           targetId: 'home-time-guesser',
-          title: 'Tap Time Guesser',
-          body: 'This is the main game. You will guess how long a hidden clock was running.',
-          hint: 'Tap this card to begin the walkthrough.',
+          title: 'Time Guesser',
+          body: 'This is the main ranked game. Guess the hidden clock to build Clock Rating.',
+        },
+        {
+          targetId: 'home-daily',
+          title: 'Daily Challenge',
+          body: 'One target appears each day. Play it to keep your streak and earn a daily bonus.',
+        },
+        {
+          targetId: 'home-ladder',
+          title: 'Time Ladder',
+          body: 'Climb from 1 to 20 seconds. One miss ends the run.',
+        },
+        {
+          targetId: 'home-hardcore',
+          title: 'Hardcore Mode',
+          body: 'Three lives, high scores and tougher difficulties to unlock.',
+        },
+        {
+          targetId: 'home-stats',
+          title: 'Stats and Settings',
+          body: 'Track progress in Stats. Use Settings to adjust sound, music, haptics and theme.',
+        },
+        {
+          targetId: 'home-time-guesser',
+          title: 'Let’s start here',
+          body: 'Tap Time Guesser now and the walkthrough will continue inside that mode.',
+          hint: 'Tap the highlighted card.',
+          action: 'tap-target',
+          actionLabel: 'Open Time Guesser',
         },
       ],
     };
@@ -463,15 +490,17 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
           body: 'Leave Ranked on to make this game count. Turn it off if you just want practice.',
         },
         {
-          targetId: 'guesser-single',
-          title: 'Play your first round',
-          body: 'Tap here. The clock will run hidden, then you enter how many seconds you think passed.',
-          hint: 'Try a ranked round first.',
-        },
-        {
           targetId: 'guesser-party',
           title: 'Party Mode',
           body: 'Play with friends on one device. Party scores do not affect your rank.',
+        },
+        {
+          targetId: 'guesser-single',
+          title: 'Play your first ranked game',
+          body: 'Tap here to start. The clock will run hidden, then you will enter how many seconds you think passed.',
+          hint: 'Tap the highlighted card to begin.',
+          action: 'tap-target',
+          actionLabel: 'Start round',
         },
       ],
     };
@@ -2200,7 +2229,7 @@ function HomeScreen({
         <motion.div {...homeCardMotion(0)}><GameMenuCard guideId="home-time-guesser" color="teal" icon={<Timer className="w-7 h-7" />} title="Time Guesser" description={timeGuesserDescription} onClick={onTimeGuesser} /></motion.div>
         <motion.div {...homeCardMotion(1)}><GameMenuCard guideId="home-ladder" color="indigo" icon={<LadderIcon className="w-7 h-7" />} title="Time Ladder" description={ladderDescription} onClick={onTimeLadder} /></motion.div>
         <motion.div {...homeCardMotion(2)}><GameMenuCard guideId="home-hardcore" color="red" icon={<Skull className="w-7 h-7" />} title="Hardcore Mode" description={hardcoreDescription} onClick={onHardcore} /></motion.div>
-        <motion.div {...homeCardMotion(3)}><GameMenuCard color="rose" icon={<CalendarDays className="w-7 h-7" />} title="Daily Challenge" description={todayResult ? `${dailyRank ? `Rank #${dailyRank} · ` : ''}New in ${dailyCountdown}` : `${dailyStreak > 0 ? `🔥 ${dailyStreak} day · ` : ''}+${nextDailyReward} rating`} onClick={onDailyChallenge} /></motion.div>
+        <motion.div {...homeCardMotion(3)}><GameMenuCard guideId="home-daily" color="rose" icon={<CalendarDays className="w-7 h-7" />} title="Daily Challenge" description={todayResult ? `${dailyRank ? `Rank #${dailyRank} · ` : ''}New in ${dailyCountdown}` : `${dailyStreak > 0 ? `🔥 ${dailyStreak} day · ` : ''}+${nextDailyReward} rating`} onClick={onDailyChallenge} /></motion.div>
         <div className="grid grid-cols-2 gap-3">
           <motion.div {...homeCardMotion(4)}><GameMenuCard guideId="home-stats" compact color="cyan" icon={<BarChart3 className="w-6 h-6" />} title="Stats" description="Progress" onClick={onStats} /></motion.div>
           <motion.div {...homeCardMotion(5)}><GameMenuCard guideId="home-settings" compact color="slate" icon={<Settings className="w-6 h-6" />} title="Settings" description="Tweak" onClick={onSettings} /></motion.div>
