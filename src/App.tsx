@@ -3608,7 +3608,6 @@ function TabletopRevealScreen({
 function RevealScreen({
   mode,
   targetTime,
-  challengeDate,
   dailyOfficial,
   timeRevealed,
   playerGuess,
@@ -3705,6 +3704,7 @@ function RevealScreen({
     : resultMessage;
   const dailyRank = dailyLeaderboard?.playerRank;
   const dailyBestScore = dailyLeaderboard?.bestScoreToday ?? null;
+  const guessEntryLabel = isChallenge ? 'Your Stop' : 'Your Guess';
   const submitCurrentGuess = () => {
     if (!hasGuess) return;
     const formattedGuess = Number(activeGuess).toFixed(2);
@@ -3727,37 +3727,31 @@ function RevealScreen({
     <div className={`home-screen-card rounded-3xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden`}>
       <div className="flip-scene h-full min-h-0">
         <div className={`flip-card relative h-full ${timeRevealed ? 'is-flipped' : ''}`}>
-          <div className="flip-face absolute inset-0 rounded-3xl p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
-            <div className="flex-1 min-h-[140px] max-h-[230px] flex flex-col items-center justify-center px-3">
-              <div className="text-5xl sm:text-7xl font-black text-slate-700 tracking-widest leading-none drop-shadow-[0_2px_0_rgba(255,255,255,0.55)]">
-                ? ? ?
-              </div>
-
-              <p className="text-slate-400 text-sm mt-4 leading-snug">
-                {isChallenge
-                  ? dailyOfficial ? "Today's one official guess" : `Practice challenge · ${challengeDate}`
-                  : 'Enter your guess below'}
-              </p>
-            </div>
-
+          <div className="flip-face absolute inset-0 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden">
             {(mode === 'single' || isChallenge) && (
-              <div className="space-y-3 sm:space-y-4 pt-4 shrink-0">
-                <p className="text-slate-600 font-medium">
-                  Enter your guess in seconds
-                </p>
+              <div className="flex-1 min-h-0 flex flex-col justify-end">
+                <div className="flex-1 min-h-0 flex items-center justify-center px-3 py-2">
+                  <div className="text-center">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
+                      {guessEntryLabel}
+                    </p>
 
-                <div className="w-full text-center text-4xl font-black py-2 px-6 text-slate-800">
-                  {activeGuess || <span className="text-slate-300">--.--</span>}
-                  {activeGuess && <span className="text-slate-400 ml-1 text-xl">s</span>}
+                    <div className={`mt-1 text-5xl sm:text-6xl font-black leading-none ${activeGuess ? 'text-slate-900 dark:text-slate-50' : 'text-slate-300 dark:text-slate-600'}`}>
+                      {activeGuess || '--.--'}
+                      {activeGuess && <span className="text-slate-500 dark:text-slate-400 ml-1 text-2xl">s</span>}
+                    </div>
+                  </div>
                 </div>
 
-                <NumberKeypad
-                  value={activeGuess}
-                  onChange={(value) => setDraftGuess(sanitizeTimeInput(value))}
-                  onSubmit={submitCurrentGuess}
-                  submitDisabled={!hasGuess}
-                  submitLabel="Submit Guess"
-                />
+                <div className="shrink-0 pt-2">
+                  <NumberKeypad
+                    value={activeGuess}
+                    onChange={(value) => setDraftGuess(sanitizeTimeInput(value))}
+                    onSubmit={submitCurrentGuess}
+                    submitDisabled={!hasGuess}
+                    submitLabel="Submit Guess"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -3925,7 +3919,6 @@ function RevealScreen({
                 </>
               )}
             </div>
-
             {(!showCinematic || cinematicComplete) && (
             <div data-guide-id="result-actions" className="space-y-3 pt-3 relative z-10 shrink-0">
               {!isChallenge && (
@@ -4101,10 +4094,10 @@ function CinematicReveal({
           transition={{ duration: reducedMotion ? 0 : 0.36, ease: [0.16, 1, 0.3, 1] }}
           className="text-center"
         >
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
             {isChallenge ? 'Your Stop' : 'Your Guess'}
           </p>
-          <p className="mt-1 text-5xl sm:text-6xl font-black text-slate-900 leading-none">
+          <p className="mt-1 text-5xl sm:text-6xl font-black text-slate-900 dark:text-slate-50 leading-none">
             {playerGuess.toFixed(2)}s
           </p>
         </motion.div>
