@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown, ArrowUp, X } from 'lucide-react';
 
@@ -47,6 +47,10 @@ export default function CoachmarkOverlay({
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
   const step = guide.steps[stepIndex];
   const isLast = stepIndex === guide.steps.length - 1;
+  const advance = useCallback(() => {
+    if (isLast) onComplete();
+    else setStepIndex(index => index + 1);
+  }, [isLast, onComplete]);
 
   useEffect(() => {
     setStepIndex(0);
@@ -72,13 +76,12 @@ export default function CoachmarkOverlay({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onComplete();
       if (event.key === 'Enter') {
-        if (isLast) onComplete();
-        else setStepIndex(index => index + 1);
+        advance();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isLast, onComplete]);
+  }, [advance, onComplete]);
 
   const padded = targetRect
     ? {
@@ -107,23 +110,22 @@ export default function CoachmarkOverlay({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        onClick={advance}
       >
-        <div className="absolute inset-0 bg-slate-950/58 backdrop-blur-[2px]" />
-
         {padded && (
           <motion.div
             key={`${guide.id}-${step.targetId}`}
-            className="coachmark-target-ring fixed rounded-[1.6rem] border-2 border-teal-300 shadow-[0_0_0_9999px_rgba(2,6,23,0.18),0_0_34px_rgba(45,212,191,0.75)] pointer-events-none"
-            initial={reducedMotion ? false : { opacity: 0, scale: 0.94 }}
+            className="coachmark-target-ring fixed rounded-[1.6rem] border-2 border-teal-300 shadow-[0_0_0_9999px_rgba(2,6,23,0.62),0_0_34px_rgba(45,212,191,0.75)] pointer-events-none"
+            initial={false}
             animate={{
               opacity: 1,
-              scale: reducedMotion ? 1 : [1, 1.025, 1],
+              scale: 1,
               top: padded.top,
               left: padded.left,
               width: padded.width,
               height: padded.height,
             }}
-            transition={{ duration: reducedMotion ? 0 : 0.42, ease: 'easeOut' }}
+            transition={{ duration: reducedMotion ? 0 : 0.22, ease: 'easeOut' }}
           />
         )}
 
@@ -138,6 +140,7 @@ export default function CoachmarkOverlay({
           role="dialog"
           aria-modal="true"
           aria-labelledby="coachmark-title"
+          onClick={event => event.stopPropagation()}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -176,8 +179,7 @@ export default function CoachmarkOverlay({
               <button
                 type="button"
                 onClick={() => {
-                  if (isLast) onComplete();
-                  else setStepIndex(index => index + 1);
+                  advance();
                 }}
                 className="px-4 py-2 rounded-xl bg-teal-500 text-white text-xs font-black shadow-lg shadow-teal-500/25"
               >

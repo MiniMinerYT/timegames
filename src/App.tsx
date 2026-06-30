@@ -197,6 +197,7 @@ function isNativeOrTouchDevice() {
 }
 const MAX_AVERAGE_ERROR = 100;
 const MUSIC_DEFAULT_ON_MIGRATION_KEY = 'timegames-music-default-on-migrated';
+const MUSIC_VOLUME_DEFAULT_MIGRATION_KEY = 'timegames-music-volume-default-migrated';
 const PLAYER_ID_KEY = 'timegames-player-id';
 const ACHIEVEMENTS_KEY = 'timegames-achievements';
 const ONBOARDING_SEEN_KEY = 'timegames-onboarding-seen';
@@ -313,11 +314,11 @@ function getGuideContent(game: GameState): HelpContent {
   if (game.phase === 'dailyHub') return {
     title: 'Daily Challenge',
     intro: 'One official challenge each day, designed to create a simple reason to come back.',
-    objective: 'Complete today’s attempt, protect your streak and see your global placement.',
+    objective: 'Stop as close to today’s target as possible, protect your streak and see your global placement.',
     items: [],
     steps: [
-      { title: 'Play today’s challenge', body: 'You get one official attempt for the current local day.' },
-      { title: 'Submit carefully', body: 'Once your answer is submitted, today’s challenge cannot be replayed.' },
+      { title: 'Read today’s target', body: 'The card shows the exact time you need to hit before you start.' },
+      { title: 'Stop carefully', body: 'After the countdown, tap STOP when you think the target time has passed.' },
       { title: 'Claim the streak bonus', body: 'Finishing awards the displayed Clock Rating bonus once per day.' },
       { title: 'Check the archive', body: 'Past days are view-only, so you can review results without replaying known answers.' },
     ],
@@ -391,11 +392,11 @@ function getGuideContent(game: GameState): HelpContent {
   if (game.mode === 'challenge') return {
     title: 'Daily Challenge Attempt',
     intro: 'Today’s official Daily Challenge attempt.',
-    objective: 'Submit one careful guess, then compare your global placement.',
+    objective: 'Make one careful stop, then compare your global placement.',
     items: [],
     steps: [
-      { title: 'Focus during the countdown', body: 'The hidden clock starts after the countdown finishes.' },
-      { title: 'Estimate once', body: 'When it stops, enter the number of seconds you think passed.' },
+      { title: 'Remember the target', body: 'The target time was shown before you started.' },
+      { title: 'Stop once', body: 'Tap STOP when you think the target time has passed.' },
       { title: 'See the full result', body: 'The result shows your error, placement, streak and Clock Rating bonus.' },
     ],
     tips: ['The current Daily Challenge cannot be replayed after submission.'],
@@ -434,33 +435,13 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
   if (game.mode === 'home' && game.phase === 'ready') {
     return {
       id: 'home',
-      eyebrow: 'First look',
+      eyebrow: 'Start here',
       steps: [
         {
           targetId: 'home-time-guesser',
-          title: 'Start with Time Guesser',
-          body: 'This is the main ranked mode. Guess how long the hidden clock ran and build Clock Rating.',
-          hint: 'Best first tap for new players.',
-        },
-        {
-          targetId: 'guide-daily-challenge',
-          title: 'Daily Challenge matters',
-          body: 'One official attempt appears each day. Play it to protect your streak and get a Clock Rating bonus.',
-        },
-        {
-          targetId: 'home-ladder',
-          title: 'Climb the Ladder',
-          body: 'Time Ladder is a separate skill climb from 1 to 20 seconds. It tracks its own best level.',
-        },
-        {
-          targetId: 'home-hardcore',
-          title: 'Hardcore is for high scores',
-          body: 'Three lives, rising pressure and unlockable difficulties. It never affects Clock Rating.',
-        },
-        {
-          targetId: 'home-stats',
-          title: 'Track progress here',
-          body: 'Stats shows ranks, streaks, best scores, Spot Ons and achievements.',
+          title: 'Tap Time Guesser',
+          body: 'This is the main game. You will guess how long a hidden clock was running.',
+          hint: 'Tap this card to begin the walkthrough.',
         },
       ],
     };
@@ -473,24 +454,24 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
       steps: [
         {
           targetId: 'guesser-rank-card',
-          title: 'Your Clock Rating lives here',
-          body: 'Ranked Time Guesser is the main skill progression. Tap the rank card to see every rank.',
+          title: 'This is your rank',
+          body: 'Ranked games increase your Clock Rating when your guesses are close.',
         },
         {
           targetId: 'guesser-ranked-toggle',
-          title: 'Choose Ranked or Casual',
-          body: 'Ranked changes Clock Rating. Casual is safe practice if you want to warm up.',
+          title: 'Ranked or Casual',
+          body: 'Leave Ranked on to make this game count. Turn it off if you just want practice.',
         },
         {
           targetId: 'guesser-single',
-          title: 'Play a solo round',
-          body: 'The hidden clock runs, then you enter how many seconds you think passed.',
-          hint: 'This is the best first game to learn the core loop.',
+          title: 'Play your first round',
+          body: 'Tap here. The clock will run hidden, then you enter how many seconds you think passed.',
+          hint: 'Try a ranked round first.',
         },
         {
           targetId: 'guesser-party',
-          title: 'Party is local multiplayer',
-          body: 'Add friends, run one shared hidden timer and see whose guess is closest.',
+          title: 'Party Mode',
+          body: 'Play with friends on one device. Party scores do not affect your rank.',
         },
       ],
     };
@@ -503,18 +484,18 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
       steps: [
         {
           targetId: 'daily-play',
-          title: 'Tap here for today',
-          body: 'You get one official attempt for the current day. Once submitted, today is complete.',
+          title: 'Play today',
+          body: 'Daily Challenge gives you one official attempt each day.',
         },
         {
           targetId: 'daily-streak',
-          title: 'Protect your streak',
-          body: 'Completing today awards the shown Clock Rating bonus and keeps your streak alive.',
+          title: 'Keep your streak',
+          body: 'Finishing the Daily Challenge gives the shown Clock Rating bonus.',
         },
         {
           targetId: 'daily-archive',
-          title: 'Archive is view-only',
-          body: 'Past days show history and secret times. They cannot be replayed because the answer is known.',
+          title: 'Challenge Archive',
+          body: 'Past Daily Challenges are saved here so you can review your results.',
         },
       ],
     };
@@ -527,18 +508,18 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
       steps: [
         {
           targetId: 'ladder-rung-active',
-          title: 'This is your current level',
-          body: 'Each rung has a target time. Level 1 is 1.00s, Level 2 is 2.00s, all the way to 20.00s.',
+          title: 'Your current level',
+          body: 'Each level has a target time. Level 1 is 1 second, Level 2 is 2 seconds, up to 20.',
         },
         {
           targetId: 'ladder-main-button',
-          title: 'Start and stop here',
-          body: 'Tap once to start the hidden timer, then tap again when you think the target has passed.',
+          title: 'Start and stop',
+          body: 'Tap once to start. Tap again when you think the target time has passed.',
         },
         {
           targetId: 'ladder-scroll-lane',
-          title: 'Review the climb',
-          body: 'During or after a run, scroll the ladder lane to see previous results and upcoming levels.',
+          title: 'See the full ladder',
+          body: 'Scroll this area to review levels and see what is coming next.',
         },
       ],
     };
@@ -551,18 +532,18 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
       steps: [
         {
           targetId: 'hardcore-difficulty-grid',
-          title: 'Pick your difficulty',
-          body: 'Each difficulty changes how close your stop must be. Harder tiers unlock as you score 3.',
+          title: 'Choose difficulty',
+          body: 'Harder difficulties need more accurate stops. New levels unlock as you improve.',
         },
         {
           targetId: 'hardcore-difficulty-easy',
-          title: 'Easy starts unlocked',
-          body: 'Start here if you are new. It gives the widest timing window and teaches the flow.',
+          title: 'Start on Easy',
+          body: 'Easy gives the widest timing window and is unlocked by default.',
         },
         {
           targetId: 'hardcore-all-games',
-          title: 'You can always leave',
-          body: 'Hardcore has its own high scores and never affects Clock Rating.',
+          title: 'High-score mode',
+          body: 'Hardcore has its own scores. It does not affect Clock Rating.',
         },
       ],
     };
@@ -575,18 +556,18 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
       steps: [
         {
           targetId: 'party-mode-choice',
-          title: 'Choose a party style',
-          body: 'Standard Party is scored. Tabletop is a simple group reveal for people around one device.',
+          title: 'Choose how to play',
+          body: 'Standard Party tracks scores. Tabletop is a simple group reveal.',
         },
         {
           targetId: 'party-add-player',
-          title: 'Add players for scoring',
-          body: 'Standard Party needs at least two players before a round can begin.',
+          title: 'Add players',
+          body: 'Standard Party needs at least two players.',
         },
         {
           targetId: 'party-start',
-          title: 'Start the shared timer',
-          body: 'Everyone watches the same hidden-clock round, then guesses are entered quickly with the keypad.',
+          title: 'Start the round',
+          body: 'Everyone plays the same hidden timer, then guesses are entered one by one.',
         },
       ],
     };
@@ -599,32 +580,56 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
       steps: [
         {
           targetId: 'stats-scroll',
-          title: 'Everything is grouped by mode',
-          body: 'Scroll to review Time Guesser, Daily Challenge, Time Ladder, Hardcore and achievements.',
-        },
-        {
-          targetId: 'stats-reset',
-          title: 'Reset is intentionally low',
-          body: 'Reset sits at the bottom of the stats content so it is harder to tap by accident.',
+          title: 'Your progress',
+          body: 'Stats are grouped by game, including rank, streaks, best scores and achievements.',
         },
       ],
     };
   }
 
-  if (game.phase === 'settings') {
+  if (game.phase === 'reveal' && game.timeRevealed && game.mode === 'single') {
     return {
-      id: 'settings',
-      eyebrow: 'Settings',
+      id: 'time-guesser-result',
+      eyebrow: 'Result',
       steps: [
         {
-          targetId: 'settings-feedback',
-          title: 'Tune feedback',
-          body: 'Sounds, music, haptics and motion are all saved on this device.',
+          targetId: 'result-time',
+          title: 'The true time',
+          body: 'This is how long the hidden clock actually ran.',
         },
         {
-          targetId: 'settings-party-range',
-          title: 'Party range is here',
-          body: 'This changes the target range used in Party and Tabletop rounds.',
+          targetId: 'result-error',
+          title: 'Your accuracy',
+          body: 'The smaller this number is, the better your internal clock was.',
+        },
+        {
+          targetId: 'result-rating',
+          title: 'Rank progress',
+          body: 'Ranked rounds show your Clock Rating change and progress toward the next rank.',
+        },
+      ],
+    };
+  }
+
+  if (game.phase === 'reveal' && game.timeRevealed && game.mode === 'challenge') {
+    return {
+      id: 'daily-result',
+      eyebrow: 'Daily Result',
+      steps: [
+        {
+          targetId: 'result-time',
+          title: 'Today’s target',
+          body: 'This was the time you were trying to stop on.',
+        },
+        {
+          targetId: 'daily-result-score',
+          title: 'Your result',
+          body: 'Your stop time and error decide your global Daily Challenge rank.',
+        },
+        {
+          targetId: 'daily-result-bonus',
+          title: 'Streak bonus',
+          body: 'Completing the Daily Challenge awards this Clock Rating bonus once today.',
         },
       ],
     };
@@ -645,7 +650,7 @@ const defaultStats: StatsState = {
 const defaultSettings: SettingsState = {
   sounds: true,
   music: true,
-  musicVolume: 0.35,
+  musicVolume: 0.5,
   haptics: true,
   rankedMode: true,
   reducedMotion: false,
@@ -753,14 +758,18 @@ function App() {
       if (!saved) return defaultSettings;
       const parsed = JSON.parse(saved);
       const musicDefaultMigrated = localStorage.getItem(MUSIC_DEFAULT_ON_MIGRATION_KEY) === 'true';
+      const musicVolumeDefaultMigrated = localStorage.getItem(MUSIC_VOLUME_DEFAULT_MIGRATION_KEY) === 'true';
+      const savedMusicVolume = typeof parsed.musicVolume === 'number'
+        ? Math.max(0, Math.min(1, parsed.musicVolume))
+        : defaultSettings.musicVolume;
       return {
         sounds: typeof parsed.sounds === 'boolean' ? parsed.sounds : defaultSettings.sounds,
         music: musicDefaultMigrated && typeof parsed.music === 'boolean'
           ? parsed.music
           : defaultSettings.music,
-        musicVolume: typeof parsed.musicVolume === 'number'
-          ? Math.max(0, Math.min(1, parsed.musicVolume))
-          : defaultSettings.musicVolume,
+        musicVolume: !musicVolumeDefaultMigrated && Math.abs(savedMusicVolume - 0.35) < 0.001
+          ? defaultSettings.musicVolume
+          : savedMusicVolume,
         haptics: typeof parsed.haptics === 'boolean' ? parsed.haptics : defaultSettings.haptics,
         rankedMode: typeof parsed.rankedMode === 'boolean' ? parsed.rankedMode : defaultSettings.rankedMode,
         reducedMotion: typeof parsed.reducedMotion === 'boolean' ? parsed.reducedMotion : defaultSettings.reducedMotion,
@@ -860,6 +869,7 @@ function App() {
   const [newPlayerName, setNewPlayerName] = useState('');
 
   const timerRef = useRef<number | null>(null);
+  const activeTimerStartedAtRef = useRef<number | null>(null);
   const dailySubmissionRef = useRef<string | null>(null);
   const todayKey = getLocalDateKey(currentTime);
   const yesterday = new Date(currentTime);
@@ -880,6 +890,7 @@ function App() {
   useEffect(() => {
     localStorage.setItem('timegames-settings', JSON.stringify(settings));
     localStorage.setItem(MUSIC_DEFAULT_ON_MIGRATION_KEY, 'true');
+    localStorage.setItem(MUSIC_VOLUME_DEFAULT_MIGRATION_KEY, 'true');
   }, [settings]);
 
   useEffect(() => {
@@ -1069,6 +1080,7 @@ function App() {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+    activeTimerStartedAtRef.current = null;
   }, []);
 
   const startCountdown = useCallback((
@@ -1129,6 +1141,14 @@ function App() {
 
   useEffect(() => {
     if (game.phase === 'playing') {
+      activeTimerStartedAtRef.current = performance.now();
+
+      if (game.mode === 'challenge') {
+        return () => {
+          activeTimerStartedAtRef.current = null;
+        };
+      }
+
       timerRef.current = window.setTimeout(() => {
         playTone(220, 0.12, game.mode === 'tabletop' ? 0.28 : 0.08);
         vibrate([40, 30, 40]);
@@ -1141,7 +1161,7 @@ function App() {
 
       return () => clearGameTimer();
     }
-  }, [game.phase, game.targetTime, clearGameTimer, playTone, vibrate]);
+  }, [game.phase, game.mode, game.targetTime, clearGameTimer, playTone, vibrate]);
 
   useEffect(() => {
     if (game.phase === 'stopped') {
@@ -1289,11 +1309,34 @@ function App() {
 
     setGame(prev => ({
       ...prev,
+      phase: prev.mode === 'challenge' ? 'reveal' : prev.phase,
       playerGuess: submittedGuessText,
       timeRevealed: true,
       ratingChange,
     }));
 }, [game, dailyResults, dailyRetention, settings.rankedMode, stats.clockRating, updateStats, playTone, playCelebration, vibrate, playerId]);
+
+  const stopDailyChallenge = useCallback(() => {
+    if (game.mode !== 'challenge' || game.phase !== 'playing') return;
+    const startedAt = activeTimerStartedAtRef.current;
+    if (startedAt === null) return;
+    const elapsed = Math.max(0, (performance.now() - startedAt) / 1000);
+    activeTimerStartedAtRef.current = null;
+    playTone(220, 0.12, 0.1);
+    vibrate([40, 30, 40]);
+    submitGuess(elapsed.toFixed(2));
+  }, [game.mode, game.phase, playTone, submitGuess, vibrate]);
+
+  useEffect(() => {
+    if (game.mode !== 'challenge' || game.phase !== 'playing') return;
+    const handleSpace = (event: KeyboardEvent) => {
+      if (event.code !== 'Space') return;
+      event.preventDefault();
+      stopDailyChallenge();
+    };
+    window.addEventListener('keydown', handleSpace);
+    return () => window.removeEventListener('keydown', handleSpace);
+  }, [game.mode, game.phase, stopDailyChallenge]);
 
   const playAgain = useCallback(() => {
     if (game.mode === 'challenge') {
@@ -1817,7 +1860,11 @@ function App() {
           <CountdownScreen value={game.countdownValue} tabletop={game.mode === 'tabletop'} />
         )}
 
-        {game.phase === 'playing' && <PlayingScreen tabletop={game.mode === 'tabletop'} />}
+        {game.phase === 'playing' && (
+          game.mode === 'challenge'
+            ? <DailyStopScreen targetTime={game.targetTime} onStop={stopDailyChallenge} />
+            : <PlayingScreen tabletop={game.mode === 'tabletop'} />
+        )}
 
         {game.phase === 'stopped' && <StoppedScreen tabletop={game.mode === 'tabletop'} />}
 
@@ -2038,6 +2085,7 @@ function SplashScreen({
 function CardStarField({ active, splash = false }: { active: boolean; splash?: boolean }) {
   return (
     <div className={`card-starfield ${splash ? 'card-starfield-splash' : ''} ${active ? '' : 'card-starfield-paused'}`} aria-hidden="true">
+      {splash && <span className="splash-opening-comet" />}
       {STAR_FIELD_STARS.map(star => (
         <span
           key={star.id}
@@ -2327,6 +2375,7 @@ function DailyChallengeHub({
 }) {
   const today = getLocalDateKey();
   const todayResult = results[today];
+  const todayTarget = getDailyTarget(today);
   const todayRank = todayLeaderboard?.playerRank ?? todayResult?.globalRank ?? todayResult?.simulatedRank;
   const todayBest = todayLeaderboard?.bestScoreToday ?? todayResult?.bestScoreToday ?? null;
 
@@ -2346,7 +2395,7 @@ function DailyChallengeHub({
           <p className="text-xs uppercase tracking-[0.2em] font-bold text-indigo-500">Today's score</p>
           <p className="text-4xl font-black text-indigo-700 mt-1">{todayResult.error.toFixed(2)}s off</p>
           <p className="text-sm text-slate-500 mt-1">
-            Guessed {todayResult.guess.toFixed(2)}s · Target {todayResult.target.toFixed(2)}s
+            Stopped at {todayResult.guess.toFixed(2)}s · Target {todayResult.target.toFixed(2)}s
           </p>
         </div>
       )}
@@ -2370,7 +2419,8 @@ function DailyChallengeHub({
               <CalendarDays className="w-7 h-7" />
             </span>
             <span className="text-2xl font-black leading-tight">Tap to Play</span>
-            <span className="text-xs font-black uppercase tracking-[0.16em] text-white/90">Today's Daily Challenge</span>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-white/90">Stop at exactly</span>
+            <span className="text-4xl font-black leading-none">{todayTarget.toFixed(2)}s</span>
             <span className="rounded-full bg-white/15 border border-white/20 px-3.5 py-1.5 text-xs font-black">
               +{nextDailyReward} Clock Rating
             </span>
@@ -3038,6 +3088,35 @@ function PlayingScreen({ tabletop = false }: { tabletop?: boolean }) {
   );
 }
 
+function DailyStopScreen({ targetTime, onStop }: { targetTime: number; onStop: () => void }) {
+  return (
+    <div className={`bg-white rounded-3xl shadow-xl p-6 text-center ${CARD_HEIGHT} overflow-hidden relative flex flex-col items-center justify-center`}>
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="shimmer-blob shimmer-blob-1" />
+        <div className="shimmer-blob shimmer-blob-2" />
+        <div className="shimmer-blob shimmer-blob-3" />
+      </div>
+
+      <div className="relative z-10 w-full flex flex-col items-center justify-center gap-5">
+        <div className="rounded-3xl bg-teal-50 border border-teal-200 px-5 py-3">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-teal-600">Target time</p>
+          <p className="text-5xl font-black text-teal-700 leading-none mt-1">{targetTime.toFixed(2)}s</p>
+        </div>
+        <p className="max-w-xs text-sm font-bold text-slate-500">
+          Stop the timer when you think the target time has passed.
+        </p>
+        <button
+          type="button"
+          onClick={onStop}
+          className="w-48 h-48 rounded-full bg-red-600 hover:bg-red-700 text-white text-4xl font-black shadow-2xl shadow-red-900/30 transition-all active:scale-95"
+        >
+          STOP
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function StoppedScreen({ tabletop = false }: { tabletop?: boolean }) {
   if (tabletop) {
     return (
@@ -3641,7 +3720,7 @@ function RevealScreen({
                   {isChallenge ? 'Daily Target' : 'Secret Time'}
                 </p>
 
-                <div className={`${isChallenge ? 'text-4xl sm:text-5xl' : 'text-5xl sm:text-7xl'} font-black text-teal-600 tracking-tight leading-none`}>
+                <div data-guide-id="result-time" className={`${isChallenge ? 'text-4xl sm:text-5xl' : 'text-5xl sm:text-7xl'} font-black text-teal-600 tracking-tight leading-none`}>
                   {targetTime.toFixed(2)}s
                 </div>
               </div>
@@ -3657,11 +3736,14 @@ function RevealScreen({
                   {hasGuess && guessDistance !== null ? (
                     <>
                       <ResultRow label="Your Guess" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
-                      <ResultRow label="You were off by" value={`${guessDistance.toFixed(2)}s`} accent />
+                      <div data-guide-id="result-error">
+                        <ResultRow label="You were off by" value={`${guessDistance.toFixed(2)}s`} accent />
+                      </div>
                       {rankedMode && ratingChange !== null ? (
                         <button
                           type="button"
                           onClick={onRankings}
+                          data-guide-id="result-rating"
                           className="w-full bg-white hover:bg-slate-50 rounded-2xl px-4 py-3 border border-slate-200 text-left transition-colors active:scale-[0.99]"
                           aria-label="View all Clock Ranks"
                         >
@@ -3705,7 +3787,7 @@ function RevealScreen({
                           </p>
                         </button>
                       ) : (
-                        <div className="bg-indigo-50 rounded-2xl px-4 py-3 border border-indigo-200 flex items-center gap-3 text-left">
+                        <div data-guide-id="result-rating" className="bg-indigo-50 rounded-2xl px-4 py-3 border border-indigo-200 flex items-center gap-3 text-left">
                           <div className="w-9 h-9 bg-white rounded-xl border border-indigo-100 flex items-center justify-center shrink-0">
                             <Trophy className="w-5 h-5 text-indigo-500" />
                           </div>
@@ -3734,8 +3816,8 @@ function RevealScreen({
               {mode === 'challenge' && guessDistance !== null && (
                 <div className="space-y-3">
                   <p className="font-black text-teal-700">🔥 Daily Challenge Complete</p>
-                  <div className="bg-white border border-slate-200 rounded-2xl p-3 space-y-2">
-                    <ResultRow label="Your Guess" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
+                  <div data-guide-id="daily-result-score" className="bg-white border border-slate-200 rounded-2xl p-3 space-y-2">
+                    <ResultRow label="Your Stop" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
                     <ResultRow label="Your Error" value={`${guessDistance.toFixed(2)}s`} accent />
                   </div>
                   {dailyOfficial && dailyRank != null && (
@@ -3757,7 +3839,7 @@ function RevealScreen({
                       ) : null}
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div data-guide-id="daily-result-bonus" className="grid grid-cols-2 gap-2">
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3">
                       <p className="text-xs font-bold text-amber-700">Bonus Rank Earned</p>
                       <p className="text-2xl font-black text-amber-600">+{getDailyReward(dailyStreak)} Rating</p>

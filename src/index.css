@@ -193,6 +193,23 @@ button {
   animation: shooting-trail 640ms ease-out infinite;
 }
 
+.splash-opening-comet {
+  position: absolute;
+  left: 18%;
+  top: 33%;
+  width: 150px;
+  height: 2px;
+  border-radius: 9999px;
+  opacity: 0;
+  transform: rotate(-17deg) translate3d(0, 0, 0);
+  transform-origin: right center;
+  background: linear-gradient(90deg, transparent 0%, rgb(125 211 252 / 28%) 40%, rgb(255 255 255 / 96%) 100%);
+  box-shadow:
+    0 0 12px rgb(255 255 255 / 72%),
+    0 0 26px rgb(45 212 191 / 48%);
+  animation: splash-opening-comet 2.4s ease-out 0.25s both;
+}
+
 .scroll-content-with-actions {
   padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
 }
@@ -445,6 +462,26 @@ button {
   100% {
     transform: translateX(18%) scaleX(0.82);
     opacity: 0.35;
+  }
+}
+
+@keyframes splash-opening-comet {
+  0% {
+    opacity: 0;
+    transform: rotate(-17deg) translate3d(-36px, 0, 0) scaleX(0.62);
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  58% {
+    opacity: 0.92;
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(-17deg) translate3d(310px, -96px, 0) scaleX(1.08);
   }
 }
 

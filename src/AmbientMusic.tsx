@@ -8,6 +8,7 @@ const FADE_IN_MS = 5000;
 const VOLUME_CHANGE_FADE_MS = 0;
 const DUCKED_VOLUME = 0.001;
 const CONTROLLER_TICK_MS = 100;
+const MUSIC_OUTPUT_SCALE = 0.35;
 
 interface AmbientMusicProps {
   enabled: boolean;
@@ -38,6 +39,9 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
   const gainRef = useRef<GainNode | null>(null);
   const levelRef = useRef(0);
   const launchAutoplayAttemptedRef = useRef(false);
+  const appActiveRef = useRef(true);
+
+  const getTargetVolume = useCallback(() => volumeRef.current * MUSIC_OUTPUT_SCALE, []);
 
   useEffect(() => {
     enabledRef.current = enabled;
@@ -103,11 +107,11 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
 
   useEffect(() => {
     volumeRef.current = volume;
-    if (enabledRef.current && !duckedRef.current && !hasDuckedRef.current) {
+    if (enabledRef.current && !duckedRef.current && !hasDuckedRef.current && appActiveRef.current) {
       fadeRef.current = null;
-      setOutputLevel(volume);
+      setOutputLevel(getTargetVolume());
     }
-  }, [setOutputLevel, volume]);
+  }, [getTargetVolume, setOutputLevel, volume]);
 
   const ensureAudioGraph = useCallback(() => {
     if (gainRef.current) return;
@@ -141,6 +145,7 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
     if (!audio) return;
 
     if (unlock) unlockedRef.current = true;
+    if (!appActiveRef.current) return;
     if (!enabledRef.current && !unlock) return;
 
     ensureAudioGraph();
@@ -148,6 +153,56 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
     audio.muted = !enabledRef.current;
     void audio.play().catch(() => undefined);
   }, [ensureAudioGraph]);
+
+  useEffect(() => {
+    const pauseForBackground = () => {
+      appActiveRef.current = false;
+      fadeRef.current = null;
+      returnAtRef.current = null;
+      setOutputLevel(0);
+      const audio = audioRef.current;
+      if (audio) {
+        audio.muted = true;
+        audio.pause();
+      }
+      void audioContextRef.current?.suspend().catch(() => undefined);
+    };
+
+    const resumeFromForeground = () => {
+      appActiveRef.current = true;
+      if (!enabledRef.current) return;
+      const audio = audioRef.current;
+      if (audio) audio.muted = false;
+      void audioContextRef.current?.resume().catch(() => undefined);
+      startPlayback(false);
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) pauseForBackground();
+      else resumeFromForeground();
+    };
+
+    const pauseListener = pauseForBackground as EventListener;
+    const resumeListener = resumeFromForeground as EventListener;
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    document.addEventListener('pause', pauseListener);
+    document.addEventListener('resume', resumeListener);
+    window.addEventListener('pagehide', pauseForBackground);
+    window.addEventListener('freeze', pauseListener);
+    window.addEventListener('blur', pauseForBackground);
+    window.addEventListener('focus', resumeFromForeground);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('pause', pauseListener);
+      document.removeEventListener('resume', resumeListener);
+      window.removeEventListener('pagehide', pauseForBackground);
+      window.removeEventListener('freeze', pauseListener);
+      window.removeEventListener('blur', pauseForBackground);
+      window.removeEventListener('focus', resumeFromForeground);
+    };
+  }, [setOutputLevel, startPlayback]);
 
   useEffect(() => {
     if (!enabled || launchAutoplayAttemptedRef.current) return undefined;
@@ -223,10 +278,15 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
 
     const controller = window.setInterval(() => {
       audio.muted = !enabledRef.current;
+      if (!appActiveRef.current) {
+        setOutputLevel(0);
+        audio.pause();
+        return;
+      }
       attemptPlaybackPeriodically();
 
       if (!enabledRef.current) {
-        const mutedTarget = duckedRef.current ? DUCKED_VOLUME : volumeRef.current;
+        const mutedTarget = duckedRef.current ? DUCKED_VOLUME : getTargetVolume();
         startFade(mutedTarget, VOLUME_CHANGE_FADE_MS);
         applyFade();
         return;
@@ -254,7 +314,7 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
         }
 
         startPlayback(false);
-        startFade(volumeRef.current, FADE_IN_MS);
+        startFade(getTargetVolume(), FADE_IN_MS);
         if (applyFade()) {
           hasDuckedRef.current = false;
           returnAtRef.current = null;
@@ -263,7 +323,7 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
       }
 
       startPlayback(false);
-      startFade(volumeRef.current, VOLUME_CHANGE_FADE_MS);
+      startFade(getTargetVolume(), VOLUME_CHANGE_FADE_MS);
       applyFade();
     }, CONTROLLER_TICK_MS);
 
@@ -273,7 +333,7 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
     return () => {
       window.clearInterval(controller);
     };
-  }, [enabled, setOutputLevel, startPlayback]);
+  }, [enabled, getTargetVolume, setOutputLevel, startPlayback]);
 
   return null;
 }
