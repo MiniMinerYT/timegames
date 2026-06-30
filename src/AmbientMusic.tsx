@@ -13,6 +13,7 @@ interface AmbientMusicProps {
   enabled: boolean;
   ducked: boolean;
   volume: number;
+  eager?: boolean;
 }
 
 interface FadeJob {
@@ -22,7 +23,7 @@ interface FadeJob {
   durationMs: number;
 }
 
-export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicProps) {
+export default function AmbientMusic({ enabled, ducked, volume, eager = false }: AmbientMusicProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeRef = useRef<FadeJob | null>(null);
   const returnAtRef = useRef<number | null>(null);
@@ -31,6 +32,7 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
   const unlockedRef = useRef(false);
   const enabledRef = useRef(enabled);
   const duckedRef = useRef(ducked);
+  const eagerRef = useRef(eager);
   const volumeRef = useRef(volume);
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
@@ -59,6 +61,10 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
   useEffect(() => {
     duckedRef.current = ducked;
   }, [ducked]);
+
+  useEffect(() => {
+    eagerRef.current = eager;
+  }, [eager]);
 
   useEffect(() => {
     const audio = new Audio(THEME_SRC);
@@ -236,6 +242,10 @@ export default function AmbientMusic({ enabled, ducked, volume }: AmbientMusicPr
       }
 
       if (hasDuckedRef.current) {
+        if (eagerRef.current) {
+          returnAtRef.current = Date.now();
+        }
+
         returnAtRef.current ??= Date.now() + FADE_IN_DELAY_MS;
 
         if (Date.now() < returnAtRef.current) {

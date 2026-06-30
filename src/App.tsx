@@ -17,7 +17,8 @@ import {
   Music,
   Smartphone,
   Sparkles,
-  Moon,
+  Sun,
+  Lock,
   Skull,
   CalendarDays,
   ArrowRight,
@@ -216,12 +217,12 @@ function getHelpContent(game: GameState): HelpContent {
   if (game.phase === 'stats') return {
     title: 'Statistics',
     intro: 'A summary of progress across every TimeGames mode.',
-    items: ['Time Guesser tracks rating, accuracy, average error and Spot Ons.', 'Daily, Ladder and Hardcore records appear in their own sections.', 'Reset only clears Time Guesser accuracy statistics and Clock Rating.'],
+    items: ['Global Spot Ons count across implemented modes.', 'Time Guesser, Daily, Ladder and Hardcore records appear in their own sections.', 'Reset clears local progress, including unlocks and streaks.'],
   };
   if (game.phase === 'settings') return {
     title: 'Settings',
     intro: 'Adjust feedback, accessibility, appearance and Party Mode timing ranges.',
-    items: ['Sounds and theme music have separate controls.', 'Reduced Motion removes or shortens movement effects.', 'Dark Mode, haptics and Party timer range persist on this device.'],
+    items: ['Sounds and theme music have separate controls.', 'Reduced Motion removes or shortens movement effects.', 'Light Mode, haptics and Party timer range persist on this device.'],
   };
   if (game.mode === 'party' || ['partySetup', 'partyGuesses', 'partyResults'].includes(game.phase)) return {
     title: 'Party Mode',
@@ -543,6 +544,7 @@ function App() {
   });
 
   const [rankUpNotice, setRankUpNotice] = useState<string | null>(null);
+  const [rankingsBackTarget, setRankingsBackTarget] = useState<'guesser' | 'result'>('guesser');
   const [partyPlayers, setPartyPlayers] = useState<PartyPlayer[]>([]);
 
   const [newPlayerName, setNewPlayerName] = useState('');
@@ -833,6 +835,14 @@ function App() {
     });
   }, []);
 
+  const recordSpotOns = useCallback((count = 1) => {
+    if (count <= 0) return;
+    setStats(prev => ({
+      ...prev,
+      spotOns: prev.spotOns + count,
+    }));
+  }, []);
+
   const submitGuess = useCallback((guessOverride?: string) => {
     const submittedGuessText = guessOverride ?? game.playerGuess;
     const submittedGuess = parseFloat(submittedGuessText);
@@ -1017,9 +1027,28 @@ function App() {
     setGame(prev => ({ ...prev, mode: 'home', phase: 'ready' }));
   }, []);
 
-  const showRankings = useCallback(() => {
+  const showRankings = useCallback((backTarget: 'guesser' | 'result' = 'guesser') => {
+    setRankingsBackTarget(backTarget);
     setGame(prev => ({ ...prev, mode: 'home', phase: 'rankings' }));
   }, []);
+
+  const showResultRankings = useCallback(() => {
+    setRankingsBackTarget('result');
+    setGame(prev => ({ ...prev, phase: 'rankings' }));
+  }, []);
+
+  const hideRankings = useCallback(() => {
+    if (rankingsBackTarget === 'result') {
+      setGame(prev => ({
+        ...prev,
+        phase: 'reveal',
+        timeRevealed: true,
+      }));
+      return;
+    }
+
+    showTimeGuesser();
+  }, [rankingsBackTarget, showTimeGuesser]);
 
   const updateSetting = useCallback(<K extends keyof SettingsState,>(
     key: K,
@@ -1175,7 +1204,11 @@ function App() {
     )
   );
 
-  if (winningDistance < 0.005) playCelebration();
+  const spotOnCount = ranked.filter(player => player.distance < 0.005).length;
+  if (spotOnCount > 0) {
+    recordSpotOns(spotOnCount);
+    playCelebration();
+  }
   else playTone(780, 0.12);
   vibrate([30, 40, 30]);
 
@@ -1183,7 +1216,7 @@ function App() {
     ...prev,
     phase: 'partyResults',
   }));
-}, [partyPlayers, game.targetTime, playTone, playCelebration, vibrate]);
+}, [partyPlayers, game.targetTime, playTone, playCelebration, recordSpotOns, vibrate]);
 
   const guessDistance = (() => {
     if (game.playerGuess) {
@@ -1222,6 +1255,9 @@ function App() {
     ['countdown', 'playing', 'stopped'].includes(game.phase) ||
     (game.phase === 'reveal' && !game.timeRevealed) ||
     standaloneTimingActive;
+  const musicEager =
+    game.mode === 'home' &&
+    ['ready', 'guesserHub', 'dailyHub', 'partySetup', 'stats', 'settings', 'rankings'].includes(game.phase);
   const disableScreenTransition =
     settings.reducedMotion ||
     standaloneTimingActive ||
@@ -1242,7 +1278,7 @@ function App() {
 
   return (
     <div onClickCapture={handleMenuClick} className={`app-viewport bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center screen-transition-scope ${disableScreenTransition ? 'screen-transition-disabled' : ''} ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
-      <AmbientMusic enabled={settings.music} ducked={musicDucked} volume={settings.musicVolume} />
+      <AmbientMusic enabled={settings.music} ducked={musicDucked} volume={settings.musicVolume} eager={musicEager} />
       <CardStarField active={!disableScreenTransition && !settings.reducedMotion} />
       <AnimatePresence>
         {splashVisible && (
@@ -1256,7 +1292,7 @@ function App() {
           />
         )}
       </AnimatePresence>
-      <div className={`w-full max-w-md relative min-h-0 ${game.mode === 'tabletop' ? 'tabletop-frame' : ''}`}>
+      <div className={`app-shell relative min-h-0 ${game.mode === 'tabletop' ? 'tabletop-frame' : ''}`}>
         <AnimatePresence>
           {rankUpNotice && (
             <motion.div
@@ -1327,6 +1363,7 @@ function App() {
             nativeControls={nativeControls}
             onTimingChange={setStandaloneTimingActive}
             onBestLevelChange={setBestLadderLevel}
+            onSpotOn={() => recordSpotOns()}
             onBack={goHome}
           />
         )}
@@ -1341,6 +1378,7 @@ function App() {
             onTimingChange={setStandaloneTimingActive}
             onHelpVisibilityChange={setHardcoreHelpVisible}
             onBestScoreChange={updateHardcoreBest}
+            onSpotOn={() => recordSpotOns()}
             onBack={goHome}
           />
         )}
@@ -1348,7 +1386,7 @@ function App() {
         {game.phase === 'rankings' && (
           <RankingsScreen
             clockRating={stats.clockRating}
-            onBack={showTimeGuesser}
+            onBack={hideRankings}
           />
         )}
 
@@ -1465,6 +1503,7 @@ function App() {
             rankedMode={settings.rankedMode}
             onEnableRanked={() => updateSetting('rankedMode', true)}
             onDisableRanked={() => updateSetting('rankedMode', false)}
+            onRankings={showResultRankings}
             onGuessChange={(value) =>
               setGame(prev => ({
                 ...prev,
@@ -1751,13 +1790,14 @@ function HomeScreen({
   );
 }
 
-function GameMenuCard({ color, icon, title, description, onClick, compact = false }: {
+function GameMenuCard({ color, icon, title, description, onClick, compact = false, disabled = false }: {
   color: 'teal' | 'indigo' | 'cyan' | 'red' | 'rose' | 'slate';
   icon: ReactNode;
   title: string;
   description: string;
   onClick: () => void;
   compact?: boolean;
+  disabled?: boolean;
 }) {
   const colorClasses = {
     teal: 'bg-teal-500 hover:bg-teal-600 shadow-teal-500/25',
@@ -1768,7 +1808,7 @@ function GameMenuCard({ color, icon, title, description, onClick, compact = fals
     slate: 'bg-gradient-to-br from-slate-700 to-teal-900 hover:from-slate-600 hover:to-teal-800 shadow-teal-900/30',
   }[color];
   return (
-    <button onClick={onClick} className={`menu-game-card w-full ${colorClasses} text-white rounded-3xl ${compact ? 'p-3 flex flex-col gap-1.5 justify-center min-h-[104px]' : 'p-4 grid grid-cols-[48px_1fr_48px] items-center'} text-center shadow-xl transition-all duration-200 active:scale-[0.97]`}>
+    <button onClick={onClick} disabled={disabled} aria-disabled={disabled} className={`menu-game-card w-full ${colorClasses} text-white rounded-3xl ${compact ? 'p-3 flex flex-col gap-1.5 justify-center min-h-[104px]' : 'p-4 grid grid-cols-[48px_1fr_48px] items-center'} text-center shadow-xl transition-all duration-200 active:scale-[0.97] ${disabled ? 'opacity-70 cursor-not-allowed saturate-50' : ''}`}>
       <div className={`${compact ? 'w-10 h-10 mx-auto rounded-xl' : 'w-12 h-12 rounded-2xl'} bg-white/20 flex items-center justify-center shrink-0`}>{icon}</div>
       <div><p className={`${compact ? 'text-base' : 'text-lg'} font-black leading-tight`}>{title}</p><p className={`${compact ? 'text-xs' : 'text-sm'} text-white/80 leading-tight`}>{description}</p></div>
       {!compact && <span className="w-12" aria-hidden="true" />}
@@ -1838,7 +1878,7 @@ function TimeGuesserHub({
               transition={{ duration: settingsMotionDuration, ease: 'easeInOut' }}
             >
               {rankedMode ? (
-                <button type="button" onClick={onRankings} aria-label="View all Clock Ranks" className="w-full h-full hover:bg-slate-100 px-4 transition-colors grid grid-cols-[40px_1fr_20px] items-center gap-3 text-center">
+                <button type="button" onClick={() => onRankings()} aria-label="View all Clock Ranks" className="w-full h-full hover:bg-slate-100 px-4 transition-colors grid grid-cols-[40px_1fr_20px] items-center gap-3 text-center">
                   <span className="w-10 h-10 flex items-center justify-center text-3xl" aria-hidden="true">{rankInfo.rank.icon}</span>
                   <div className="min-w-0">
                     <p className="font-bold text-slate-800 truncate">{rankInfo.rank.name}</p>
@@ -1883,9 +1923,10 @@ function TimeGuesserHub({
       <div className="space-y-2.5 shrink-0">
         <GameMenuCard color="teal" icon={<Timer className="w-6 h-6" />} title={`Single Player ${rankedMode ? 'Ranked' : 'Casual'}`} description={rankedMode ? 'Build rating.' : 'No rating pressure.'} onClick={onSinglePlayer} />
         <GameMenuCard color="rose" icon={<Users className="w-6 h-6" />} title="Party Mode" description="Compete to be closest with friends." onClick={onPartyMode} />
+        <GameMenuCard disabled color="slate" icon={<Lock className="w-6 h-6" />} title="Multiplayer" description="Coming soon." onClick={() => undefined} />
       </div>
 
-      <div className="flex-1 min-h-[90px]" aria-hidden="true" />
+      <div className="flex-1 min-h-[24px]" aria-hidden="true" />
 
       <div className="mt-auto shrink-0">
         <button
@@ -1958,17 +1999,17 @@ function DailyChallengeHub({
       )}
 
       {!todayResult && (
-        <div className="w-full max-w-[18rem] mx-auto mt-2 mb-4">
-          <button onClick={onPlayToday} className="w-full min-h-[16.25rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 hover:from-emerald-300 hover:via-teal-400 hover:to-cyan-500 text-white rounded-[2rem] px-6 py-4 transition-all shadow-2xl shadow-teal-500/40 ring-4 ring-teal-200/70 active:scale-[0.97] flex flex-col items-center justify-center gap-3.5">
-            <span className="w-14 h-14 rounded-2xl bg-white/25 flex items-center justify-center shadow-inner">
-              <CalendarDays className="w-8 h-8" />
+        <div className="w-full max-w-[16.75rem] mx-auto mt-1 mb-3">
+          <button onClick={onPlayToday} className="w-full min-h-[13.75rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 hover:from-emerald-300 hover:via-teal-400 hover:to-cyan-500 text-white rounded-[1.75rem] px-5 py-5 transition-all shadow-2xl shadow-teal-500/40 ring-4 ring-teal-200/70 active:scale-[0.97] flex flex-col items-center justify-center gap-2.5">
+            <span className="w-12 h-12 rounded-2xl bg-white/25 flex items-center justify-center shadow-inner">
+              <CalendarDays className="w-7 h-7" />
             </span>
-            <span className="text-3xl font-black leading-tight">Tap to Play</span>
-            <span className="text-sm font-black uppercase tracking-[0.18em] text-white/90">Today's Daily Challenge</span>
-            <span className="rounded-full bg-white/15 border border-white/20 px-4 py-2 text-sm font-black">
+            <span className="text-2xl font-black leading-tight">Tap to Play</span>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-white/90">Today's Daily Challenge</span>
+            <span className="rounded-full bg-white/15 border border-white/20 px-3.5 py-1.5 text-xs font-black">
               +{nextDailyReward} Clock Rating
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white text-teal-700 px-5 py-2 text-sm font-black shadow-lg shadow-slate-900/10">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white text-teal-700 px-4 py-1.5 text-xs font-black shadow-lg shadow-slate-900/10">
               Start Challenge <ArrowRight className="w-4 h-4" />
             </span>
           </button>
@@ -2107,13 +2148,15 @@ function StatsScreen({
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-3 text-left pr-1">
+        <StatsSectionLabel>Global</StatsSectionLabel>
+        <ResultRow label="Spot Ons" value={stats.spotOns.toString()} accent />
+
         <StatsSectionLabel>Time Guesser</StatsSectionLabel>
         <ResultRow label="Clock Rating" value={stats.clockRating.toString()} accent />
         <ResultRow label="Current Rank" value={rankInfo.rank.name} />
         <ResultRow label="Games Played" value={stats.gamesPlayed.toString()} />
         <ResultRow label="Best Accuracy" value={stats.bestAccuracy === null ? '-' : `${stats.bestAccuracy.toFixed(2)}s`} />
         <ResultRow label="Average Error" value={stats.averageError === null ? '-' : `${stats.averageError.toFixed(2)}s`} />
-        <ResultRow label="Spot Ons" value={stats.spotOns.toString()} />
 
         <StatsSectionLabel>Daily Challenge</StatsSectionLabel>
         <ResultRow label="Best Daily Accuracy" value={bestDailyAccuracy === null ? '-' : `${bestDailyAccuracy.toFixed(2)}s`} />
@@ -2214,7 +2257,7 @@ function SettingsScreen({
     { key: 'music', label: 'Music', description: 'Play background theme music', icon: Music },
     { key: 'haptics', label: 'Haptic Feedback', description: 'Vibration on supported devices', icon: Smartphone },
     { key: 'reducedMotion', label: 'Reduced Motion', description: 'Disable animations and transitions', icon: Sparkles },
-    { key: 'darkMode', label: 'Dark Mode', description: 'Use a darker colour scheme', icon: Moon },
+    { key: 'darkMode', label: 'Light Mode', description: 'Use the clean light theme', icon: Sun },
   ];
 
   const segmentClass = (active: boolean) =>
@@ -2235,7 +2278,7 @@ function SettingsScreen({
       <div className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-3 pr-1">
         {options.map(option => {
           const Icon = option.icon;
-          const enabled = settings[option.key];
+          const enabled = option.key === 'darkMode' ? !settings.darkMode : settings[option.key];
           return (
             <div key={option.key} className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
               <div className="flex items-center gap-3">
@@ -2251,7 +2294,7 @@ function SettingsScreen({
                   role="switch"
                   aria-checked={enabled}
                   aria-label={`Toggle ${option.label}`}
-                  onClick={() => onChange(option.key, !enabled)}
+                  onClick={() => option.key === 'darkMode' ? onChange('darkMode', enabled) : onChange(option.key, !enabled)}
                   className={`w-12 h-7 rounded-full p-1 transition-colors shrink-0 ${enabled ? 'bg-teal-500' : 'bg-slate-300'}`}
                 >
                   <span className={`block w-5 h-5 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -2339,16 +2382,16 @@ function RankingsScreen({
   const currentRank = getRank(clockRating).rank;
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 ${CARD_HEIGHT} flex flex-col`}>
-      <div className="text-center space-y-2 mb-5">
-        <div className="text-5xl" aria-hidden="true">{currentRank.icon}</div>
-        <h1 className="text-3xl font-bold text-slate-800">Clock Ranks</h1>
-        <p className="text-slate-500">
+    <div className={`bg-white rounded-3xl shadow-xl p-5 ${CARD_HEIGHT} flex flex-col`}>
+      <div className="text-center space-y-1 mb-3 shrink-0">
+        <div className="text-4xl" aria-hidden="true">{currentRank.icon}</div>
+        <h1 className="text-2xl font-bold text-slate-800">Clock Ranks</h1>
+        <p className="text-sm text-slate-500">
           You have <span className="font-bold text-teal-600">{clockRating}</span> Clock Rating
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-2 pr-1">
+      <div className="flex-1 min-h-0 overflow-hidden space-y-1.5">
         {ranks.map(rank => {
           const isCurrent = rank.name === currentRank.name;
           const pointsDifference = rank.min - clockRating;
@@ -2362,7 +2405,7 @@ function RankingsScreen({
           return (
             <div
               key={rank.name}
-              className={`rounded-2xl border px-4 py-3 flex items-center gap-3 ${
+              className={`rounded-2xl border px-3 py-2 flex items-center gap-2 ${
                 isCurrent
                   ? 'bg-teal-50 border-teal-300 ring-1 ring-teal-200'
                   : pointsDifference <= 0
@@ -2370,21 +2413,21 @@ function RankingsScreen({
                     : 'bg-white border-slate-200'
               }`}
             >
-              <span className="text-2xl w-8 text-center" aria-hidden="true">{icon}</span>
+              <span className="text-xl w-7 text-center" aria-hidden="true">{icon}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className={`font-bold ${isCurrent ? 'text-teal-800' : 'text-slate-800'}`}>
+                  <p className={`text-sm font-bold ${isCurrent ? 'text-teal-800' : 'text-slate-800'}`}>
                     {rank.name}
                   </p>
                   {isCurrent && (
-                    <span className="text-[10px] uppercase tracking-wider font-black text-teal-700 bg-teal-100 rounded-full px-2 py-0.5">
+                    <span className="text-[9px] uppercase tracking-wider font-black text-teal-700 bg-teal-100 rounded-full px-1.5 py-0.5">
                       Current
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500">Starts at {rank.min} points</p>
+                <p className="text-[11px] text-slate-500">Starts at {rank.min}</p>
               </div>
-              <p className={`text-xs font-semibold text-right max-w-[105px] ${
+              <p className={`text-[11px] leading-tight font-semibold text-right max-w-[92px] ${
                 pointsDifference > 0 ? 'text-amber-600' : 'text-slate-500'
               }`}>
                 {distanceText}
@@ -2396,7 +2439,7 @@ function RankingsScreen({
 
       <button
         onClick={onBack}
-        className="mt-5 w-full shrink-0 bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 app-bottom-actions"
+        className="mt-3 w-full shrink-0 bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3.5 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 app-bottom-actions"
       >
         <ArrowLeft className="w-5 h-5" />
         Back
@@ -3063,6 +3106,7 @@ function RevealScreen({
   rankedMode,
   onEnableRanked,
   onDisableRanked,
+  onRankings,
   onGuessChange,
   onSubmitGuess,
   onPlayAgain,
@@ -3084,6 +3128,7 @@ function RevealScreen({
   rankedMode: boolean;
   onEnableRanked: () => void;
   onDisableRanked: () => void;
+  onRankings: () => void;
   onGuessChange: (value: string) => void;
   onSubmitGuess: (guessOverride?: string) => void;
   onPlayAgain: () => void;
@@ -3166,7 +3211,7 @@ function RevealScreen({
             </div>
 
             {(mode === 'single' || isChallenge) && (
-              <div className="space-y-3 sm:space-y-4 pt-4 border-t border-slate-200 shrink-0">
+              <div className="space-y-3 sm:space-y-4 pt-4 shrink-0">
                 <p className="text-slate-600 font-medium">
                   Enter your guess in seconds
                 </p>
@@ -3220,7 +3265,12 @@ function RevealScreen({
                       <ResultRow label="Your Guess" value={`${parseFloat(playerGuess).toFixed(2)}s`} />
                       <ResultRow label="You were off by" value={`${guessDistance.toFixed(2)}s`} accent />
                       {rankedMode && ratingChange !== null ? (
-                        <div className="bg-white rounded-2xl px-4 py-3 border border-slate-200 text-left">
+                        <button
+                          type="button"
+                          onClick={onRankings}
+                          className="w-full bg-white hover:bg-slate-50 rounded-2xl px-4 py-3 border border-slate-200 text-left transition-colors active:scale-[0.99]"
+                          aria-label="View all Clock Ranks"
+                        >
                           <div className="flex items-center gap-3 mb-2">
                             <span className="text-2xl" aria-hidden="true">
                               {resultRankInfo.rank.icon}
@@ -3233,15 +3283,20 @@ function RevealScreen({
                                 {clockRating} Clock Rating
                               </p>
                             </div>
-                            <span className={`font-black ${
-                              ratingChange > 0
-                                ? 'text-teal-600'
-                                : ratingChange < 0
-                                  ? 'text-rose-600'
-                                  : 'text-slate-500'
-                            }`}>
-                              {ratingChange >= 0 ? '+' : ''}{ratingChange}
-                            </span>
+                            <div className="text-right shrink-0">
+                              <span className={`block font-black ${
+                                ratingChange > 0
+                                  ? 'text-teal-600'
+                                  : ratingChange < 0
+                                    ? 'text-rose-600'
+                                    : 'text-slate-500'
+                              }`}>
+                                {ratingChange >= 0 ? '+' : ''}{ratingChange}
+                              </span>
+                              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                View ranks
+                              </span>
+                            </div>
                           </div>
                           <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
                             <div
@@ -3254,7 +3309,7 @@ function RevealScreen({
                               ? `${resultRankInfo.pointsNeeded} points to ${resultRankInfo.next.name}`
                               : 'Highest rank reached'}
                           </p>
-                        </div>
+                        </button>
                       ) : (
                         <div className="bg-indigo-50 rounded-2xl px-4 py-3 border border-indigo-200 flex items-center gap-3 text-left">
                           <div className="w-9 h-9 bg-white rounded-xl border border-indigo-100 flex items-center justify-center shrink-0">

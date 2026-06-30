@@ -22,12 +22,12 @@ interface DifficultyDefinition {
 }
 
 const difficulties: DifficultyDefinition[] = [
-  { id: 'easy', name: 'Easy', threshold: 1, unlockText: 'Unlocked', panel: 'bg-teal-100 border-teal-400 text-teal-950', button: 'bg-teal-500 hover:bg-teal-600', accent: 'text-teal-600' },
-  { id: 'medium', name: 'Medium', threshold: 0.5, unlockText: 'Score 3 on Easy', panel: 'bg-amber-100 border-amber-400 text-amber-950', button: 'bg-amber-500 hover:bg-amber-600', accent: 'text-amber-600' },
-  { id: 'hard', name: 'Hard', threshold: 0.25, unlockText: 'Score 3 on Medium', panel: 'bg-red-700 border-red-400 text-white', button: 'bg-red-600 hover:bg-red-700', accent: 'text-red-400' },
-  { id: 'expert', name: 'Expert', threshold: 0.1, unlockText: 'Score 3 on Hard', panel: 'bg-purple-950 border-red-800 text-white', button: 'bg-red-800 hover:bg-red-900', accent: 'text-red-400' },
-  { id: 'god', name: 'GOD', threshold: 0.5, unlockText: 'Score 3 on Expert', panel: 'hardcore-god-panel border-yellow-500 text-white', button: 'bg-yellow-500 hover:bg-yellow-400 !text-black', accent: 'text-yellow-400' },
-  { id: 'literal', name: 'LITERAL CLOCK', threshold: 0, unlockText: 'Score 3 on GOD', panel: 'bg-black border-white text-white', button: 'bg-white hover:bg-slate-200 !text-black', accent: 'text-white', exact: true },
+  { id: 'easy', name: 'Easy', threshold: 1, unlockText: 'Unlocked', panel: 'bg-emerald-100 border-emerald-400 text-emerald-950 shadow-emerald-400/20', button: 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/30', accent: 'text-emerald-500' },
+  { id: 'medium', name: 'Medium', threshold: 0.5, unlockText: 'Score 3 on Easy', panel: 'bg-orange-200 border-orange-500 text-orange-950 shadow-orange-400/25', button: 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/30', accent: 'text-orange-400' },
+  { id: 'hard', name: 'Hard', threshold: 0.25, unlockText: 'Score 3 on Medium', panel: 'bg-red-700 border-red-300 text-white shadow-red-500/35', button: 'bg-red-600 hover:bg-red-700 shadow-red-600/35', accent: 'text-red-300' },
+  { id: 'expert', name: 'Expert', threshold: 0.1, unlockText: 'Score 3 on Hard', panel: 'bg-gradient-to-br from-fuchsia-950 to-red-950 border-fuchsia-500 text-white shadow-fuchsia-700/40', button: 'bg-fuchsia-700 hover:bg-fuchsia-800 shadow-fuchsia-700/40', accent: 'text-fuchsia-300' },
+  { id: 'god', name: 'GOD', threshold: 0.05, unlockText: 'Score 3 on Expert', panel: 'hardcore-god-panel border-yellow-400 text-white shadow-yellow-400/40', button: 'bg-yellow-400 hover:bg-yellow-300 !text-black shadow-yellow-400/40', accent: 'text-yellow-300' },
+  { id: 'literal', name: 'LITERAL CLOCK', threshold: 0, unlockText: 'Score 3 on GOD', panel: 'bg-gradient-to-br from-black via-slate-950 to-white/10 border-white text-white shadow-white/25', button: 'bg-white hover:bg-slate-200 !text-black shadow-white/30', accent: 'text-white', exact: true },
 ];
 
 function isUnlocked(difficulty: HardcoreDifficulty, scores: HardcoreScores) {
@@ -53,6 +53,7 @@ export default function HardcoreMode({
   onTimingChange,
   onHelpVisibilityChange,
   onBestScoreChange,
+  onSpotOn,
   onBack,
 }: {
   bestScores: HardcoreScores;
@@ -63,6 +64,7 @@ export default function HardcoreMode({
   onTimingChange: (active: boolean) => void;
   onHelpVisibilityChange: (visible: boolean) => void;
   onBestScoreChange: (difficulty: HardcoreDifficulty, score: number) => void;
+  onSpotOn: () => void;
   onBack: () => void;
 }) {
   const [difficulty, setDifficulty] = useState<HardcoreDifficulty>('easy');
@@ -135,6 +137,7 @@ export default function HardcoreMode({
       window.setTimeout(() => playTone(95, 0.24), 230);
     }
     if (shownError === 0) {
+      onSpotOn();
       window.setTimeout(() => playTone(1120, 0.1), 90);
       window.setTimeout(() => playTone(1380, 0.18), 180);
     }
@@ -201,16 +204,16 @@ export default function HardcoreMode({
   const shownError = elapsed === null ? null : Math.round(Math.abs(elapsed - target) * 100) / 100;
   const visibleDifficulties = difficulties;
   const screenTheme = difficulty === 'literal'
-    ? 'bg-black text-white'
+    ? 'hardcore-literal-screen'
     : difficulty === 'god'
     ? 'hardcore-god-screen'
     : difficulty === 'expert'
-      ? 'bg-gradient-to-b from-slate-950 to-purple-950'
+      ? 'bg-gradient-to-b from-fuchsia-950 via-purple-950 to-slate-950'
       : difficulty === 'hard'
-        ? 'bg-gradient-to-b from-red-950 to-slate-950'
+        ? 'bg-gradient-to-b from-red-900 via-red-950 to-slate-950'
         : difficulty === 'medium'
-          ? 'bg-gradient-to-b from-amber-950 to-slate-950'
-          : 'bg-white';
+          ? 'bg-gradient-to-b from-orange-800 via-amber-950 to-slate-950'
+          : 'bg-gradient-to-b from-emerald-50 to-teal-100';
   const inRun = phase !== 'select';
 
   return (
@@ -235,7 +238,7 @@ export default function HardcoreMode({
                 ? 'Score 3 on ????'
                 : item.unlockText;
               return (
-                <button key={item.id} aria-disabled={!unlocked} onClick={() => unlocked ? startRun(item.id) : setLockedNotice(`${mysterious ? 'The mystery difficulty' : item.name} is locked. ${unlockText} to unlock it.`)} className={`w-full rounded-2xl border p-2 text-center transition-colors ${item.panel} ${unlocked ? 'hover:brightness-110' : 'border-dashed ring-2 ring-slate-400/40'}`}>
+                <button key={item.id} aria-disabled={!unlocked} onClick={() => unlocked ? startRun(item.id) : setLockedNotice(`${mysterious ? 'The mystery difficulty' : item.name} is locked. ${unlockText} to unlock it.`)} className={`w-full rounded-2xl border p-2 text-center transition-colors shadow-lg ${item.panel} ${unlocked ? 'hover:brightness-110' : 'border-dashed ring-2 ring-slate-400/40 grayscale-[0.25] brightness-75'}`}>
                   <div className="flex flex-col items-center justify-center gap-1">
                     <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">{mysterious ? <span className="font-black text-lg">?</span> : unlocked ? <ShieldAlert className="w-4 h-4" /> : <Lock className="w-4 h-4" />}</div>
                     <div>
@@ -305,7 +308,7 @@ export default function HardcoreMode({
                 <p className="text-5xl font-black mt-3">{elapsed.toFixed(2)}s</p>
                 <p className="font-bold opacity-70 mt-1">{shownError.toFixed(2)}s off · Target {target.toFixed(2)}s</p>
               </motion.div>
-              <button onClick={nextRound} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl`}>{nativeControls ? 'Next Target' : 'Next Target · Space'}</button>
+              <button onClick={nextRound} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl shadow-lg ring-2 ring-white/20`}>{nativeControls ? 'Next Target' : 'Next Target · Space'}</button>
             </div>
           )}
 
@@ -316,6 +319,7 @@ export default function HardcoreMode({
                 <h2 className="text-3xl font-black mt-2">Run Over</h2>
                 <p className={`text-6xl font-black mt-4 ${definition.accent}`}>{score}</p>
                 <p className="text-sm opacity-70">Best {definition.name} score: {bestScores[difficulty]}</p>
+                <p className="text-sm font-bold opacity-80 mt-2">Last attempt: {elapsed.toFixed(2)}s · {shownError.toFixed(2)}s off · Target {target.toFixed(2)}s</p>
               </div>
               <button onClick={() => startRun(difficulty)} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl flex items-center justify-center gap-2`}><RotateCcw className="w-5 h-5" />Play Again</button>
             </div>
@@ -329,7 +333,7 @@ export default function HardcoreMode({
             animate={reducedMotion ? { opacity: 1 } : { y: 0, opacity: 1 }}
             exit={reducedMotion ? { opacity: 0 } : { y: -24, opacity: 0 }}
             transition={{ duration: reducedMotion ? 0 : 0.42, ease: 'easeInOut' }}
-            className="safe-top-toast absolute inset-x-4 z-50 rounded-2xl border border-yellow-400/80 bg-slate-950/95 text-white shadow-xl shadow-yellow-500/20 px-4 py-3"
+            className="hardcore-unlock-toast rounded-2xl border border-yellow-400/80 bg-slate-950/95 text-white shadow-xl shadow-yellow-500/20 px-4 py-3"
           >
             <div className="flex items-center gap-3 text-left">
               <div className="w-10 h-10 rounded-xl bg-yellow-400 text-slate-950 flex items-center justify-center shrink-0">

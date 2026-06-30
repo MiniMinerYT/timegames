@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { animate, motion } from 'framer-motion';
 import { ArrowLeft, Check, Sparkles, Trophy } from 'lucide-react';
 import LadderIcon from './LadderIcon';
 import { triggerHaptic } from './haptics';
@@ -9,9 +9,16 @@ const FINAL_LEVEL = 20;
 const TOLERANCE = 0.25;
 const LADDER_VIEWPORT_HEIGHT = 250;
 const LADDER_RUNG_HEIGHT = 84;
+const LADDER_FOCUS_OFFSET = (LADDER_VIEWPORT_HEIGHT - LADDER_RUNG_HEIGHT) / 2;
 const LADDER_LEVELS = Array.from({ length: FINAL_LEVEL }, (_, index) => FINAL_LEVEL - index);
 
 type LadderPhase = 'ready' | 'playing' | 'result';
+type LadderRunResult = {
+  elapsed: number;
+  difference: number;
+  success: boolean;
+  spotOn: boolean;
+};
 
 export default function TimeLadder({
   bestLevel,
@@ -21,6 +28,7 @@ export default function TimeLadder({
   nativeControls,
   onTimingChange,
   onBestLevelChange,
+  onSpotOn,
   onBack,
 }: {
   bestLevel: number;
@@ -30,6 +38,7 @@ export default function TimeLadder({
   nativeControls: boolean;
   onTimingChange: (active: boolean) => void;
   onBestLevelChange: (level: number) => void;
+  onSpotOn: () => void;
   onBack: () => void;
 }) {
   const [level, setLevel] = useState(1);
@@ -41,7 +50,31 @@ export default function TimeLadder({
   const [instantReset, setInstantReset] = useState(false);
   const [rewinding, setRewinding] = useState(false);
   const [rewindLevels, setRewindLevels] = useState(0);
+  const [runResults, setRunResults] = useState<Record<number, LadderRunResult>>({});
   const startRef = useRef<number | null>(null);
+  const ladderScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollAnimationRef = useRef<{ stop: () => void } | null>(null);
+
+  const focusLevelInView = useCallback((targetLevel: number, duration = 0.75) => {
+    const scroller = ladderScrollRef.current;
+    if (!scroller) return;
+    const targetScrollTop = (FINAL_LEVEL - targetLevel) * LADDER_RUNG_HEIGHT;
+
+    scrollAnimationRef.current?.stop();
+
+    if (reducedMotion || duration <= 0) {
+      scroller.scrollTop = targetScrollTop;
+      return;
+    }
+
+    scrollAnimationRef.current = animate(scroller.scrollTop, targetScrollTop, {
+      duration,
+      ease: [0.4, 0, 0.2, 1],
+      onUpdate: value => {
+        scroller.scrollTop = value;
+      },
+    });
+  }, [reducedMotion]);
 
   const playTone = useCallback((frequency: number, duration = 0.08) => {
     if (!sounds) return;
@@ -62,6 +95,9 @@ export default function TimeLadder({
   }, [sounds]);
 
   const startLevel = () => {
+    window.requestAnimationFrame(() => {
+      focusLevelInView(level, 0.42);
+    });
     setElapsed(null);
     setSuccess(false);
     startRef.current = performance.now();
@@ -76,12 +112,18 @@ export default function TimeLadder({
     const measured = Math.round(((performance.now() - startRef.current) / 1000) * 100) / 100;
     const difference = Math.abs(measured - level);
     const passed = difference <= TOLERANCE;
+    const spotOn = difference < 0.005;
     onTimingChange(false);
     setElapsed(measured);
     setSuccess(passed);
     setPhase('result');
+    setRunResults(previous => ({
+      ...previous,
+      [level]: { elapsed: measured, difference, success: passed, spotOn },
+    }));
     playTone(passed ? 880 : 220, 0.12);
-    if (difference < 0.005) {
+    if (spotOn) {
+      onSpotOn();
       window.setTimeout(() => playTone(1100, 0.1), 90);
       window.setTimeout(() => playTone(1320, 0.16), 180);
     }
@@ -103,8 +145,12 @@ export default function TimeLadder({
     if (level >= FINAL_LEVEL) {
       setInstantReset(true);
       setLevel(1);
+      setRunResults({});
+      window.requestAnimationFrame(() => focusLevelInView(1, 0));
     } else {
-      setLevel(value => value + 1);
+      const nextLevel = level + 1;
+      setLevel(nextLevel);
+      window.requestAnimationFrame(() => focusLevelInView(nextLevel, 0.78));
     }
     setElapsed(null);
     setSuccess(false);
@@ -123,9 +169,11 @@ export default function TimeLadder({
     setLevel(1);
     setElapsed(null);
     setSuccess(false);
+    setRunResults({});
     setBestCelebration(false);
     setCompleted(false);
     setPhase('ready');
+    window.requestAnimationFrame(() => focusLevelInView(1, reducedMotion ? 0 : Math.min(1.45, 0.7 + Math.max(0, level - 1) * 0.07)));
   };
 
   useEffect(() => {
@@ -151,12 +199,12 @@ export default function TimeLadder({
     return () => window.cancelAnimationFrame(frame);
   }, [instantReset]);
 
+  useEffect(() => {
+    focusLevelInView(1, 0);
+    return () => scrollAnimationRef.current?.stop();
+  }, [focusLevelInView]);
+
   const difference = elapsed === null ? null : Math.abs(elapsed - level);
-  const currentLevelIndex = FINAL_LEVEL - level;
-  const ladderY = (LADDER_VIEWPORT_HEIGHT - LADDER_RUNG_HEIGHT) / 2 - currentLevelIndex * LADDER_RUNG_HEIGHT;
-  const motionTransition = reducedMotion || instantReset
-    ? { duration: 0 }
-    : { duration: rewinding ? Math.min(1.45, 0.7 + rewindLevels * 0.07) : 0.75, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] };
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-5 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
@@ -167,60 +215,82 @@ export default function TimeLadder({
         <p className="text-xs font-black text-indigo-600">Best level: {bestLevel}</p>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-start gap-2 pt-1">
-        <div className="relative w-full h-[250px] shrink-0 overflow-visible" style={{ clipPath: 'inset(0 -24px 0 -24px)' }}>
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-start gap-2 pt-1 px-1">
+        <div
+          ref={ladderScrollRef}
+          className="relative w-full h-[250px] shrink-0 overflow-y-auto overflow-x-hidden card-scroll rounded-2xl"
+          aria-label="Scrollable ladder progress"
+        >
           <motion.div
-            className="absolute inset-x-0 top-0 pointer-events-none"
-            style={{ height: FINAL_LEVEL * LADDER_RUNG_HEIGHT }}
+            className="relative w-full pointer-events-none px-5"
+            style={{
+              paddingTop: LADDER_FOCUS_OFFSET,
+              paddingBottom: LADDER_FOCUS_OFFSET,
+            }}
             initial={false}
-            animate={{ y: ladderY }}
-            transition={motionTransition}
+            animate={rewinding && !reducedMotion ? { filter: ['blur(0px)', 'blur(0.8px)', 'blur(0px)'] } : { filter: 'blur(0px)' }}
+            transition={{ duration: rewinding && !reducedMotion ? 0.7 : 0 }}
             onAnimationComplete={() => {
               if (rewinding) setRewinding(false);
             }}
           >
             {LADDER_LEVELS.map(rungLevel => {
               const isCurrent = rungLevel === level;
-              const isCompleted = rungLevel < level;
-              const isResult = isCurrent && phase === 'result' && elapsed !== null && difference !== null;
+              const currentResult = isCurrent && phase === 'result' && elapsed !== null && difference !== null
+                ? { elapsed, difference, success, spotOn: difference < 0.005 }
+                : null;
+              const displayResult = currentResult ?? runResults[rungLevel] ?? null;
+              const isCompleted = Boolean(displayResult?.success) || rungLevel < level;
+              const isResult = Boolean(displayResult);
+              const isSpotOn = Boolean(displayResult?.spotOn);
               const rungClass = isCurrent
-                ? isResult
+                ? isSpotOn
+                  ? 'bg-teal-50 border-yellow-400 text-teal-950 ring-2 ring-yellow-300 shadow-yellow-400/35'
+                  : isResult
                   ? success ? 'bg-teal-50 border-teal-400' : 'bg-rose-50 border-rose-400'
                   : 'bg-indigo-500 border-indigo-400 text-white'
                 : isCompleted
-                  ? 'bg-teal-50 border-teal-200 text-teal-800'
+                  ? isSpotOn
+                    ? 'bg-teal-50 border-yellow-400 text-teal-900 ring-1 ring-yellow-300 shadow-yellow-400/25'
+                    : 'bg-teal-50 border-teal-200 text-teal-800'
                   : 'bg-slate-100 border-slate-200 text-slate-400 opacity-55';
               const rungAnimate = isCurrent && isResult && !reducedMotion
                 ? success
-                  ? { scale: [1.04, 1.085, 1.04], x: 0 }
+                  ? isSpotOn ? { scale: [1.05, 1.13, 1.05], x: 0, rotate: [0, -1, 1, 0] } : { scale: [1.04, 1.085, 1.04], x: 0 }
                   : { scale: 1.04, x: [0, -6, 6, -3, 0] }
                 : { scale: isCurrent ? 1.04 : 1, x: 0 };
 
               return (
-                <div key={rungLevel} className="h-[84px] relative flex items-center justify-center px-3">
+                <div key={rungLevel} className="h-[84px] relative flex items-center justify-center px-4">
                   <motion.div
-                    className={`relative z-10 w-full min-h-[66px] rounded-2xl border-2 px-3 py-2 shadow-sm flex flex-col justify-center ${rungClass}`}
+                    className={`relative z-10 w-full h-[66px] rounded-2xl border-2 px-3 py-1.5 shadow-sm flex flex-col justify-center overflow-hidden ${rungClass}`}
                     initial={false}
                     animate={rungAnimate}
                     transition={reducedMotion ? { duration: 0 } : { duration: isResult ? 0.42 : 0.3, ease: 'easeInOut' }}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className={`flex items-center justify-between gap-3 min-h-0 transition-transform ${displayResult ? '-translate-y-1' : 'translate-y-0'}`}>
                       <div className="text-left">
-                        <p className="text-[9px] uppercase tracking-wider font-black opacity-70">{isCurrent ? 'Current level' : isCompleted ? 'Completed' : 'Ahead'}</p>
+                        <p className="text-[9px] uppercase tracking-wider font-black opacity-70">{isCurrent ? 'Current level' : displayResult ? displayResult.success ? 'Completed' : 'Failed' : 'Ahead'}</p>
                         <p className="text-lg font-black leading-tight">Level {rungLevel}</p>
                       </div>
                       <div className="flex items-center gap-2 text-right">
-                        {isCompleted && <Check className="w-5 h-5 text-teal-600" />}
+                        {isCompleted && <Check className={`w-5 h-5 ${isSpotOn ? 'text-yellow-500' : 'text-teal-600'}`} />}
                         <div><p className="text-[9px] uppercase tracking-wider font-black opacity-70">Target</p><p className="text-xl font-black leading-tight">{rungLevel.toFixed(2)}s</p></div>
                       </div>
                     </div>
-                    {isResult && (
-                      <div className="grid grid-cols-3 gap-1 mt-1 pt-1 border-t border-current/20 text-[10px] font-black">
-                        <span>{elapsed.toFixed(2)}s actual</span>
-                        <span className={difference < 0.005 ? 'text-yellow-500' : ''}>{difference < 0.005 ? 'Spot On!' : `${difference.toFixed(2)}s off`}</span>
-                        <span className={success ? 'text-teal-700' : 'text-rose-700'}>{success ? 'Passed' : 'Failed'}</span>
-                      </div>
-                    )}
+                    <div className={`absolute inset-x-3 bottom-1 border-t pt-0.5 text-[9px] font-black leading-none truncate ${displayResult ? 'border-current/20 opacity-100' : 'border-transparent opacity-0'}`}>
+                      {displayResult ? (
+                        <>
+                          <span>{displayResult.elapsed.toFixed(2)}s</span>
+                          <span className="opacity-50"> · </span>
+                          <span className={displayResult.spotOn ? 'text-yellow-500' : ''}>{displayResult.spotOn ? 'Spot On' : `${displayResult.difference.toFixed(2)}s off`}</span>
+                          <span className="opacity-50"> · </span>
+                          <span className={displayResult.success ? 'text-teal-700' : 'text-rose-700'}>{displayResult.success ? 'Passed' : 'Failed'}</span>
+                        </>
+                      ) : (
+                        '0.00s · 0.00s off · Passed'
+                      )}
+                    </div>
                   </motion.div>
                 </div>
               );
@@ -260,6 +330,7 @@ export default function TimeLadder({
           <h2 className="text-4xl font-black mt-2 relative z-10">LADDER CONQUERED</h2>
           <p className="text-indigo-100 mt-3 relative z-10">All 20 levels. No misses. That is seriously impressive.</p>
           <button onClick={continueRun} className="mt-8 w-44 h-44 rounded-full bg-yellow-400 hover:bg-yellow-300 text-slate-950 text-xl font-black shadow-2xl shadow-yellow-400/30 relative z-10">CLIMB AGAIN</button>
+          <button onClick={() => setCompleted(false)} className="mt-4 text-sm font-black text-white/90 hover:text-white relative z-10">Review Run</button>
           <button onClick={onBack} className="mt-5 text-sm font-black text-white/80 hover:text-white relative z-10">All Games</button>
         </div>
       )}
