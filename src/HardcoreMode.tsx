@@ -218,9 +218,6 @@ export default function HardcoreMode({
 
   return (
     <div className={`${screenTheme} relative rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col ${inRun && difficulty !== 'easy' ? 'text-white' : ''}`}>
-      <div className={`hardcore-atmosphere hardcore-atmosphere-${difficulty}`} aria-hidden="true">
-        {Array.from({ length: 9 }, (_, index) => <span key={index} />)}
-      </div>
       <div className="text-center space-y-1 mb-3">
         <div className="w-14 h-14 mx-auto rounded-2xl bg-red-600 flex items-center justify-center text-white"><Skull className="w-8 h-8" /></div>
         <h1 className="text-3xl font-black">Hardcore Mode</h1>

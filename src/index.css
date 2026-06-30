@@ -685,55 +685,6 @@ button {
   box-shadow: inset 0 0 24px rgb(255 255 255 / 8%);
 }
 
-.hardcore-atmosphere {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.hardcore-atmosphere span {
-  position: absolute;
-  width: 5.5rem;
-  height: 5.5rem;
-  border-radius: 9999px;
-  opacity: 0.18;
-  filter: blur(18px);
-  background: var(--hardcore-particle, rgb(20 184 166));
-  transform: translate3d(0, 0, 0);
-  animation: hardcore-particle-drift 7.5s ease-in-out infinite alternate;
-}
-
-.hardcore-atmosphere span:nth-child(1) { left: 5%; top: 12%; animation-delay: -1s; }
-.hardcore-atmosphere span:nth-child(2) { right: 2%; top: 24%; animation-delay: -2.4s; transform: scale(0.65); }
-.hardcore-atmosphere span:nth-child(3) { left: 18%; bottom: 8%; animation-delay: -3.6s; transform: scale(0.8); }
-.hardcore-atmosphere span:nth-child(4) { right: 20%; bottom: 18%; animation-delay: -5s; transform: scale(0.48); }
-.hardcore-atmosphere span:nth-child(n+5) { width: 2.75rem; height: 2.75rem; opacity: 0.12; }
-.hardcore-atmosphere-easy { --hardcore-particle: rgb(20 184 166); }
-.hardcore-atmosphere-medium { --hardcore-particle: rgb(251 146 60); }
-.hardcore-atmosphere-hard { --hardcore-particle: rgb(248 113 113); }
-.hardcore-atmosphere-expert { --hardcore-particle: rgb(217 70 239); }
-.hardcore-atmosphere-god { --hardcore-particle: rgb(234 179 8); }
-.hardcore-atmosphere-literal { --hardcore-particle: rgb(248 250 252); }
-
-@keyframes hardcore-particle-drift {
-  from {
-    translate: -10px 8px;
-    scale: 0.85;
-  }
-
-  to {
-    translate: 18px -16px;
-    scale: 1.12;
-  }
-}
-
-.screen-transition-disabled .hardcore-atmosphere span {
-  animation: none;
-}
-
 @keyframes hardcore-god-glow {
   0%,
   100% {

@@ -107,7 +107,6 @@ interface SettingsState {
   reducedMotion: boolean;
   partyTimerRange: 'short' | 'standard' | 'long';
   darkMode: boolean;
-  trollMode: boolean;
 }
 
 type ToggleSettingKey =
@@ -116,8 +115,7 @@ type ToggleSettingKey =
   | 'haptics'
   | 'rankedMode'
   | 'reducedMotion'
-  | 'darkMode'
-  | 'trollMode';
+  | 'darkMode';
 
 interface PartyPlayer {
   id: string;
@@ -687,7 +685,6 @@ const defaultSettings: SettingsState = {
   reducedMotion: false,
   partyTimerRange: 'standard',
   darkMode: true,
-  trollMode: false,
 };
 
 const defaultHardcoreScores: HardcoreScores = {
@@ -809,7 +806,6 @@ function App() {
           ? parsed.partyTimerRange
           : defaultSettings.partyTimerRange,
         darkMode: typeof parsed.darkMode === 'boolean' ? parsed.darkMode : defaultSettings.darkMode,
-        trollMode: typeof parsed.trollMode === 'boolean' ? parsed.trollMode : defaultSettings.trollMode,
       };
     } catch {
       return defaultSettings;
@@ -1798,11 +1794,9 @@ function App() {
           <TimeGuesserHub
             stats={stats}
             rankedMode={settings.rankedMode}
-            trollModeEnabled={settings.trollMode}
             reducedMotion={settings.reducedMotion}
             onRankedModeChange={(value) => updateSetting('rankedMode', value)}
             onSinglePlayer={() => startCountdown('single')}
-            onTrollMode={() => startCountdown('troll')}
             onPartyMode={openPartySetup}
             onBack={goHome}
             onRankings={showRankings}
@@ -1869,6 +1863,7 @@ function App() {
           <SettingsScreen
             settings={settings}
             onChange={updateSetting}
+            onTrollMode={() => startCountdown('troll')}
             onBack={hideSettings}
           />
         )}
@@ -2296,22 +2291,18 @@ function GameMenuCard({ color, icon, title, description, onClick, compact = fals
 function TimeGuesserHub({
   stats,
   rankedMode,
-  trollModeEnabled,
   reducedMotion,
   onRankedModeChange,
   onSinglePlayer,
-  onTrollMode,
   onPartyMode,
   onBack,
   onRankings,
 }: {
   stats: StatsState;
   rankedMode: boolean;
-  trollModeEnabled: boolean;
   reducedMotion: boolean;
   onRankedModeChange: (value: boolean) => void;
   onSinglePlayer: () => void;
-  onTrollMode: () => void;
   onPartyMode: () => void;
   onBack: () => void;
   onRankings: () => void;
@@ -2393,9 +2384,6 @@ function TimeGuesserHub({
 
       <div className="space-y-2.5 shrink-0">
         <GameMenuCard guideId="guesser-single" color="teal" icon={<Timer className="w-6 h-6" />} title={`Single Player ${rankedMode ? 'Ranked' : 'Casual'}`} description={rankedMode ? 'Build rating.' : 'No rating pressure.'} onClick={onSinglePlayer} />
-        {trollModeEnabled && (
-          <GameMenuCard color="slate" icon={<Sparkles className="w-6 h-6" />} title="Troll Mode" description="Definitely real perfects." onClick={onTrollMode} />
-        )}
         <GameMenuCard guideId="guesser-party" color="rose" icon={<Users className="w-6 h-6" />} title="Party Mode" description="Compete to be closest with friends." onClick={onPartyMode} />
         <GameMenuCard disabled color="slate" icon={<Lock className="w-6 h-6" />} title="Multiplayer" description="Coming soon." onClick={() => undefined} />
       </div>
@@ -2755,10 +2743,12 @@ function StatsScreen({
 function SettingsScreen({
   settings,
   onChange,
+  onTrollMode,
   onBack,
 }: {
   settings: SettingsState;
   onChange: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void;
+  onTrollMode: () => void;
   onBack: () => void;
 }) {
   const options: Array<{
@@ -2772,7 +2762,6 @@ function SettingsScreen({
     { key: 'haptics', label: 'Haptic Feedback', description: 'Vibration on supported devices', icon: Smartphone },
     { key: 'reducedMotion', label: 'Reduced Motion', description: 'Disable animations and transitions', icon: Sparkles },
     { key: 'darkMode', label: 'Light Mode', description: 'Use the clean light theme', icon: Sun },
-    { key: 'trollMode', label: 'Troll Mode', description: 'Unlock a harmless prank mode', icon: Sparkles },
   ];
 
   const segmentClass = (active: boolean) =>
@@ -2873,6 +2862,30 @@ function SettingsScreen({
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-fuchsia-400 mb-3">
+            Super Crazy
+          </p>
+          <div className="bg-gradient-to-br from-slate-900 via-fuchsia-950 to-slate-950 border border-fuchsia-400/50 rounded-2xl p-4 text-white shadow-lg shadow-fuchsia-900/20">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/15">
+                <Sparkles className="w-5 h-5 text-fuchsia-200" />
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="font-black">Troll Mode</p>
+                <p className="text-xs text-fuchsia-100/75">A very serious perfect-timing experiment.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onTrollMode}
+              className="mt-4 w-full bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-black py-3.5 px-4 rounded-2xl transition-all active:scale-[0.98] shadow-lg shadow-fuchsia-500/25"
+            >
+              Start Troll Mode
+            </button>
           </div>
         </div>
       </div>
@@ -3771,17 +3784,17 @@ function RevealScreen({
       <div className="flip-scene h-full min-h-0">
         <div className={`flip-card relative h-full ${timeRevealed ? 'is-flipped' : ''}`}>
           <div className="flip-face absolute inset-0 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden">
-            {(mode === 'single' || isChallenge) && (
+            {(mode === 'single' || isChallenge || isTroll) && (
               <div className="flex-1 min-h-0 flex flex-col justify-end">
                 <div className="flex-1 min-h-0 flex items-center justify-center px-3 py-2">
                   <div className="text-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-300">
                       {guessEntryLabel}
                     </p>
 
-                    <div className={`mt-1 text-5xl sm:text-6xl font-black leading-none ${activeGuess ? 'text-slate-900 dark:text-slate-50' : 'text-slate-300 dark:text-slate-600'}`}>
+                    <div className={`mt-1 text-5xl sm:text-6xl font-black leading-none ${activeGuess ? 'text-white drop-shadow-[0_2px_14px_rgba(15,23,42,0.5)]' : 'text-slate-400'}`}>
                       {activeGuess || '--.--'}
-                      {activeGuess && <span className="text-slate-500 dark:text-slate-400 ml-1 text-2xl">s</span>}
+                      {activeGuess && <span className="text-slate-300 ml-1 text-2xl">s</span>}
                     </div>
                   </div>
                 </div>
@@ -4143,11 +4156,11 @@ function CinematicReveal({
     spotOn: 'drop-shadow-[0_0_32px_rgba(234,179,8,0.38)]',
   }[quality];
   const resultTextClasses = {
-    normal: 'text-slate-800 dark:text-slate-100',
-    good: 'text-teal-700 dark:text-teal-300',
-    great: 'text-cyan-700 dark:text-cyan-300',
-    amazing: 'text-amber-600 dark:text-amber-300',
-    spotOn: 'text-yellow-600 dark:text-yellow-300',
+    normal: 'text-white drop-shadow-[0_2px_14px_rgba(15,23,42,0.5)]',
+    good: 'text-white drop-shadow-[0_2px_14px_rgba(15,23,42,0.5)]',
+    great: 'text-yellow-300 drop-shadow-[0_0_18px_rgba(250,204,21,0.35)]',
+    amazing: 'text-yellow-300 drop-shadow-[0_0_22px_rgba(250,204,21,0.42)]',
+    spotOn: 'text-yellow-300 drop-shadow-[0_0_26px_rgba(250,204,21,0.5)]',
   }[quality];
   const targetDisplay = stage === 0 ? '--.--' : targetStages[Math.min(2, Math.max(0, stage - 1))];
 

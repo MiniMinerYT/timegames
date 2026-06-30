@@ -41,7 +41,6 @@ Time Guesser is the original hidden-clock game. A hidden clock runs for a secret
 Its menu contains:
 - Single Player, dynamically labelled Ranked or Casual
 - Party Mode
-- Troll Mode, shown only when enabled in Settings
 - A locked Multiplayer placeholder labelled Coming Soon so the hub has room for future expansion without changing the structure
 
 Challenge Archive is accessed from the Daily Challenge hub rather than through a separate Time Guesser menu button. The immediate gameplay result only offers a return to Time Guesser.
@@ -69,7 +68,7 @@ Casual and ranked rounds update general stats. Only ranked rounds affect Clock R
 
 ### Troll Mode
 
-Troll Mode is an optional prank variant of Time Guesser that appears only when the Settings toggle is enabled. It uses the normal hidden-clock, countdown, guess-entry and reveal flow, but every result is presented as if it were Spot On. Consecutive fake perfects intentionally become less exciting and more suspicious; after roughly three in a row the celebration/copy becomes deliberately dull to reveal the joke. Troll Mode is presentation-only and does not affect Clock Rating or competitive progression.
+Troll Mode is an optional prank variant launched directly from the Super Crazy section at the bottom of Settings. It uses the normal hidden-clock, countdown, guess-entry and reveal flow, but every result is presented as if it were Spot On. Consecutive fake perfects intentionally become less exciting and more suspicious; after roughly three in a row the celebration/copy becomes deliberately dull to reveal the joke. Troll Mode is presentation-only and does not affect Clock Rating or competitive progression.
 
 ### Party Mode
 
@@ -192,7 +191,7 @@ Reaching zero lives plays a short descending run-over sound when sounds are enab
 
 Hardcore START is always green and STOP is always red, regardless of selected difficulty. Result feedback only shakes on failure/life-loss; passed rounds stay stable so success does not create an unnecessary screen wobble.
 
-Difficulty themes progress from calm emerald/teal through orange, red and dark fuchsia/purple to a black/gold GOD theme and stark black LITERAL CLOCK theme. Cards and active screens use stronger, distinct color/effect treatments as difficulty increases while staying readable in light and dark mode. Expert and LITERAL CLOCK selection cards now match their outline colours with stronger themed backgrounds. Hardcore also has subtle difficulty-coloured smoke/particle atmosphere. Ambient styling is visual only, provides no timing information and respects reduced-motion behavior.
+Difficulty themes progress from calm emerald/teal through orange, red and dark fuchsia/purple to a black/gold GOD theme and stark black LITERAL CLOCK theme. Cards and active screens use stronger, distinct color/effect treatments as difficulty increases while staying readable in light and dark mode. Expert and LITERAL CLOCK selection cards match their outline colours with stronger themed backgrounds. Ambient styling is visual only, provides no timing information and respects reduced-motion behavior.
 
 The Home Hardcore card uses the skull icon. Dark mode must preserve readable foreground/background contrast across every Hardcore difficulty as well as the shared game cards.
 
@@ -233,8 +232,9 @@ Settings persist in localStorage. Current settings:
 - Haptic feedback
 - Reduced motion
 - Light mode toggle, inverted so off means the default dark theme is active
-- Troll Mode, which reveals the optional prank mode inside Time Guesser
 - Party timer range
+
+Settings also includes a Super Crazy section near the bottom with a direct Start Troll Mode button. This launches the optional prank mode immediately rather than toggling it into the Time Guesser menu.
 
 New installs default to Dark Mode so the starfield/space presentation is the primary visual theme. The Settings switch is labelled Light Mode and is off by default; turning it on switches to the cleaner classic light theme.
 
