@@ -3724,12 +3724,12 @@ function RevealScreen({
   }[resultTone];
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden`}>
+    <div className={`home-screen-card rounded-3xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden`}>
       <div className="flip-scene h-full min-h-0">
         <div className={`flip-card relative h-full ${timeRevealed ? 'is-flipped' : ''}`}>
-          <div className="flip-face absolute inset-0 bg-slate-50 border border-slate-200 rounded-3xl p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
-            <div className="flex-1 min-h-[140px] max-h-[230px] flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-200 px-3">
-              <div className="text-5xl sm:text-7xl font-black text-slate-700 tracking-widest leading-none">
+          <div className="flip-face absolute inset-0 rounded-3xl p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
+            <div className="flex-1 min-h-[140px] max-h-[230px] flex flex-col items-center justify-center px-3">
+              <div className="text-5xl sm:text-7xl font-black text-slate-700 tracking-widest leading-none drop-shadow-[0_2px_0_rgba(255,255,255,0.55)]">
                 ? ? ?
               </div>
 
@@ -3746,7 +3746,7 @@ function RevealScreen({
                   Enter your guess in seconds
                 </p>
 
-                <div className="w-full text-center text-3xl font-black py-3.5 sm:py-4 px-6 bg-white border-2 border-slate-200 rounded-2xl text-slate-800">
+                <div className="w-full text-center text-4xl font-black py-2 px-6 text-slate-800">
                   {activeGuess || <span className="text-slate-300">--.--</span>}
                   {activeGuess && <span className="text-slate-400 ml-1 text-xl">s</span>}
                 </div>
@@ -3762,7 +3762,7 @@ function RevealScreen({
             )}
           </div>
 
-          <div className={`flip-face flip-back result-scroll absolute inset-0 bg-gradient-to-b from-white via-slate-50 to-white border border-slate-100 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden ${resultTone === 'spoton' ? 'spoton-glow' : ''}`}>
+          <div className={`flip-face flip-back result-scroll absolute inset-0 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden ${resultTone === 'spoton' ? 'spoton-glow' : ''}`}>
             {cinematicComplete && (resultTone === 'spoton' || resultTone === 'elite') && (
               <div className="confetti">
                 {Array.from({ length: 14 }).map((_, index) => (
