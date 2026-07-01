@@ -4315,14 +4315,14 @@ function RevealScreen({
             <div className={`flex-1 min-h-0 relative z-10 pb-3 flex flex-col ${
               showCinematic && (!cinematicComplete || isTroll)
                 ? 'justify-center overflow-hidden'
-                : 'overflow-y-auto result-scroll gap-3 sm:gap-5'
+                : 'overflow-y-auto result-scroll gap-2 sm:gap-3'
             }`}>
               {showCinematic && (
                 <motion.div
                   layout={!reducedMotion}
-                  animate={{ scale: cinematicComplete ? (isTroll ? 1.16 : 1.06) : 1.16 }}
+                  animate={{ scale: cinematicComplete ? (isTroll ? 1.08 : 1) : 1.08 }}
                   transition={{ duration: reducedMotion ? 0 : 0.48, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full shrink-0 origin-center"
+                  className="w-full max-w-full shrink-0 origin-center overflow-visible"
                 >
                   <CinematicReveal
                     key={`${mode}-${playerGuess}-${targetTime}`}
@@ -4345,7 +4345,7 @@ function RevealScreen({
                   initial={showCinematic && !reducedMotion ? { opacity: 0, y: 16 } : false}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: reducedMotion ? 0 : 0.38, ease: 'easeOut' }}
-                  className="flex flex-col gap-3 sm:gap-5"
+                  className="flex flex-col gap-2 sm:gap-3"
                 >
                   {!showCinematic && (
                     <>
@@ -4368,7 +4368,7 @@ function RevealScreen({
                   )}
 
               {mode === 'single' && (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {hasGuess && guessDistance !== null ? (
                     <>
                       {rankedMode && ratingChange !== null ? (
@@ -4376,10 +4376,10 @@ function RevealScreen({
                           type="button"
                           onClick={onRankings}
                           data-guide-id="result-rating"
-                          className="w-full bg-white hover:bg-slate-50 rounded-2xl px-4 py-3 border border-slate-200 text-left transition-colors active:scale-[0.99]"
+                          className="w-full bg-white hover:bg-slate-50 rounded-2xl px-4 py-2.5 border border-slate-200 text-left transition-colors active:scale-[0.99]"
                           aria-label="View all Clock Ranks"
                         >
-                          <div className="flex items-center gap-3 mb-2">
+                          <div className="flex items-center gap-3 mb-1.5">
                             <span className="text-2xl" aria-hidden="true">
                               {resultRankInfo.rank.icon}
                             </span>
@@ -4412,7 +4412,7 @@ function RevealScreen({
                               style={{ width: `${resultRankInfo.progress}%` }}
                             />
                           </div>
-                          <p className="text-[11px] text-slate-400 font-semibold mt-1.5 text-right">
+                          <p className="text-[11px] text-slate-400 font-semibold mt-1 text-right">
                             {resultRankInfo.next
                               ? `${resultRankInfo.pointsNeeded} points to ${resultRankInfo.next.name}`
                               : 'Highest rank reached'}
@@ -4483,11 +4483,11 @@ function RevealScreen({
               )}
             </div>
             {(!showCinematic || cinematicComplete) && (
-            <div data-guide-id="result-actions" className="space-y-3 pt-3 relative z-10 shrink-0">
+            <div data-guide-id="result-actions" className="space-y-2.5 pt-2 relative z-10 shrink-0">
               {!isChallenge && (
                 <button
                   onClick={onPlayAgain}
-                  className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3.5 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
                 >
                   <RotateCcw className="w-5 h-5" />
                   Play Again
@@ -4496,7 +4496,7 @@ function RevealScreen({
 
               <button
                 onClick={onGoHome}
-                className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
+                className="w-full app-secondary-action font-semibold py-3.5 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
               >
                 <Home className="w-5 h-5" />
                 {isChallenge ? 'Back to Home' : 'Back to Time Guesser'}
@@ -4710,8 +4710,8 @@ function CinematicReveal({
     : undefined;
 
   return (
-    <div className={`cinematic-reveal relative overflow-visible px-2 py-8 sm:px-3 sm:py-10 ${trollDegradeClass}`}>
-      <div className="relative z-10 min-h-[13.25rem] grid grid-rows-[3.45rem_6.15rem_3.15rem] items-center justify-items-center gap-1">
+    <div className={`cinematic-reveal relative mx-auto w-full max-w-full overflow-visible [container-type:inline-size] px-1 py-4 sm:px-2 sm:py-6 ${trollDegradeClass}`}>
+      <div className="relative z-10 min-h-[clamp(13.5rem,40dvh,20rem)] grid grid-rows-[clamp(3rem,8dvh,4.5rem)_clamp(6rem,17dvh,9.25rem)_clamp(3.4rem,9dvh,5rem)] items-center justify-items-center gap-0.5">
         <motion.div
           initial={reducedMotion ? false : { scale: 1.02, opacity: 0 }}
           animate={{
@@ -4724,7 +4724,7 @@ function CinematicReveal({
           <p className={`text-[10px] font-black uppercase tracking-[0.24em] ${labelColorClass}`}>
             {isChallenge ? 'Target Time' : 'Your Guess'}
           </p>
-          <p className="mt-0.5 text-4xl sm:text-5xl font-black tg-theme-strong leading-none">
+          <p className="mt-0.5 text-[clamp(2.4rem,14cqw,4rem)] font-black tg-theme-strong leading-none">
             {isChallenge ? targetTime.toFixed(2) : playerGuess.toFixed(2)}s
           </p>
         </motion.div>
@@ -4744,7 +4744,7 @@ function CinematicReveal({
             initial={reducedMotion ? false : { opacity: 0.42, filter: 'blur(2px)' }}
             animate={{ opacity: 1, filter: 'blur(0px)' }}
             transition={{ duration: reducedMotion ? 0 : decimalSuspense && stage === 3 ? 0.5 : 0.24, ease: 'easeOut' }}
-            className={`mt-0.5 inline-block min-w-[6.6ch] text-center text-5xl sm:text-6xl font-black ${targetColorClass} leading-none tracking-tight`}
+            className={`mt-0.5 inline-block min-w-[6.2ch] max-w-full text-center text-[clamp(3.6rem,21cqw,5.75rem)] font-black ${targetColorClass} leading-none tracking-tight`}
             style={targetGlowStyle}
           >
             {targetDisplay}
@@ -4762,11 +4762,11 @@ function CinematicReveal({
                 transition={{ duration: reducedMotion ? 0 : quality === 'spotOn' ? 0.55 : 0.28, ease: [0.16, 1, 0.3, 1] }}
                 className="text-center"
               >
-                <p className={`text-3xl sm:text-4xl font-black leading-none ${resultTextClasses}`} style={resultGlowStyle}>
+                <p className={`text-[clamp(2.1rem,12cqw,3.6rem)] font-black leading-none ${resultTextClasses}`} style={resultGlowStyle}>
                   {copy.title}
                 </p>
                 {copy.subtitle && (
-                  <p className={`mt-1 text-xs font-black ${isTroll && trollPresentationLevel >= 4 ? 'text-slate-500' : 'tg-theme-muted'}`}>
+                  <p className={`mt-1 text-sm font-black ${isTroll && trollPresentationLevel >= 4 ? 'text-slate-500' : 'tg-theme-muted'}`}>
                     {copy.subtitle}
                   </p>
                 )}
