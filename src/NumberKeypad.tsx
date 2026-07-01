@@ -5,6 +5,7 @@ import { Delete } from 'lucide-react';
 function sanitizeKeypadValue(value: string, maxWholeDigits: number, maxFractionDigits: number) {
   const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
   const [whole = '', ...fractionParts] = normalized.split('.');
+  const leadingDecimal = normalized.startsWith('.');
   const limitedWhole = whole.slice(0, maxWholeDigits);
 
   if (fractionParts.length === 0 && whole.length > maxWholeDigits) {
@@ -12,11 +13,11 @@ function sanitizeKeypadValue(value: string, maxWholeDigits: number, maxFractionD
   }
 
   if (fractionParts.length === 0) return limitedWhole;
-  return `${limitedWhole}.${fractionParts.join('').slice(0, maxFractionDigits)}`;
+  return `${leadingDecimal ? '0' : limitedWhole}.${fractionParts.join('').slice(0, maxFractionDigits)}`;
 }
 
 export function isKeypadValueValid(value: string) {
-  return /^\d{1,2}(?:\.\d{1,2})?$/.test(value) && Number.isFinite(Number(value));
+  return /^(?:\d{1,2}(?:\.\d{1,2})?|(?:0)?\.\d{1,2})$/.test(value) && Number.isFinite(Number(value));
 }
 
 export default function NumberKeypad({

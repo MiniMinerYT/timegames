@@ -101,14 +101,15 @@ export function getSimulatedDailyStanding(error: number, dateKey: string) {
 export function sanitizeTimeInput(value: string) {
   const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
   const [whole = '', ...fractionParts] = normalized.split('.');
+  const leadingDecimal = normalized.startsWith('.');
   const limitedWhole = whole.slice(0, 2);
   if (fractionParts.length === 0 && whole.length > 2) {
     return `${limitedWhole}.${whole.slice(2, 4)}`;
   }
   if (fractionParts.length === 0) return limitedWhole;
-  return `${limitedWhole}.${fractionParts.join('').slice(0, 2)}`;
+  return `${leadingDecimal ? '0' : limitedWhole}.${fractionParts.join('').slice(0, 2)}`;
 }
 
 export function isValidTimeInput(value: string) {
-  return /^\d{1,2}(?:\.\d{1,2})?$/.test(value) && Number.isFinite(Number(value));
+  return /^(?:\d{1,2}(?:\.\d{1,2})?|(?:0)?\.\d{1,2})$/.test(value) && Number.isFinite(Number(value));
 }

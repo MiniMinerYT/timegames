@@ -119,11 +119,16 @@ type ToggleSettingKey =
   | 'reducedMotion'
   | 'darkMode';
 
+type PartyVariant = 'standard' | 'lastClockStanding';
+
 interface PartyPlayer {
   id: string;
   name: string;
   score: number;
   guess: string;
+  eliminated?: boolean;
+  eliminatedRound?: number;
+  lastDistance?: number;
 }
 
 interface DailyResult {
@@ -184,8 +189,7 @@ const SHOOTING_STARS = Array.from({ length: 3 }, (_, index) => {
     id: index,
     x: 4 + random(3) * 88,
     y: 5 + random(4) * 72,
-    dx: Math.cos((angle * Math.PI) / 180) * distance,
-    dy: Math.sin((angle * Math.PI) / 180) * distance,
+    distance,
     angle,
     duration: 44 + random(5) * 34,
     delay: 12 + random(6) * 70,
@@ -196,6 +200,15 @@ function isNativeOrTouchDevice() {
   if (Capacitor.isNativePlatform()) return true;
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+}
+
+function shuffleIds(ids: string[]) {
+  const shuffled = [...ids];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
 }
 const MAX_AVERAGE_ERROR = 100;
 const MUSIC_DEFAULT_ON_MIGRATION_KEY = 'timegames-music-default-on-migrated';
@@ -208,63 +221,63 @@ const SCREEN_GUIDES_SEEN_KEY = 'timegames-screen-guides-seen';
 function getHelpContent(game: GameState): HelpContent {
   if (game.phase === 'ladder') return {
     title: 'Time Ladder',
-    intro: 'Climb from 1.00 to 20.00 seconds by stopping the hidden timer accurately at every level.',
-    items: ['Press the large circle or Space to start, then press it again to stop.', 'You must finish within ±0.25 seconds of the target. One miss ends the run.', 'Passed levels move the tower upward. Time Ladder does not affect Clock Rating.'],
+    intro: 'Climb from 1 to 20 seconds. One miss ends the run.',
+    items: ['Tap the big circle to start and stop.', 'Get within 0.25s to climb.', 'Ladder does not affect Clock Rating.'],
   };
   if (game.phase === 'hardcore') return {
     title: 'Hardcore Mode',
-    intro: 'An endless three-life timing game with increasingly demanding unlockable difficulties.',
-    items: ['Choose a difficulty, memorise the target, then use START and STOP or Space.', 'A hit adds one point. A miss costs one heart, and losing all three ends the run.', 'Score 3 on each difficulty to reveal the next. Hardcore scores never affect Clock Rating.'],
+    intro: 'An endless three-life timing challenge.',
+    items: ['Choose a difficulty and hit the shown target.', 'Pass to score. Miss to lose a heart.', 'Score 3 to unlock the next difficulty.'],
   };
   if (game.phase === 'guesserHub') return {
     title: 'Time Guesser',
-    intro: 'Estimate how long a hidden clock was running, then enter your answer in seconds.',
-    items: ['Ranked Single Player changes Clock Rating; Casual Single Player does not.', 'Daily Challenge offers one official attempt and a once-per-day Clock Rating participation bonus.', 'Party Mode compares friends locally and never changes Clock Rating.'],
+    intro: 'Guess how long the hidden clock ran.',
+    items: ['Ranked changes Clock Rating.', 'Casual is practice.', 'Party Mode is local fun with friends.'],
   };
   if (game.phase === 'dailyHub') return {
     title: 'Daily Challenge',
-    intro: 'Everyone gets one deterministic hidden-time challenge for the current local calendar day.',
-    items: ['You receive one official attempt today—enter carefully.', 'Completing it protects your streak and awards the displayed Clock Rating bonus once.', 'Challenge Archive is view-only. A new challenge arrives at local midnight.'],
+    intro: 'One official stop-at-target challenge each day.',
+    items: ['Hit today’s target as closely as possible.', 'Complete it to protect your streak.', 'A new challenge arrives at midnight.'],
   };
   if (game.phase === 'dailyHistory') return {
     title: 'Challenge Archive',
-    intro: 'Review recent Daily Challenge outcomes without replaying old targets.',
-    items: ['Played days show the target, stop time, official error and placement.', 'Missed dates are marked Not played.', 'Placements are local simulations until a real online leaderboard is added.'],
+    intro: 'Review recent Daily Challenge results.',
+    items: ['Played days show your stop, error and placement.', 'Missed days stay marked as not played.'],
   };
   if (game.phase === 'rankings') return {
     title: 'Clock Ranks',
-    intro: 'Clock Rating measures your performance in ranked Time Guesser rounds.',
-    items: ['More accurate ranked guesses award more rating.', 'Higher ranks require progressively larger rating totals.', 'Party, Ladder and Hardcore performance never changes this rating.'],
+    intro: 'Clock Rating is your Ranked Time Guesser progression.',
+    items: ['Closer ranked guesses earn more rating.', 'Tap rank cards to compare thresholds.', 'Party, Ladder and Hardcore do not affect rating.'],
   };
   if (game.phase === 'stats') return {
     title: 'Statistics',
-    intro: 'A summary of progress across every TimeGames mode.',
-    items: ['Global Spot Ons count across implemented modes.', 'Time Guesser, Daily, Ladder and Hardcore records appear in their own sections.', 'Reset clears local progress, including unlocks and streaks.'],
+    intro: 'Your progress across TimeGames.',
+    items: ['See rank, streaks, best scores and achievements.', 'Reset lives here if you want a fresh start.'],
   };
   if (game.phase === 'settings') return {
     title: 'Settings',
-    intro: 'Adjust feedback, accessibility, appearance and Party Mode timing ranges.',
-    items: ['Sounds and theme music have separate controls.', 'Reduced Motion removes or shortens movement effects.', 'Light Mode, haptics and Party timer range persist on this device.'],
+    intro: 'Tune how the app feels.',
+    items: ['Adjust sound, music, haptics and motion.', 'Choose Light Mode or Party timer range.'],
   };
   if (game.mode === 'party' || ['partySetup', 'partyGuesses', 'partyResults'].includes(game.phase)) return {
     title: 'Party Mode',
-    intro: 'Pass the device around and compete to make the closest hidden-time guess.',
-    items: ['Add at least two players, then start a shared hidden timer round.', 'Enter guesses in order; Enter moves focus to the next player.', 'Closest guesses score a point. Ties and Spot Ons are celebrated.'],
+    intro: 'Pass the device around and play one hidden timer together.',
+    items: ['Standard scores the closest guesses.', 'Last Clock Standing eliminates the worst guess.', 'Ties go to sudden death.'],
   };
   if (game.mode === 'challenge') return {
     title: 'Daily Challenge Attempt',
-    intro: 'This is today’s single official hidden-time guess.',
-    items: ['Wait through the countdown and estimate the hidden clock.', 'Enter your answer to see error, simulated global placement, streak and rating bonus.', 'The current challenge cannot be replayed after submission.'],
+    intro: 'Hit today’s shown target as closely as possible.',
+    items: ['Wait for the countdown.', 'Tap STOP when the target time has passed.', 'Your placement is based on the error.'],
   };
   if (game.mode === 'single') return {
     title: 'Single Player',
-    intro: 'Build your internal clock by estimating a randomly generated hidden duration.',
-    items: ['Wait through the countdown, then remember how long the hidden clock runs.', 'Enter a guess with up to two decimal places and press Enter or Submit.', 'Ranked rounds affect Clock Rating; Casual rounds preserve it.'],
+    intro: 'Guess the hidden duration.',
+    items: ['Count internally while the clock is hidden.', 'Enter your guess in seconds.', 'Ranked rounds change Clock Rating.'],
   };
   return {
     title: 'Welcome to TimeGames',
-    intro: 'TimeGames is a collection of focused games for training and testing your internal sense of time.',
-    items: ['Time Guesser is the ranked core game, with Casual, Party and Daily variants.', 'Time Ladder challenges you to clear targets from 1 to 20 seconds without missing.', 'Hardcore Mode is an endless three-life high-score challenge. Stats and Settings support every mode.'],
+    intro: 'Train your internal clock through quick timing games.',
+    items: ['Pick a game and trust your sense of time.', 'Ranked Time Guesser is the main Clock Rating mode.'],
   };
 }
 
@@ -380,15 +393,15 @@ function getGuideContent(game: GameState): HelpContent {
   if (game.mode === 'party' || ['partySetup', 'partyGuesses', 'partyResults'].includes(game.phase)) return {
     title: 'Party Mode',
     intro: 'A local group mode for friends sharing one device.',
-    objective: 'Be the closest guesser after each hidden timer round.',
+    objective: 'Choose a party format, then compete around one shared hidden timer.',
     items: [],
     steps: [
-      { title: 'Add players', body: 'Standard Party Mode needs at least two named players.' },
+      { title: 'Add players', body: 'Standard and Last Clock Standing need at least two named players.' },
       { title: 'Run one shared timer', body: 'Everyone watches the same hidden-clock round.' },
       { title: 'Enter guesses quickly', body: 'Tap a guess box, use the keypad and Save & Next to move through the group.' },
-      { title: 'Score the closest', body: 'Closest players get the point. Ties and Spot Ons are celebrated.' },
+      { title: 'Score or survive', body: 'Standard awards points. Last Clock Standing eliminates the worst guess each round.' },
     ],
-    tips: ['Tabletop Mode skips names and scoring for a simple group reveal.'],
+    tips: ['Tabletop Mode skips names and scoring for a simple group reveal.', 'Last Clock Standing continues until one player remains.'],
   };
 
   if (game.mode === 'challenge') return {
@@ -484,7 +497,7 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
         {
           targetId: 'guesser-rank-card',
           title: 'This is your rank',
-          body: 'Ranked games increase your Clock Rating when your guesses are close.',
+          body: 'Ranked Time Guesser is where Clock Rating lives.',
         },
         {
           targetId: 'guesser-ranked-toggle',
@@ -494,7 +507,7 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
         {
           targetId: 'guesser-party',
           title: 'Party Mode',
-          body: 'Play with friends on one device. Party scores do not affect your rank.',
+          body: 'Play locally with friends on one device.',
         },
         {
           targetId: 'guesser-single',
@@ -588,17 +601,17 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
         {
           targetId: 'party-mode-choice',
           title: 'Choose how to play',
-          body: 'Standard Party tracks scores. Tabletop is a simple group reveal.',
+          body: 'Standard scores rounds. Last Clock Standing eliminates the worst guess. Tabletop is a simple reveal on mobile.',
         },
         {
           targetId: 'party-add-player',
           title: 'Add players',
-          body: 'Standard Party needs at least two players.',
+          body: 'Add at least two players before starting.',
         },
         {
           targetId: 'party-start',
           title: 'Start the round',
-          body: 'Everyone plays the same hidden timer, then guesses are entered one by one.',
+          body: 'The timer runs once, then players guess in a random order.',
         },
       ],
     };
@@ -612,7 +625,7 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
         {
           targetId: 'stats-scroll',
           title: 'Your progress',
-          body: 'Stats are grouped by game, including rank, streaks, best scores and achievements.',
+          body: 'Stats are grouped by game so progress is easy to scan.',
         },
       ],
     };
@@ -649,8 +662,8 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
       steps: [
         {
           targetId: 'result-time',
-          title: 'Today’s target',
-          body: 'This was the time you were trying to stop on.',
+          title: 'Your stopped time',
+          body: 'This is the time you actually stopped on. Your result is based on how close it was to today’s target.',
         },
         {
           targetId: 'daily-result-score',
@@ -898,6 +911,11 @@ function App() {
   const [trollPerfectStreak, setTrollPerfectStreak] = useState(0);
   const [completedRevealKeys, setCompletedRevealKeys] = useState<string[]>([]);
   const [partyPlayers, setPartyPlayers] = useState<PartyPlayer[]>([]);
+  const [partyVariant, setPartyVariant] = useState<PartyVariant>('standard');
+  const [partyRoundNumber, setPartyRoundNumber] = useState(0);
+  const [lastEliminatedPlayerId, setLastEliminatedPlayerId] = useState<string | null>(null);
+  const [partyTiebreakerIds, setPartyTiebreakerIds] = useState<string[]>([]);
+  const [partyGuessOrderIds, setPartyGuessOrderIds] = useState<string[]>([]);
 
   const [newPlayerName, setNewPlayerName] = useState('');
 
@@ -1512,6 +1530,11 @@ function App() {
     setCompletedRevealKeys([]);
     setRankUpNotice(null);
     setTrollPerfectStreak(0);
+    setPartyVariant('standard');
+    setPartyRoundNumber(0);
+    setLastEliminatedPlayerId(null);
+    setPartyTiebreakerIds([]);
+    setPartyGuessOrderIds([]);
     setPartyPlayers([]);
     setNewPlayerName('');
     setGame({
@@ -1542,6 +1565,24 @@ function App() {
       mode: 'party',
       phase: 'partySetup',
     }));
+  }, []);
+
+  const selectPartyVariant = useCallback((variant: PartyVariant) => {
+    setPartyVariant(variant);
+    setPartyRoundNumber(0);
+    setLastEliminatedPlayerId(null);
+    setPartyTiebreakerIds([]);
+    setPartyGuessOrderIds([]);
+    setPartyPlayers(prev =>
+      prev.map(player => ({
+        ...player,
+        guess: '',
+        score: variant === 'standard' ? player.score : 0,
+        eliminated: false,
+        eliminatedRound: undefined,
+        lastDistance: undefined,
+      }))
+    );
   }, []);
 
   const addPartyPlayer = useCallback(() => {
@@ -1595,17 +1636,29 @@ function App() {
   }, []);
 
   const startPartyRound = useCallback(() => {
-    if (partyPlayers.length < 2) return;
+    const isSuddenDeathRound = partyVariant === 'lastClockStanding' && partyTiebreakerIds.length > 0;
+    const activePlayers = partyVariant === 'lastClockStanding' && partyTiebreakerIds.length > 0
+      ? partyPlayers.filter(player => partyTiebreakerIds.includes(player.id) && !player.eliminated)
+      : partyPlayers.filter(player => !player.eliminated);
+    const eligibleCount = partyVariant === 'lastClockStanding' ? activePlayers.length : partyPlayers.length;
+    if (eligibleCount < 2) return;
+    setPartyGuessOrderIds(shuffleIds(activePlayers.map(player => player.id)));
 
     setPartyPlayers(prev =>
       prev.map(player => ({
         ...player,
-        guess: '',
+        guess: activePlayers.some(active => active.id === player.id) ? '' : player.guess,
       }))
     );
+    if (partyVariant === 'lastClockStanding' && !isSuddenDeathRound) {
+      setPartyRoundNumber(prev => prev + 1);
+      setLastEliminatedPlayerId(null);
+    } else if (partyVariant === 'lastClockStanding') {
+      setLastEliminatedPlayerId(null);
+    }
 
     startCountdown('party');
-  }, [partyPlayers.length, startCountdown]);
+  }, [partyPlayers, partyTiebreakerIds, partyVariant, startCountdown]);
 
   const openTabletopMode = useCallback(() => {
     clearGameTimer();
@@ -1637,7 +1690,12 @@ function App() {
   }, [playTone, vibrate]);
 
   const showPartyResults = useCallback(() => {
-  const ranked = [...partyPlayers]
+  const eligiblePlayers = partyVariant === 'lastClockStanding'
+    ? partyTiebreakerIds.length > 0
+      ? partyPlayers.filter(player => partyTiebreakerIds.includes(player.id) && !player.eliminated)
+      : partyPlayers.filter(player => !player.eliminated)
+    : partyPlayers;
+  const ranked = [...eligiblePlayers]
     .filter(player => isValidTimeInput(player.guess))
     .map(player => ({
       ...player,
@@ -1653,15 +1711,45 @@ function App() {
     .filter(player => Math.abs(player.distance - winningDistance) <= 0.005)
     .map(player => player.id);
 
+  let eliminatedId: string | null = null;
+  let nextTiebreakerIds: string[] = [];
+  if (partyVariant === 'lastClockStanding') {
+    const worstDistance = ranked[ranked.length - 1].distance;
+    const worstTied = ranked.filter(player => Math.abs(player.distance - worstDistance) <= 0.005);
+    if (worstTied.length > 1) {
+      nextTiebreakerIds = worstTied.map(player => player.id);
+      setLastEliminatedPlayerId(null);
+      setPartyTiebreakerIds(nextTiebreakerIds);
+    } else {
+      eliminatedId = worstTied[0].id;
+      setLastEliminatedPlayerId(eliminatedId);
+      setPartyTiebreakerIds([]);
+    }
+  }
+
   setPartyPlayers(prev =>
-    prev.map(player =>
-      winnerIds.includes(player.id)
+    prev.map(player => {
+      const rankedMatch = ranked.find(entry => entry.id === player.id);
+      if (partyVariant === 'lastClockStanding') {
+        return {
+          ...player,
+          lastDistance: rankedMatch?.distance ?? player.lastDistance,
+          eliminated: player.eliminated || player.id === eliminatedId,
+          eliminatedRound: player.id === eliminatedId ? partyRoundNumber : player.eliminatedRound,
+        };
+      }
+
+      return winnerIds.includes(player.id)
         ? {
             ...player,
             score: player.score + 1,
+            lastDistance: rankedMatch?.distance ?? player.lastDistance,
           }
-        : player
-    )
+        : {
+            ...player,
+            lastDistance: rankedMatch?.distance ?? player.lastDistance,
+          };
+    })
   );
 
   const spotOnCount = ranked.filter(player => player.distance < 0.005).length;
@@ -1676,7 +1764,7 @@ function App() {
     ...prev,
     phase: 'partyResults',
   }));
-}, [partyPlayers, game.targetTime, playTone, playCelebration, recordSpotOns, vibrate]);
+}, [partyPlayers, partyTiebreakerIds, partyVariant, partyRoundNumber, game.targetTime, playTone, playCelebration, recordSpotOns, vibrate]);
 
   const guessDistance = (() => {
     if (game.playerGuess) {
@@ -1930,10 +2018,12 @@ function App() {
           <PartySetupScreen
             players={partyPlayers}
             newPlayerName={newPlayerName}
+            partyVariant={partyVariant}
             showTabletopMode={nativeControls}
             onNewPlayerNameChange={setNewPlayerName}
             onAddPlayer={addPartyPlayer}
             onRemovePlayer={removePartyPlayer}
+            onSelectVariant={selectPartyVariant}
             onStartRound={startPartyRound}
             onStartTabletop={openTabletopMode}
             onGoHome={showTimeGuesser}
@@ -1955,6 +2045,9 @@ function App() {
         {game.phase === 'partyGuesses' && (
           <PartyGuessesScreen
             players={partyPlayers}
+            partyVariant={partyVariant}
+            tiebreakerIds={partyTiebreakerIds}
+            guessOrderIds={partyGuessOrderIds}
             onGuessChange={updatePartyGuess}
             onGuessBlur={formatPartyGuess}
             onShowResults={showPartyResults}
@@ -1966,7 +2059,14 @@ function App() {
           <PartyResultsScreen
             targetTime={game.targetTime}
             players={partyPlayers}
+            partyVariant={partyVariant}
+            roundNumber={partyRoundNumber}
+            eliminatedPlayerId={lastEliminatedPlayerId}
+            tiebreakerIds={partyTiebreakerIds}
             reducedMotion={settings.reducedMotion}
+            onTone={playTone}
+            onHaptic={vibrate}
+            onCelebrate={playCelebration}
             onNextRound={startPartyRound}
             onGoHome={showTimeGuesser}
           />
@@ -2205,8 +2305,7 @@ function CardStarField({ active, splash = false }: { active: boolean; splash?: b
           style={{
             left: `${star.x}%`,
             top: `${star.y}%`,
-            ['--shoot-x' as string]: `${star.dx}px`,
-            ['--shoot-y' as string]: `${star.dy}px`,
+            ['--shoot-distance' as string]: `${star.distance}px`,
             ['--shoot-angle' as string]: `${star.angle}deg`,
             ['--shoot-duration' as string]: `${star.duration}s`,
             ['--shoot-delay' as string]: `${star.delay}s`,
@@ -2473,6 +2572,7 @@ function DailyChallengeHub({
   const todayTarget = getDailyTarget(today);
   const todayRank = todayLeaderboard?.playerRank ?? todayResult?.globalRank ?? todayResult?.simulatedRank;
   const todayBest = todayLeaderboard?.bestScoreToday ?? todayResult?.bestScoreToday ?? null;
+  const tomorrowReward = todayResult ? nextDailyReward : getDailyReward(dailyStreak + 2);
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-7 text-center ${CARD_HEIGHT} flex flex-col`}>
@@ -2508,12 +2608,8 @@ function DailyChallengeHub({
       )}
 
       {!todayResult && (
-        <div className="w-full max-w-[16.75rem] mx-auto mt-1 mb-3">
-          <button data-guide-id="daily-play" onClick={onPlayToday} className="w-full min-h-[13.75rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 hover:from-emerald-300 hover:via-teal-400 hover:to-cyan-500 text-white rounded-[1.75rem] px-5 py-5 transition-all shadow-2xl shadow-teal-500/40 ring-4 ring-teal-200/70 active:scale-[0.97] flex flex-col items-center justify-center gap-2.5">
-            <span className="w-12 h-12 rounded-2xl bg-white/25 flex items-center justify-center shadow-inner">
-              <CalendarDays className="w-7 h-7" />
-            </span>
-            <span className="text-2xl font-black leading-tight">Tap to Play</span>
+        <div className="w-full max-w-[16.75rem] mx-auto mt-1 mb-2">
+          <button data-guide-id="daily-play" onClick={onPlayToday} className="w-full min-h-[10.5rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 hover:from-emerald-300 hover:via-teal-400 hover:to-cyan-500 text-white rounded-[1.75rem] px-5 py-5 transition-all shadow-2xl shadow-teal-500/40 ring-4 ring-teal-200/70 active:scale-[0.97] flex flex-col items-center justify-center gap-2">
             <span className="text-xs font-black uppercase tracking-[0.16em] text-white/90">Stop at exactly</span>
             <span className="text-4xl font-black leading-none">{todayTarget.toFixed(2)}s</span>
             <span className="rounded-full bg-white/15 border border-white/20 px-3.5 py-1.5 text-xs font-black">
@@ -2541,7 +2637,7 @@ function DailyChallengeHub({
       </div>
 
       <div data-guide-id="daily-streak" className="bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-2 shrink-0">
-        <p className="text-xs text-slate-500 font-bold">{todayResult ? `Tomorrow's Clock Rating bonus: +${nextDailyReward}` : `Today's Clock Rating bonus: +${nextDailyReward}`}</p>
+        <p className="text-xs text-slate-500 font-bold">Tomorrow's Clock Rating bonus: +{tomorrowReward}</p>
         <p className="font-black text-slate-800">Next challenge in {dailyCountdown}</p>
       </div>
 
@@ -3070,24 +3166,33 @@ function RankingsScreen({
 function PartySetupScreen({
   players,
   newPlayerName,
+  partyVariant,
   showTabletopMode,
   onNewPlayerNameChange,
   onAddPlayer,
   onRemovePlayer,
+  onSelectVariant,
   onStartRound,
   onStartTabletop,
   onGoHome,
 }: {
   players: PartyPlayer[];
   newPlayerName: string;
+  partyVariant: PartyVariant;
   showTabletopMode: boolean;
   onNewPlayerNameChange: (value: string) => void;
   onAddPlayer: () => void;
   onRemovePlayer: (id: string) => void;
+  onSelectVariant: (variant: PartyVariant) => void;
   onStartRound: () => void;
   onStartTabletop: () => void;
   onGoHome: () => void;
 }) {
+  const activePlayers = players.filter(player => !player.eliminated);
+  const canStart = partyVariant === 'lastClockStanding'
+    ? activePlayers.length >= 2
+    : players.length >= 2;
+
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex flex-col`}>
       <div className="space-y-2 mb-5">
@@ -3102,26 +3207,46 @@ function PartySetupScreen({
         </h1>
 
         <p className="text-slate-500">
-          Choose a scored round or a quick tabletop reveal.
+          Choose a party game.
         </p>
       </div>
 
-      {showTabletopMode && (
-        <div data-guide-id="party-mode-choice" className="grid grid-cols-2 gap-2 mb-4">
-          <div className="rounded-2xl border-2 border-teal-300 bg-teal-50 p-3 text-left">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-600">Standard</p>
-            <p className="text-sm font-bold text-slate-800 mt-1">Players, guesses and scores.</p>
-          </div>
+      <div data-guide-id="party-mode-choice" className={`grid grid-cols-1 ${showTabletopMode ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-2 mb-4`}>
           <button
             type="button"
-            onClick={onStartTabletop}
-            className="rounded-2xl border-2 border-indigo-200 bg-indigo-50 p-3 text-left transition-all hover:border-indigo-400 active:scale-[0.98]"
+            onClick={() => onSelectVariant('standard')}
+            className={`rounded-2xl border-2 p-3 text-left transition-all active:scale-[0.98] ${
+              partyVariant === 'standard'
+                ? 'border-teal-300 bg-teal-50'
+                : 'border-slate-200 bg-slate-50 hover:border-teal-300'
+            }`}
           >
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-600">Tabletop</p>
-            <p className="text-sm font-bold text-slate-800 mt-1">No names. Discuss, then reveal.</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-600">Standard</p>
+            <p className="text-sm font-bold text-slate-800 mt-1">Players, guesses and scores.</p>
           </button>
-        </div>
-      )}
+          {showTabletopMode && (
+            <button
+              type="button"
+              onClick={onStartTabletop}
+              className="rounded-2xl border-2 border-indigo-200 bg-indigo-50 p-3 text-left transition-all hover:border-indigo-400 active:scale-[0.98]"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-600">Tabletop</p>
+              <p className="text-sm font-bold text-slate-800 mt-1">No names. Discuss, then reveal.</p>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onSelectVariant('lastClockStanding')}
+            className={`rounded-2xl border-2 p-3 text-left transition-all active:scale-[0.98] ${
+              partyVariant === 'lastClockStanding'
+                ? 'border-rose-300 bg-rose-50'
+                : 'border-slate-200 bg-slate-50 hover:border-rose-300'
+            }`}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-600">Last Clock Standing</p>
+            <p className="text-sm font-bold text-slate-800 mt-1">Worst guess is eliminated.</p>
+          </button>
+      </div>
 
       <div data-guide-id="party-add-player" className="flex gap-2 mb-4">
         <input
@@ -3160,7 +3285,11 @@ function PartySetupScreen({
             {player.name}
           </p>
           <p className="text-sm text-slate-400">
-            {player.score} points
+            {partyVariant === 'lastClockStanding'
+              ? player.eliminated
+                ? `Eliminated${player.eliminatedRound ? ` in round ${player.eliminatedRound}` : ''}`
+                : 'Still standing'
+              : `${player.score} points`}
           </p>
         </div>
 
@@ -3179,10 +3308,10 @@ function PartySetupScreen({
         <button
           data-guide-id="party-start"
           onClick={onStartRound}
-          disabled={players.length < 2}
+          disabled={!canStart}
           className="w-full bg-teal-500 hover:bg-teal-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 shadow-lg shadow-teal-500/25 disabled:shadow-none"
         >
-          Start Round
+          {partyVariant === 'lastClockStanding' ? 'Start Elimination Round' : 'Start Round'}
         </button>
 
         <button
@@ -3317,33 +3446,60 @@ function StoppedScreen({ tabletop = false }: { tabletop?: boolean }) {
 
 function PartyGuessesScreen({
   players,
+  partyVariant,
+  tiebreakerIds,
+  guessOrderIds,
   onGuessChange,
   onGuessBlur,
   onShowResults,
   onGoHome,
 }: {
   players: PartyPlayer[];
+  partyVariant: PartyVariant;
+  tiebreakerIds: string[];
+  guessOrderIds: string[];
   onGuessChange: (id: string, guess: string) => void;
   onGuessBlur: (id: string, guess: string) => void;
   onShowResults: () => void;
   onGoHome: () => void;
 }) {
-  const atLeastOneGuessEntered = players.some(player => isValidTimeInput(player.guess));
+  const eligibleGuessPlayers = partyVariant === 'lastClockStanding'
+    ? tiebreakerIds.length > 0
+      ? players.filter(player => tiebreakerIds.includes(player.id) && !player.eliminated)
+      : players.filter(player => !player.eliminated)
+    : players;
+  const orderedGuessPlayers = guessOrderIds
+    .map(id => eligibleGuessPlayers.find(player => player.id === id))
+    .filter((player): player is PartyPlayer => Boolean(player));
+  const unorderedGuessPlayers = eligibleGuessPlayers.filter(player => !guessOrderIds.includes(player.id));
+  const guessPlayers = [...orderedGuessPlayers, ...unorderedGuessPlayers];
+  const eliminatedPlayers = partyVariant === 'lastClockStanding'
+    ? players.filter(player => player.eliminated)
+    : [];
+  const readyToReveal = guessPlayers.length >= 2 && guessPlayers.every(player => isValidTimeInput(player.guess));
   const [activeIndex, setActiveIndex] = useState(0);
-  const [keypadOpen, setKeypadOpen] = useState(false);
+  const [keypadOpen, setKeypadOpen] = useState(true);
   const activeCardRef = useRef<HTMLButtonElement | null>(null);
-  const activePlayer = players[activeIndex] ?? players[0];
+  const activePlayer = guessPlayers[activeIndex] ?? guessPlayers[0];
   const activeGuess = activePlayer?.guess ?? '';
 
   const submitActiveGuess = useCallback(() => {
+    if (readyToReveal) {
+      onShowResults();
+      return;
+    }
     if (!activePlayer || !isValidTimeInput(activeGuess)) return;
     const formatted = Number(activeGuess).toFixed(2);
     onGuessChange(activePlayer.id, formatted);
     onGuessBlur(activePlayer.id, formatted);
-    const nextIndex = players.findIndex((player, index) => index > activeIndex && !isValidTimeInput(player.guess));
-    setActiveIndex(nextIndex === -1 ? Math.min(activeIndex + 1, players.length - 1) : nextIndex);
+    const nextIndex = guessPlayers.findIndex((player, index) => index > activeIndex && !isValidTimeInput(player.guess));
+    setActiveIndex(nextIndex === -1 ? Math.min(activeIndex + 1, guessPlayers.length - 1) : nextIndex);
     window.setTimeout(() => activeCardRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
-  }, [activeGuess, activeIndex, activePlayer, onGuessBlur, onGuessChange, players]);
+  }, [activeGuess, activeIndex, activePlayer, onGuessBlur, onGuessChange, onShowResults, readyToReveal, guessPlayers]);
+
+  useEffect(() => {
+    if (activeIndex > Math.max(0, guessPlayers.length - 1)) setActiveIndex(0);
+  }, [activeIndex, guessPlayers.length]);
 
   useEffect(() => {
     if (!keypadOpen) return;
@@ -3354,11 +3510,15 @@ function PartyGuessesScreen({
     <div className={`bg-white rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col`}>
       <div className="space-y-1.5 mb-3 shrink-0">
         <h1 className="text-3xl font-black text-slate-800">Enter Guesses</h1>
-        <p className="text-sm text-slate-500">Tap a guess box, enter a time, then Save & Next.</p>
+        <p className="text-sm text-slate-500">
+          {partyVariant === 'lastClockStanding' && tiebreakerIds.length > 0
+            ? 'Sudden death: only tied players enter this round.'
+            : 'Enter each player in order.'}
+        </p>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-2.5 pr-1">
-        {players.map((player, index) => (
+        {guessPlayers.map((player, index) => (
           <button
             key={player.id}
             ref={index === activeIndex ? activeCardRef : undefined}
@@ -3376,7 +3536,7 @@ function PartyGuessesScreen({
               </span>
 
               <span className="text-sm text-slate-400">
-                {player.score} pts
+                {partyVariant === 'lastClockStanding' ? 'Active' : `${player.score} pts`}
               </span>
             </div>
 
@@ -3395,6 +3555,14 @@ function PartyGuessesScreen({
             </div>
           </button>
         ))}
+        {eliminatedPlayers.map(player => (
+          <div key={player.id} className="w-full text-left border rounded-2xl p-3 bg-slate-100 border-slate-200 opacity-70">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-500">{player.name}</span>
+              <span className="text-xs font-black uppercase tracking-[0.16em] text-rose-500">Eliminated</span>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="space-y-2 pt-4 shrink-0 app-bottom-actions">
@@ -3410,27 +3578,131 @@ function PartyGuessesScreen({
               value={activeGuess}
               onChange={(value) => onGuessChange(activePlayer.id, sanitizeTimeInput(value))}
               onSubmit={submitActiveGuess}
-              submitDisabled={!isValidTimeInput(activeGuess)}
-              submitLabel={activeIndex >= players.length - 1 ? 'Save Guess' : 'Save & Next'}
+              submitDisabled={!readyToReveal && !isValidTimeInput(activeGuess)}
+              submitLabel={readyToReveal ? 'Show Results' : activeIndex >= guessPlayers.length - 1 ? 'Save Guess' : 'Save & Next'}
             />
           </div>
         )}
 
-        <button
-          onClick={onShowResults}
-          disabled={!atLeastOneGuessEntered}
-          className="w-full bg-teal-500 hover:bg-teal-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 shadow-lg shadow-teal-500/25 disabled:shadow-none"
-        >
-          Show Results
-        </button>
+        {!keypadOpen && (
+          <>
+            <button
+              onClick={onShowResults}
+              disabled={!readyToReveal}
+              className="w-full bg-teal-500 hover:bg-teal-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 shadow-lg shadow-teal-500/25 disabled:shadow-none"
+            >
+              {partyVariant === 'lastClockStanding' ? 'Reveal Elimination' : 'Show Results'}
+            </button>
 
-        <button
-          onClick={onGoHome}
-          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
+            <button
+              onClick={onGoHome}
+              className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Back
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PartySuspenseReveal({
+  targetTime,
+  guesses,
+  reducedMotion,
+  onComplete,
+  onTone,
+  onHaptic,
+}: {
+  targetTime: number;
+  guesses: string[];
+  reducedMotion: boolean;
+  onComplete: () => void;
+  onTone: (frequency?: number, duration?: number, volume?: number) => void;
+  onHaptic: (pattern: number | number[]) => void;
+}) {
+  const targetText = targetTime.toFixed(2);
+  const [whole, decimal = '00'] = targetText.split('.');
+  const targetTenths = Math.floor(targetTime * 10);
+  const matchingTenths = guesses.filter(guess => Math.floor(Number(guess) * 10) === targetTenths).length;
+  const suspense = matchingTenths >= 2;
+  const duration = reducedMotion ? 0 : suspense ? 3200 : 2100;
+  const [stage, setStage] = useState(reducedMotion ? 3 : 0);
+  const onCompleteRef = useRef(onComplete);
+  const onToneRef = useRef(onTone);
+  const onHapticRef = useRef(onHaptic);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onToneRef.current = onTone;
+    onHapticRef.current = onHaptic;
+  }, [onComplete, onHaptic, onTone]);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setStage(3);
+      const done = window.setTimeout(() => onCompleteRef.current(), 80);
+      return () => window.clearTimeout(done);
+    }
+
+    setStage(0);
+    const timers = [
+      window.setTimeout(() => {
+        setStage(1);
+        onToneRef.current(520, 0.045, 0.05);
+        onHapticRef.current(12);
+      }, duration * 0.24),
+      window.setTimeout(() => {
+        setStage(2);
+        onToneRef.current(650, 0.045, 0.055);
+      }, duration * (suspense ? 0.48 : 0.55)),
+      window.setTimeout(() => {
+        setStage(3);
+        onToneRef.current(880, 0.12, 0.08);
+        onHapticRef.current([25, 30, 25]);
+      }, duration),
+      window.setTimeout(() => onCompleteRef.current(), duration + 360),
+    ];
+    return () => timers.forEach(timer => window.clearTimeout(timer));
+  }, [duration, reducedMotion, suspense]);
+
+  const display = stage === 0
+    ? '--.--'
+    : stage === 1
+      ? `${whole}...`
+      : stage === 2
+        ? `${whole}.${decimal[0]}...`
+        : `${targetText}s`;
+
+  return (
+    <div className="relative overflow-visible py-3">
+      <motion.div
+        className="pointer-events-none absolute inset-0"
+        initial={reducedMotion ? false : { opacity: 0 }}
+        animate={{ opacity: stage >= 2 ? (suspense ? 0.42 : 0.28) : 0 }}
+        transition={{ duration: reducedMotion ? 0 : 0.8, ease: 'easeOut' }}
+        style={{
+          background: 'radial-gradient(ellipse 48% 38% at 50% 45%, rgba(45, 212, 191, 0.38), rgba(99, 102, 241, 0.16) 52%, transparent 100%)',
+        }}
+      />
+      <div className="relative z-10 rounded-3xl border border-teal-200/70 bg-slate-950/5 px-4 py-5 text-center">
+        <p className="text-[10px] font-black uppercase tracking-[0.28em] tg-theme-muted">
+          Secret Time
+        </p>
+        <motion.p
+          key={display}
+          initial={reducedMotion ? false : { opacity: 0.4, filter: 'blur(2px)' }}
+          animate={{ opacity: 1, filter: 'blur(0px)' }}
+          transition={{ duration: reducedMotion ? 0 : suspense && stage === 3 ? 0.55 : 0.26, ease: 'easeOut' }}
+          className="mt-2 inline-block min-w-[6.6ch] text-center text-6xl font-black text-teal-500 leading-none tracking-tight"
         >
-          <ArrowLeft className="w-5 h-5" />
-          Back
-        </button>
+          {display}
+        </motion.p>
+        {suspense && stage < 3 && (
+          <p className="mt-3 text-xs font-bold text-slate-400">This one is close...</p>
+        )}
       </div>
     </div>
   );
@@ -3439,21 +3711,35 @@ function PartyGuessesScreen({
 function PartyResultsScreen({
   targetTime,
   players,
+  partyVariant,
+  roundNumber,
+  eliminatedPlayerId,
+  tiebreakerIds,
   reducedMotion,
+  onTone,
+  onHaptic,
+  onCelebrate,
   onNextRound,
   onGoHome,
 }: {
   targetTime: number;
   players: PartyPlayer[];
+  partyVariant: PartyVariant;
+  roundNumber: number;
+  eliminatedPlayerId: string | null;
+  tiebreakerIds: string[];
   reducedMotion: boolean;
+  onTone: (frequency?: number, duration?: number, volume?: number) => void;
+  onHaptic: (pattern: number | number[]) => void;
+  onCelebrate: () => void;
   onNextRound: () => void;
   onGoHome: () => void;
 }) {
   const [showScoreboard, setShowScoreboard] = useState(false);
-  const [showSecretTime, setShowSecretTime] = useState(reducedMotion);
+  const [revealComplete, setRevealComplete] = useState(reducedMotion);
 
   const rankedPlayers = [...players]
-    .filter(player => isValidTimeInput(player.guess))
+    .filter(player => (!player.eliminated || player.id === eliminatedPlayerId) && isValidTimeInput(player.guess))
     .map(player => ({
       ...player,
       distance: Math.abs(parseFloat(player.guess) - targetTime),
@@ -3469,75 +3755,138 @@ function PartyResultsScreen({
   const isTie = winners.length > 1;
   const spotOnPlayers = rankedPlayers.filter(player => player.distance < 0.005);
   const hasSpotOn = spotOnPlayers.length > 0;
-
-  const sortedScoreboard = [...players].sort((a, b) => b.score - a.score);
+  const eliminatedPlayer = eliminatedPlayerId
+    ? players.find(player => player.id === eliminatedPlayerId)
+    : null;
+  const isSuddenDeath = partyVariant === 'lastClockStanding' && tiebreakerIds.length > 1 && !eliminatedPlayerId;
+  const remainingPlayers = players.filter(player => !player.eliminated);
+  const lastClockWinner = partyVariant === 'lastClockStanding' && remainingPlayers.length === 1
+    ? remainingPlayers[0]
+    : null;
+  const sortedScoreboard = [...players].sort((a, b) => {
+    if (partyVariant === 'lastClockStanding') {
+      if (!!a.eliminated !== !!b.eliminated) return a.eliminated ? 1 : -1;
+      return (a.eliminatedRound ?? 999) - (b.eliminatedRound ?? 999);
+    }
+    return b.score - a.score;
+  });
 
   useEffect(() => {
-    if (showScoreboard || reducedMotion) {
-      setShowSecretTime(true);
-      return;
-    }
+    setRevealComplete(reducedMotion);
+  }, [reducedMotion, targetTime]);
 
-    setShowSecretTime(false);
-    const timer = window.setTimeout(() => setShowSecretTime(true), 220);
-    return () => window.clearTimeout(timer);
-  }, [reducedMotion, showScoreboard, targetTime]);
+  useEffect(() => {
+    if (lastClockWinner && revealComplete) {
+      onCelebrate();
+      onHaptic([35, 45, 60, 45, 75]);
+    }
+  }, [lastClockWinner, onCelebrate, onHaptic, revealComplete]);
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
-      {!showScoreboard && hasSpotOn && (
+    <div className={`bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
+      {revealComplete && (hasSpotOn || lastClockWinner) && (
         <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
       )}
-      <div className="space-y-2 mb-5">
+      <div className="space-y-2 mb-4 shrink-0">
         <div className="flex justify-center">
           <div className="w-14 h-14 bg-teal-500 rounded-2xl flex items-center justify-center">
             <Trophy className="w-8 h-8 text-white" />
           </div>
         </div>
 
-        <h1 className={`text-3xl font-black relative z-10 ${hasSpotOn && !showScoreboard ? 'text-yellow-500' : 'text-slate-800'}`}>
-          {showScoreboard ? 'Scoreboard' : isTie ? "It's a tie!" : `${winners[0]?.name} wins!`}
+        <h1 className={`text-3xl font-black relative z-10 ${hasSpotOn && revealComplete && !showScoreboard ? 'text-yellow-500' : 'text-slate-800'}`}>
+          {!revealComplete && !showScoreboard
+            ? 'Secret Time'
+            : lastClockWinner
+              ? 'Last Clock Standing'
+              : showScoreboard
+                ? 'Scoreboard'
+                : isSuddenDeath
+                  ? 'Sudden Death'
+                  : isTie
+                    ? "It's a tie!"
+                    : `${winners[0]?.name} wins!`}
         </h1>
+        {revealComplete && lastClockWinner && (
+          <div>
+            <p className="text-2xl font-black text-teal-600">{lastClockWinner.name} wins!</p>
+            <p className="text-sm font-bold text-slate-500">Survived {roundNumber} rounds</p>
+          </div>
+        )}
+      </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-3 pr-1">
         {!showScoreboard && (
-          <div className="flip-scene h-24">
-            <div className={`flip-card relative h-full ${showSecretTime ? 'is-flipped' : ''}`}>
-              <div className="flip-face absolute inset-0 bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 flex flex-col items-center justify-center">
-                <p className="text-slate-400 text-xs font-semibold uppercase tracking-[0.2em]">
-                  Secret Time
-                </p>
-                <p className="text-3xl font-black text-slate-500 tracking-widest">
-                  ? ? ?
-                </p>
+          <PartySuspenseReveal
+            targetTime={targetTime}
+            guesses={rankedPlayers.map(player => player.guess)}
+            reducedMotion={reducedMotion}
+            onComplete={() => setRevealComplete(true)}
+            onTone={onTone}
+            onHaptic={onHaptic}
+          />
+        )}
+
+        {!showScoreboard && revealComplete && isSuddenDeath && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-600">Tiebreaker</p>
+            <p className="text-lg font-black text-slate-800">No elimination yet</p>
+            <p className="text-sm font-bold text-slate-500">
+              {tiebreakerIds
+                .map(id => players.find(player => player.id === id)?.name)
+                .filter(Boolean)
+                .join(' vs ')} go to sudden death.
+            </p>
+          </div>
+        )}
+
+        {!showScoreboard && revealComplete && partyVariant === 'lastClockStanding' && !isSuddenDeath && (
+          <div className="grid grid-cols-1 gap-2">
+            {eliminatedPlayer && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-600">Eliminated</p>
+                <p className="text-xl font-black text-slate-800">{eliminatedPlayer.name}</p>
+                <p className="text-sm font-bold text-slate-500">Round {roundNumber}</p>
               </div>
-              <div className="flip-face flip-back absolute inset-0 bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 flex flex-col items-center justify-center">
-                <p className="text-slate-400 text-xs font-semibold uppercase tracking-[0.2em]">
-                  Secret Time
-                </p>
-                <p className="text-3xl font-black text-teal-600">
-                  {targetTime.toFixed(2)}s
-                </p>
+            )}
+            {winners[0] && (
+              <div className="rounded-2xl border border-teal-200 bg-teal-50 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-600">Closest</p>
+                <p className="text-xl font-black text-slate-800">{winners[0].name}</p>
+                <p className="text-sm font-bold text-slate-500">{winningDistance.toFixed(2)}s off</p>
               </div>
+            )}
+          </div>
+        )}
+
+        {!showScoreboard && revealComplete && lastClockWinner && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-left">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-600 mb-2">Final Leaderboard</p>
+            <div className="space-y-1.5">
+              {sortedScoreboard.map((player, index) => (
+                <div key={player.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-black text-slate-600">#{index + 1} {player.name}</span>
+                  <span className={`font-black ${player.eliminated ? 'text-rose-500' : 'text-teal-600'}`}>
+                    {player.eliminated ? `Out R${player.eliminatedRound ?? '-'}` : 'Winner'}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-        {showScoreboard && (
-          <p className="text-slate-500">
-            Current party standings
-          </p>
-        )}
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-2 pr-1">
         {!showScoreboard &&
+          revealComplete &&
           rankedPlayers.map((player, index) => {
             const tiedWinner = Math.abs(player.distance - winningDistance) <= 0.005;
             const spotOn = player.distance < 0.005;
 
             return (
-              <div
+              <motion.div
                 key={player.id}
+                initial={reducedMotion ? false : { opacity: 0, y: -8, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: reducedMotion ? 0 : 0.28, delay: reducedMotion ? 0 : index * 0.16, ease: 'easeOut' }}
                 className={`rounded-2xl px-4 py-3 border flex items-center justify-between ${
                   tiedWinner
                     ? 'bg-teal-50 border-teal-200'
@@ -3559,7 +3908,7 @@ function PartyResultsScreen({
                     </p>
 
                     <p className="text-sm text-slate-400">
-                      Guessed {parseFloat(player.guess).toFixed(2)}s
+                      Entry {parseFloat(player.guess).toFixed(2)}s
                     </p>
                   </div>
                 </div>
@@ -3571,7 +3920,7 @@ function PartyResultsScreen({
 
                   {!spotOn && <p className="text-xs text-slate-400">off</p>}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
 
@@ -3579,7 +3928,9 @@ function PartyResultsScreen({
           sortedScoreboard.map((player, index) => (
             <div
               key={player.id}
-              className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 flex items-center justify-between"
+              className={`rounded-2xl px-4 py-4 flex items-center justify-between border ${
+                player.eliminated ? 'bg-slate-100 border-slate-200 opacity-70' : 'bg-teal-50 border-teal-200'
+              }`}
             >
               <div className="flex items-center gap-3 text-left">
                 <div className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-500">
@@ -3591,29 +3942,41 @@ function PartyResultsScreen({
                 </p>
               </div>
 
-              <p className="font-black text-teal-600">
-                {player.score} pts
-              </p>
+              {partyVariant === 'lastClockStanding' ? (
+                <p className={`font-black ${player.eliminated ? 'text-rose-500' : 'text-teal-600'}`}>
+                  {player.eliminated ? `Out R${player.eliminatedRound ?? '-'}` : 'Active'}
+                </p>
+              ) : (
+                <p className="font-black text-teal-600">
+                  {player.score} pts
+                </p>
+              )}
             </div>
           ))}
       </div>
 
       <div className="space-y-3 pt-5 shrink-0 app-bottom-actions">
-        <button
-          onClick={onNextRound}
-          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
-        >
-          <ArrowRight className="w-5 h-5" />
-          Next Round
-        </button>
+        {revealComplete && (
+          <>
+            {!lastClockWinner && (
+              <button
+                onClick={onNextRound}
+                className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
+              >
+                <ArrowRight className="w-5 h-5" />
+                {isSuddenDeath ? 'Start Sudden Death' : partyVariant === 'lastClockStanding' ? 'Next Elimination Round' : 'Next Round'}
+              </button>
+            )}
 
-        <button
-          onClick={() => setShowScoreboard(prev => !prev)}
-          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
-        >
-          <Trophy className="w-5 h-5" />
-          {showScoreboard ? 'Round Results' : 'Scoreboard'}
-        </button>
+            <button
+              onClick={() => setShowScoreboard(prev => !prev)}
+              className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <Trophy className="w-5 h-5" />
+              {showScoreboard ? 'Round Results' : 'Standings'}
+            </button>
+          </>
+        )}
 
         <button
           onClick={onGoHome}
@@ -3914,25 +4277,41 @@ function RevealScreen({
               </div>
             )}
 
-            <div className="flex-1 min-h-0 overflow-y-auto result-scroll space-y-3 sm:space-y-5 relative z-10 pb-3">
+            <div className={`flex-1 min-h-0 relative z-10 pb-3 flex flex-col ${
+              showCinematic && !cinematicComplete
+                ? 'justify-center overflow-visible'
+                : 'overflow-y-auto result-scroll gap-3 sm:gap-5'
+            }`}>
               {showCinematic && (
-                <CinematicReveal
-                  key={`${mode}-${playerGuess}-${targetTime}`}
-                  targetTime={targetTime}
-                  playerGuess={parseFloat(playerGuess)}
-                  error={guessDistance}
-                  mode={mode}
-                  reducedMotion={reducedMotion || revealAlreadyPlayed}
-                  trollPresentationLevel={trollPresentationLevel}
-                  onComplete={handleCinematicComplete}
-                  onTone={onTone}
-                  onHaptic={onHaptic}
-                  onCelebrate={onCelebrate}
-                />
+                <motion.div
+                  layout={!reducedMotion}
+                  animate={{ scale: cinematicComplete ? 0.96 : 1.16 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.48, ease: [0.16, 1, 0.3, 1] }}
+                  className="w-full shrink-0 origin-center"
+                >
+                  <CinematicReveal
+                    key={`${mode}-${playerGuess}-${targetTime}`}
+                    targetTime={targetTime}
+                    playerGuess={parseFloat(playerGuess)}
+                    error={guessDistance}
+                    mode={mode}
+                    reducedMotion={reducedMotion || revealAlreadyPlayed}
+                    trollPresentationLevel={trollPresentationLevel}
+                    onComplete={handleCinematicComplete}
+                    onTone={onTone}
+                    onHaptic={onHaptic}
+                    onCelebrate={onCelebrate}
+                  />
+                </motion.div>
               )}
 
               {(!showCinematic || cinematicComplete) && (
-                <>
+                <motion.div
+                  initial={showCinematic && !reducedMotion ? { opacity: 0, y: 16 } : false}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.38, ease: 'easeOut' }}
+                  className="flex flex-col gap-3 sm:gap-5"
+                >
                   {!showCinematic && (
                     <>
                       <div>
@@ -4065,7 +4444,7 @@ function RevealScreen({
                   <p className="text-xs font-bold text-slate-500">Tomorrow's Clock Rating bonus: +{nextDailyReward} · Next challenge in {dailyCountdown}</p>
                 </div>
               )}
-                </>
+                </motion.div>
               )}
             </div>
             {(!showCinematic || cinematicComplete) && (
@@ -4285,21 +4664,21 @@ function CinematicReveal({
           ? 0.48
           : 1;
   const revealGlowIntensity = closeGlowCloseness * trollGlowMultiplier;
-  const revealGlowAlpha = 0.12 + revealGlowIntensity * 0.44;
+  const revealGlowAlpha = 0.1 + revealGlowIntensity * 0.5;
   const revealGlowDuration = reducedMotion ? 0 : Math.max(0.9, Math.min(1.9, durationMs / 1200));
 
   return (
-    <div className={`cinematic-reveal relative overflow-visible px-2 py-3 sm:px-3 sm:py-4 ${glowClasses} ${trollDegradeClass}`}>
+    <div className={`cinematic-reveal relative overflow-visible px-2 py-8 sm:px-3 sm:py-10 ${glowClasses} ${trollDegradeClass}`}>
       {revealGlowIntensity > 0 && (
         <motion.div
-          className="pointer-events-none absolute inset-0"
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2"
           initial={reducedMotion ? false : { opacity: 0 }}
           animate={{
             opacity: stage >= 1 ? revealGlowIntensity : 0,
           }}
           transition={{ duration: revealGlowDuration, ease: 'easeOut' }}
           style={{
-            background: `radial-gradient(ellipse 46% 38% at 50% 42%, rgba(250, 204, 21, ${revealGlowAlpha}) 0%, rgba(245, 158, 11, ${revealGlowAlpha * 0.5}) 42%, rgba(250, 204, 21, ${revealGlowAlpha * 0.16}) 68%, transparent 100%)`,
+            background: `radial-gradient(circle at 50% 48%, rgba(250, 204, 21, ${revealGlowAlpha}) 0%, rgba(245, 158, 11, ${revealGlowAlpha * 0.58}) 18%, rgba(20, 184, 166, ${revealGlowAlpha * 0.18}) 34%, rgba(250, 204, 21, ${revealGlowAlpha * 0.06}) 48%, transparent 64%)`,
           }}
           aria-hidden="true"
         />

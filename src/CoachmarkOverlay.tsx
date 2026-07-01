@@ -123,9 +123,10 @@ export default function CoachmarkOverlay({
       ? Math.min(window.innerHeight - safeBottom - 212, padded.top + padded.height + 18)
       : Math.max(safeTop, padded.top - 194)
     : Math.max(safeTop, window.innerHeight * 0.5 - 96);
+  const bubbleWidth = Math.min(320, window.innerWidth - 28);
   const bubbleLeft = Math.min(
-    window.innerWidth - 340,
-    Math.max(14, (padded ? padded.left + padded.width / 2 : window.innerWidth / 2) - 160)
+    window.innerWidth - bubbleWidth - 14,
+    Math.max(14, (padded ? padded.left + padded.width / 2 : window.innerWidth / 2) - bubbleWidth / 2)
   );
 
   return (
@@ -175,8 +176,8 @@ export default function CoachmarkOverlay({
 
         <motion.div
           key={`${guide.id}-${stepIndex}`}
-          className="fixed w-[min(20rem,calc(100vw-1.75rem))] rounded-3xl border border-white/15 bg-white p-4 text-left shadow-2xl"
-          style={{ top: bubbleTop, left: bubbleLeft }}
+          className="fixed rounded-3xl border border-white/15 bg-white p-4 text-left shadow-2xl"
+          style={{ top: bubbleTop, left: bubbleLeft, width: bubbleWidth }}
           initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: bubbleBelow ? 12 : -12, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: bubbleBelow ? -10 : 10, scale: 0.98 }}
