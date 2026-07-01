@@ -1755,7 +1755,7 @@ function App() {
   const spotOnCount = ranked.filter(player => player.distance < 0.005).length;
   if (spotOnCount > 0) {
     recordSpotOns(spotOnCount);
-    playCelebration();
+    playTone(980, 0.1, 0.08);
   }
   else playTone(780, 0.12);
   vibrate([30, 40, 30]);
@@ -2068,7 +2068,7 @@ function App() {
             onHaptic={vibrate}
             onCelebrate={playCelebration}
             onNextRound={startPartyRound}
-            onGoHome={showTimeGuesser}
+            onGoHome={openPartySetup}
           />
         )}
 
@@ -3737,6 +3737,7 @@ function PartyResultsScreen({
 }) {
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [revealComplete, setRevealComplete] = useState(reducedMotion);
+  const partySpotOnCelebratedRef = useRef(false);
 
   const rankedPlayers = [...players]
     .filter(player => (!player.eliminated || player.id === eliminatedPlayerId) && isValidTimeInput(player.guess))
@@ -3755,6 +3756,7 @@ function PartyResultsScreen({
   const isTie = winners.length > 1;
   const spotOnPlayers = rankedPlayers.filter(player => player.distance < 0.005);
   const hasSpotOn = spotOnPlayers.length > 0;
+  const spotOnNames = spotOnPlayers.map(player => player.name).join(', ');
   const eliminatedPlayer = eliminatedPlayerId
     ? players.find(player => player.id === eliminatedPlayerId)
     : null;
@@ -3773,14 +3775,20 @@ function PartyResultsScreen({
 
   useEffect(() => {
     setRevealComplete(reducedMotion);
+    partySpotOnCelebratedRef.current = false;
   }, [reducedMotion, targetTime]);
 
   useEffect(() => {
+    if (hasSpotOn && revealComplete && !partySpotOnCelebratedRef.current) {
+      partySpotOnCelebratedRef.current = true;
+      onCelebrate();
+      onHaptic([30, 35, 55, 35, 70]);
+    }
     if (lastClockWinner && revealComplete) {
       onCelebrate();
       onHaptic([35, 45, 60, 45, 75]);
     }
-  }, [lastClockWinner, onCelebrate, onHaptic, revealComplete]);
+  }, [hasSpotOn, lastClockWinner, onCelebrate, onHaptic, revealComplete]);
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
@@ -3840,6 +3848,29 @@ function PartyResultsScreen({
           </div>
         )}
 
+        {!showScoreboard && revealComplete && hasSpotOn && (
+          <motion.div
+            initial={reducedMotion ? false : { opacity: 0, y: 12, scale: 0.92 }}
+            animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: [1, 1.04, 1] }}
+            transition={{ duration: reducedMotion ? 0 : 0.48, ease: [0.16, 1, 0.3, 1] }}
+            className="relative overflow-hidden rounded-3xl border-2 border-yellow-300 bg-gradient-to-br from-yellow-100 via-amber-50 to-white p-4 shadow-xl shadow-yellow-500/20"
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(250,204,21,0.32),transparent_55%)]" aria-hidden="true" />
+            <div className="relative z-10">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-600">Perfect Timing</p>
+              <p className="mt-1 text-3xl font-black leading-none text-yellow-500 drop-shadow-[0_0_16px_rgba(250,204,21,0.35)]">
+                SPOT ON!
+              </p>
+              <p className="mt-2 text-lg font-black text-slate-800">
+                {spotOnNames}
+              </p>
+              <p className="text-sm font-bold text-slate-500">
+                Hit the secret time exactly.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         {!showScoreboard && revealComplete && partyVariant === 'lastClockStanding' && !isSuddenDeath && (
           <div className="grid grid-cols-1 gap-2">
             {eliminatedPlayer && (
@@ -3888,27 +3919,31 @@ function PartyResultsScreen({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: reducedMotion ? 0 : 0.28, delay: reducedMotion ? 0 : index * 0.16, ease: 'easeOut' }}
                 className={`rounded-2xl px-4 py-3 border flex items-center justify-between ${
-                  tiedWinner
+                  spotOn
+                    ? 'bg-gradient-to-r from-yellow-100 via-amber-50 to-white border-yellow-300 shadow-lg shadow-yellow-500/15'
+                    : tiedWinner
                     ? 'bg-teal-50 border-teal-200'
                     : 'bg-white border-slate-200'
                 }`}
               >
                 <div className="flex items-center gap-3 text-left">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black ${
-                    tiedWinner
+                    spotOn
+                      ? 'bg-yellow-400 text-slate-950 shadow-lg shadow-yellow-400/40'
+                      : tiedWinner
                       ? 'bg-teal-500 text-white'
                       : 'bg-slate-100 text-slate-500'
                   }`}>
-                    {tiedWinner ? 1 : index + 1}
+                    {spotOn ? '★' : tiedWinner ? 1 : index + 1}
                   </div>
 
                   <div>
-                    <p className={`font-bold ${spotOn ? 'text-yellow-500' : 'text-slate-800'}`}>
+                    <p className={`font-black ${spotOn ? 'text-yellow-500 drop-shadow-[0_0_10px_rgba(250,204,21,0.35)]' : 'text-slate-800'}`}>
                       {player.name}
                     </p>
 
-                    <p className="text-sm text-slate-400">
-                      Entry {parseFloat(player.guess).toFixed(2)}s
+                    <p className={`text-sm ${spotOn ? 'font-bold text-amber-600' : 'text-slate-400'}`}>
+                      {spotOn ? 'Perfect entry' : 'Entry'} {parseFloat(player.guess).toFixed(2)}s
                     </p>
                   </div>
                 </div>
@@ -4278,14 +4313,14 @@ function RevealScreen({
             )}
 
             <div className={`flex-1 min-h-0 relative z-10 pb-3 flex flex-col ${
-              showCinematic && !cinematicComplete
-                ? 'justify-center overflow-visible'
+              showCinematic && (!cinematicComplete || isTroll)
+                ? 'justify-center overflow-hidden'
                 : 'overflow-y-auto result-scroll gap-3 sm:gap-5'
             }`}>
               {showCinematic && (
                 <motion.div
                   layout={!reducedMotion}
-                  animate={{ scale: cinematicComplete ? 0.96 : 1.16 }}
+                  animate={{ scale: cinematicComplete ? (isTroll ? 1.16 : 1.06) : 1.16 }}
                   transition={{ duration: reducedMotion ? 0 : 0.48, ease: [0.16, 1, 0.3, 1] }}
                   className="w-full shrink-0 origin-center"
                 >
@@ -4620,13 +4655,6 @@ function CinematicReveal({
     return () => timers.forEach(timer => window.clearTimeout(timer));
   }, [decimalSuspense, durationMs, isTroll, quality, reducedMotion, trollPresentationLevel]);
 
-  const glowClasses = {
-    normal: '',
-    good: 'drop-shadow-[0_0_18px_rgba(20,184,166,0.16)]',
-    great: 'drop-shadow-[0_0_22px_rgba(6,182,212,0.2)]',
-    amazing: 'drop-shadow-[0_0_26px_rgba(245,158,11,0.28)]',
-    spotOn: 'drop-shadow-[0_0_32px_rgba(234,179,8,0.38)]',
-  }[quality];
   const trollDegradeClass = !isTroll ? '' :
     trollPresentationLevel >= 5 ? 'grayscale opacity-70 saturate-0' :
     trollPresentationLevel >= 4 ? 'grayscale-[0.85] saturate-[0.25] opacity-80' :
@@ -4664,25 +4692,25 @@ function CinematicReveal({
           ? 0.48
           : 1;
   const revealGlowIntensity = closeGlowCloseness * trollGlowMultiplier;
-  const revealGlowAlpha = 0.1 + revealGlowIntensity * 0.5;
-  const revealGlowDuration = reducedMotion ? 0 : Math.max(0.9, Math.min(1.9, durationMs / 1200));
+  const targetGlowStyle = revealGlowIntensity > 0
+    ? {
+        textShadow: [
+          `0 0 ${10 + revealGlowIntensity * 18}px rgba(45, 212, 191, ${0.2 + revealGlowIntensity * 0.28})`,
+          `0 0 ${18 + revealGlowIntensity * 30}px rgba(250, 204, 21, ${0.12 + revealGlowIntensity * 0.2})`,
+        ].join(', '),
+      }
+    : undefined;
+  const resultGlowStyle = revealGlowIntensity > 0
+    ? {
+        textShadow: [
+          `0 0 ${12 + revealGlowIntensity * 22}px rgba(250, 204, 21, ${0.26 + revealGlowIntensity * 0.32})`,
+          `0 0 ${24 + revealGlowIntensity * 42}px rgba(245, 158, 11, ${0.12 + revealGlowIntensity * 0.22})`,
+        ].join(', '),
+      }
+    : undefined;
 
   return (
-    <div className={`cinematic-reveal relative overflow-visible px-2 py-8 sm:px-3 sm:py-10 ${glowClasses} ${trollDegradeClass}`}>
-      {revealGlowIntensity > 0 && (
-        <motion.div
-          className="pointer-events-none absolute left-1/2 top-1/2 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2"
-          initial={reducedMotion ? false : { opacity: 0 }}
-          animate={{
-            opacity: stage >= 1 ? revealGlowIntensity : 0,
-          }}
-          transition={{ duration: revealGlowDuration, ease: 'easeOut' }}
-          style={{
-            background: `radial-gradient(circle at 50% 48%, rgba(250, 204, 21, ${revealGlowAlpha}) 0%, rgba(245, 158, 11, ${revealGlowAlpha * 0.58}) 18%, rgba(20, 184, 166, ${revealGlowAlpha * 0.18}) 34%, rgba(250, 204, 21, ${revealGlowAlpha * 0.06}) 48%, transparent 64%)`,
-          }}
-          aria-hidden="true"
-        />
-      )}
+    <div className={`cinematic-reveal relative overflow-visible px-2 py-8 sm:px-3 sm:py-10 ${trollDegradeClass}`}>
       <div className="relative z-10 min-h-[13.25rem] grid grid-rows-[3.45rem_6.15rem_3.15rem] items-center justify-items-center gap-1">
         <motion.div
           initial={reducedMotion ? false : { scale: 1.02, opacity: 0 }}
@@ -4717,6 +4745,7 @@ function CinematicReveal({
             animate={{ opacity: 1, filter: 'blur(0px)' }}
             transition={{ duration: reducedMotion ? 0 : decimalSuspense && stage === 3 ? 0.5 : 0.24, ease: 'easeOut' }}
             className={`mt-0.5 inline-block min-w-[6.6ch] text-center text-5xl sm:text-6xl font-black ${targetColorClass} leading-none tracking-tight`}
+            style={targetGlowStyle}
           >
             {targetDisplay}
           </motion.p>
@@ -4733,7 +4762,7 @@ function CinematicReveal({
                 transition={{ duration: reducedMotion ? 0 : quality === 'spotOn' ? 0.55 : 0.28, ease: [0.16, 1, 0.3, 1] }}
                 className="text-center"
               >
-                <p className={`text-3xl sm:text-4xl font-black leading-none ${resultTextClasses}`}>
+                <p className={`text-3xl sm:text-4xl font-black leading-none ${resultTextClasses}`} style={resultGlowStyle}>
                   {copy.title}
                 </p>
                 {copy.subtitle && (
