@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Heart, Lock, RotateCcw, ShieldAlert, Skull, Sparkles } from 'lucide-react';
 import { triggerHaptic } from './haptics';
+import { type DesktopShellAction } from './AppShells';
 
 const CARD_HEIGHT = 'app-card';
 
@@ -50,6 +51,8 @@ export default function HardcoreMode({
   haptics,
   reducedMotion,
   nativeControls,
+  desktopMode = false,
+  onDesktopActionChange,
   onTimingChange,
   onHelpVisibilityChange,
   onBestScoreChange,
@@ -61,6 +64,8 @@ export default function HardcoreMode({
   haptics: boolean;
   reducedMotion: boolean;
   nativeControls: boolean;
+  desktopMode?: boolean;
+  onDesktopActionChange?: (action: DesktopShellAction | null) => void;
   onTimingChange: (active: boolean) => void;
   onHelpVisibilityChange: (visible: boolean) => void;
   onBestScoreChange: (difficulty: HardcoreDifficulty, score: number) => void;
@@ -167,6 +172,20 @@ export default function HardcoreMode({
   };
 
   useEffect(() => {
+    if (!desktopMode || !onDesktopActionChange) return undefined;
+    if (phase === 'select') {
+      onDesktopActionChange(null);
+      return undefined;
+    }
+    onDesktopActionChange({
+      label: 'Change Difficulty',
+      icon: 'hardcore',
+      onClick: changeDifficulty,
+    });
+    return () => onDesktopActionChange(null);
+  }, [desktopMode, onDesktopActionChange, phase]);
+
+  useEffect(() => {
     const handleSpace = (event: KeyboardEvent) => {
       if (event.code !== 'Space' || event.repeat) return;
       const activeTag = document.activeElement?.tagName;
@@ -217,7 +236,7 @@ export default function HardcoreMode({
   const inRun = phase !== 'select';
 
   return (
-    <div className={`${screenTheme} relative rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col ${inRun && difficulty !== 'easy' ? 'text-white' : ''}`}>
+    <div className={`hardcore-mode-card ${screenTheme} relative rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col ${inRun && difficulty !== 'easy' ? 'text-white' : ''}`}>
       <div className="text-center space-y-1 mb-3">
         <div className="w-14 h-14 mx-auto rounded-2xl bg-red-600 flex items-center justify-center text-white"><Skull className="w-8 h-8" /></div>
         <h1 className="text-3xl font-black">Hardcore Mode</h1>
@@ -373,16 +392,16 @@ export default function HardcoreMode({
         <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
       )}
       <div className="mt-3 shrink-0 space-y-2 app-bottom-actions">
-        {phase !== 'select' && (
+        {phase !== 'select' && !desktopMode && (
           <button onClick={changeDifficulty} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-500 text-white font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
             <ShieldAlert className="w-5 h-5" />
             Change Difficulty
           </button>
         )}
-        <button data-guide-id="hardcore-all-games" onClick={onBack} className="w-full app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
+        {!desktopMode && <button data-guide-id="hardcore-all-games" onClick={onBack} className="w-full app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors">
           <ArrowLeft className="w-5 h-5" />
           All Games
-        </button>
+        </button>}
       </div>
     </div>
   );

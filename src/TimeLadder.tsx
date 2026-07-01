@@ -26,6 +26,7 @@ export default function TimeLadder({
   haptics,
   reducedMotion,
   nativeControls,
+  desktopMode = false,
   onTimingChange,
   onBestLevelChange,
   onSpotOn,
@@ -36,6 +37,7 @@ export default function TimeLadder({
   haptics: boolean;
   reducedMotion: boolean;
   nativeControls: boolean;
+  desktopMode?: boolean;
   onTimingChange: (active: boolean) => void;
   onBestLevelChange: (level: number) => void;
   onSpotOn: () => void;
@@ -205,7 +207,7 @@ export default function TimeLadder({
   const difference = elapsed === null ? null : Math.abs(elapsed - level);
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-5 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
+    <div className={`time-ladder-card bg-white rounded-3xl shadow-xl p-5 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
       <div className="text-center space-y-0.5 mb-1">
         <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500 flex items-center justify-center"><LadderIcon className="w-8 h-8 text-white" /></div>
         <h1 className="text-2xl font-black text-slate-800">Time Ladder</h1>
@@ -312,9 +314,9 @@ export default function TimeLadder({
         </motion.button>
       </div>
 
-      <button onClick={onBack} className="mt-3 w-full shrink-0 app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors app-bottom-actions">
+      {!desktopMode && <button onClick={onBack} className="mt-3 w-full shrink-0 app-secondary-action font-black py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors app-bottom-actions">
         <ArrowLeft className="w-5 h-5" />All Games
-      </button>
+      </button>}
 
       {phase === 'result' && difference !== null && difference < 0.005 && (
         <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
@@ -332,7 +334,7 @@ export default function TimeLadder({
           <p className="text-indigo-100 mt-3 relative z-10">All 20 levels. No misses. That is seriously impressive.</p>
           <button onClick={continueRun} className="mt-8 w-44 h-44 rounded-full bg-yellow-400 hover:bg-yellow-300 text-slate-950 text-xl font-black shadow-2xl shadow-yellow-400/30 relative z-10">CLIMB AGAIN</button>
           <button onClick={() => setCompleted(false)} className="mt-4 text-sm font-black text-white/90 hover:text-white relative z-10">Review Run</button>
-          <button onClick={onBack} className="mt-5 text-sm font-black text-white/80 hover:text-white relative z-10">All Games</button>
+          {!desktopMode && <button onClick={onBack} className="mt-5 text-sm font-black text-white/80 hover:text-white relative z-10">All Games</button>}
         </div>
       )}
     </div>

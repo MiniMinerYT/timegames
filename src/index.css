@@ -375,6 +375,850 @@ button {
   }
 }
 
+@media (hover: hover) and (pointer: fine) and (min-width: 1024px) {
+  .app-viewport.desktop-layout {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: clamp(1rem, 1.8vw, 2rem);
+  }
+
+  .app-viewport.desktop-layout .app-shell.desktop-shell {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: clamp(0.9rem, 1.5vw, 1.4rem);
+    align-items: stretch;
+  }
+
+  .desktop-topbar {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(18rem, 1fr) auto minmax(18rem, 1fr);
+    align-items: center;
+    height: 4.75rem;
+    min-height: 4.75rem;
+    gap: 1rem;
+    color: #e2e8f0;
+    border: 1px solid rgb(148 163 184 / 16%);
+    border-radius: 1.5rem;
+    padding: 0.75rem 0.9rem;
+    background:
+      linear-gradient(135deg, rgb(15 23 42 / 84%), rgb(2 6 23 / 72%)),
+      radial-gradient(circle at 20% 0%, rgb(20 184 166 / 16%), transparent 34%);
+    box-shadow: 0 24px 60px rgb(2 6 23 / 22%);
+    backdrop-filter: blur(18px);
+  }
+
+  .desktop-topbar-left {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.6rem;
+    overflow: hidden;
+  }
+
+  .desktop-topbar-brand,
+  .desktop-topbar-actions,
+  .desktop-rating-pill,
+  .desktop-back-button,
+  .desktop-action-button,
+  .desktop-icon-button {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .desktop-topbar-brand {
+    justify-content: center;
+    gap: 0.85rem;
+    min-width: 0;
+    max-width: min(44vw, 34rem);
+    text-align: left;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    border-radius: 1.2rem;
+    padding: 0.25rem 0.7rem;
+    transition: transform 160ms ease, background 160ms ease;
+  }
+
+  .desktop-topbar-brand:hover {
+    transform: translateY(-1px);
+    background: rgb(255 255 255 / 7%);
+  }
+
+  .desktop-topbar-logo,
+  .desktop-game-card-icon {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .desktop-topbar-logo {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 1rem;
+    background: #14b8a6;
+    box-shadow: 0 18px 40px rgb(20 184 166 / 24%);
+    transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    animation: desktop-context-in 360ms ease both;
+  }
+
+  .desktop-topbar-brand-teal .desktop-topbar-logo {
+    background: #14b8a6;
+    box-shadow: 0 18px 40px rgb(20 184 166 / 24%);
+  }
+
+  .desktop-topbar-brand-emerald .desktop-topbar-logo {
+    background: #10b981;
+    box-shadow: 0 18px 40px rgb(16 185 129 / 24%);
+  }
+
+  .desktop-topbar-brand-rose .desktop-topbar-logo {
+    background: #f43f5e;
+    box-shadow: 0 18px 40px rgb(244 63 94 / 24%);
+  }
+
+  .desktop-topbar-brand-indigo .desktop-topbar-logo {
+    background: #6366f1;
+    box-shadow: 0 18px 40px rgb(99 102 241 / 24%);
+  }
+
+  .desktop-topbar-brand-red .desktop-topbar-logo {
+    background: #dc2626;
+    box-shadow: 0 18px 40px rgb(220 38 38 / 24%);
+  }
+
+  .desktop-topbar-brand-cyan .desktop-topbar-logo {
+    background: #0891b2;
+    box-shadow: 0 18px 40px rgb(8 145 178 / 24%);
+  }
+
+  .desktop-topbar-brand-slate .desktop-topbar-logo {
+    background: #334155;
+    box-shadow: 0 18px 40px rgb(15 23 42 / 28%);
+  }
+
+  .desktop-topbar-brand-yellow .desktop-topbar-logo {
+    background: #f59e0b;
+    box-shadow: 0 18px 40px rgb(245 158 11 / 24%);
+  }
+
+  .desktop-topbar-title {
+    color: #fff;
+    font-size: 1.35rem;
+    line-height: 1;
+    font-weight: 950;
+  }
+
+  .desktop-topbar-subtitle {
+    margin-top: 0.25rem;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
+
+  .desktop-topbar-actions {
+    gap: 0.6rem;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .desktop-topbar-context-group {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    overflow: hidden;
+  }
+
+  .desktop-context-detail {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    flex: 0 1 auto;
+    max-width: min(20rem, 30vw);
+    min-height: 2.75rem;
+    border: 1px solid rgb(45 212 191 / 24%);
+    border-radius: 999px;
+    padding: 0.35rem 0.95rem;
+    color: #ccfbf1;
+    background: linear-gradient(135deg, rgb(20 184 166 / 18%), rgb(15 23 42 / 28%));
+    box-shadow: 0 14px 32px rgb(20 184 166 / 10%);
+    font-size: 0.78rem;
+    font-weight: 950;
+    animation: desktop-context-in 360ms ease both;
+  }
+
+  .desktop-context-detail-positive {
+    border-color: rgb(45 212 191 / 34%);
+    color: #ccfbf1;
+    background: linear-gradient(135deg, rgb(20 184 166 / 24%), rgb(15 23 42 / 30%));
+  }
+
+  .desktop-context-detail-negative {
+    border-color: rgb(244 63 94 / 34%);
+    color: #ffe4e6;
+    background: linear-gradient(135deg, rgb(244 63 94 / 22%), rgb(15 23 42 / 30%));
+  }
+
+  .desktop-context-detail-text {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    line-height: 1.05;
+  }
+
+  .desktop-context-detail-text span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-context-detail-text span + span {
+    margin-top: 0.18rem;
+    color: rgb(226 232 240 / 72%);
+    font-size: 0.64rem;
+    font-weight: 900;
+  }
+
+  .desktop-context-progress {
+    position: absolute;
+    inset: auto 0 0;
+    height: 0.22rem;
+    background: rgb(15 23 42 / 48%);
+  }
+
+  .desktop-context-progress > div {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #14b8a6, #facc15);
+  }
+
+  .desktop-context-action {
+    border-color: rgb(245 158 11 / 24%);
+    color: #fef3c7;
+    background: rgb(245 158 11 / 10%);
+  }
+
+  .desktop-rating-pill,
+  .desktop-back-button,
+  .desktop-action-button,
+  .desktop-icon-button {
+    border: 1px solid rgb(255 255 255 / 10%);
+    color: #e2e8f0;
+    background: rgb(255 255 255 / 7%);
+    transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+
+  .desktop-back-button {
+    min-height: 2.75rem;
+    gap: 0.45rem;
+    border-radius: 999px;
+    padding: 0 0.95rem;
+    font-size: 0.78rem;
+    font-weight: 950;
+  }
+
+  .desktop-back-placeholder {
+    width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .desktop-rating-pill {
+    min-height: 2.75rem;
+    gap: 0.55rem;
+    border-radius: 999px;
+    padding: 0.35rem 0.8rem;
+  }
+
+  .desktop-rating-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .desktop-rating-pill strong,
+  .desktop-rating-pill span span {
+    display: block;
+    line-height: 1.05;
+  }
+
+  .desktop-rating-pill strong {
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 950;
+    transition: color 180ms ease, transform 180ms ease;
+  }
+
+  .desktop-rating-pill span span {
+    margin-top: 0.1rem;
+    color: #94a3b8;
+    font-size: 0.68rem;
+    font-weight: 900;
+  }
+
+  .desktop-action-button,
+  .desktop-icon-button {
+    justify-content: center;
+    flex: 0 0 auto;
+    min-height: 2.75rem;
+    gap: 0.45rem;
+    border-radius: 999px;
+    padding: 0 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 950;
+  }
+
+  .desktop-icon-button {
+    width: 2.75rem;
+    padding: 0;
+  }
+
+  .desktop-back-button:hover,
+  .desktop-rating-pill:hover,
+  .desktop-action-button:hover,
+  .desktop-icon-button:hover {
+    transform: translateY(-1px);
+    color: #fff;
+    background: rgb(255 255 255 / 11%);
+    border-color: rgb(45 212 191 / 28%);
+  }
+
+  .desktop-play-stage {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .desktop-play-stage > .app-card {
+    width: min(100%, 72rem);
+    height: min(100%, 920px);
+    min-height: min(720px, 100%);
+    max-height: none;
+    border-radius: 2rem;
+  }
+
+  .app-viewport.desktop-layout .card-scroll,
+  .app-viewport.desktop-layout .result-scroll {
+    scrollbar-width: none;
+  }
+
+  .app-viewport.desktop-layout .card-scroll::-webkit-scrollbar,
+  .app-viewport.desktop-layout .result-scroll::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .app-viewport.desktop-layout .menu-game-card:not([class*='min-h-[104px]']) {
+    min-height: clamp(7.5rem, 13vh, 10.5rem);
+    padding: clamp(1.15rem, 1.8vw, 1.6rem);
+    border-radius: 1.6rem;
+    box-shadow: 0 24px 60px rgb(2 6 23 / 22%);
+  }
+
+  .app-viewport.desktop-layout .menu-game-card p:first-child {
+    font-size: clamp(1.25rem, 1.65vw, 1.75rem);
+  }
+
+  .app-viewport.desktop-layout .time-guesser-hub-card {
+    padding: clamp(1.5rem, 2vw, 2rem);
+    background:
+      linear-gradient(135deg, rgb(255 255 255 / 96%), rgb(240 253 250 / 90%));
+  }
+
+  .app-viewport.desktop-layout.dark-mode .time-guesser-hub-card {
+    background:
+      linear-gradient(135deg, rgb(15 23 42 / 68%), rgb(20 184 166 / 10%));
+  }
+
+  .app-viewport.desktop-layout .time-guesser-hub-card > .space-y-2 {
+    display: none;
+  }
+
+  .app-viewport.desktop-layout .daily-hub-card > .space-y-1\.5,
+  .app-viewport.desktop-layout .time-ladder-card > .text-center,
+  .app-viewport.desktop-layout .hardcore-mode-card > .text-center,
+  .app-viewport.desktop-layout .party-setup-card > .space-y-2,
+  .app-viewport.desktop-layout .party-guesses-card > .space-y-1\.5,
+  .app-viewport.desktop-layout .party-results-card > .space-y-2,
+  .app-viewport.desktop-layout .stats-screen-card > .space-y-2,
+  .app-viewport.desktop-layout .settings-screen-card > .text-center,
+  .app-viewport.desktop-layout .rankings-screen-card > .text-center {
+    display: none;
+  }
+
+  .app-viewport.desktop-layout .time-guesser-menu-grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(10rem, 1fr);
+    gap: 1rem;
+  }
+
+  .app-viewport.desktop-layout .time-guesser-menu-grid .menu-game-card {
+    height: 100%;
+    min-height: 10rem;
+    grid-template-columns: 4rem 1fr;
+    gap: 1rem;
+    text-align: left;
+    align-content: stretch;
+  }
+
+  .app-viewport.desktop-layout .time-guesser-menu-grid .menu-game-card:first-child {
+    grid-column: span 2;
+    min-height: 13rem;
+  }
+
+  .app-viewport.desktop-layout .time-guesser-menu-grid .menu-game-card > span:last-child {
+    display: none;
+  }
+
+  .app-viewport.desktop-layout .app-secondary-action,
+  .app-viewport.desktop-layout .app-bottom-actions,
+  .app-viewport.desktop-layout [data-guide-id='daily-archive'],
+  .app-viewport.desktop-layout [data-guide-id='hardcore-all-games'] {
+    min-height: 3.9rem;
+    border-radius: 1.25rem;
+    font-weight: 950;
+    box-shadow: 0 18px 38px rgb(2 6 23 / 12%);
+  }
+
+  .app-viewport.desktop-layout .app-card button.w-full:not(.menu-game-card):not([role='switch']):not([aria-label='View all Clock Ranks']) {
+    min-height: 3.9rem;
+    border-radius: 1.25rem;
+    font-weight: 950;
+  }
+
+  .app-viewport.desktop-layout [data-guide-id='daily-play'] {
+    min-height: clamp(10rem, 24vh, 15rem);
+    border-radius: 1.75rem;
+  }
+
+  .app-viewport.desktop-layout [data-guide-id='hardcore-difficulty-grid'] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    align-content: stretch;
+  }
+
+  .app-viewport.desktop-layout [data-guide-id='hardcore-difficulty-grid'] button {
+    min-height: 9.5rem;
+    border-radius: 1.5rem;
+    padding: 1rem;
+    text-align: left;
+    transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+  }
+
+  .app-viewport.desktop-layout [data-guide-id='hardcore-difficulty-grid'] button:hover {
+    transform: translateY(-2px);
+  }
+
+  .app-viewport.desktop-layout .rank-summary-card {
+    border-radius: 1.4rem;
+  }
+
+  .app-viewport.desktop-layout .rank-summary-card button {
+    font-weight: 950;
+  }
+
+  .app-viewport.desktop-layout .reveal-screen-card .flip-back {
+    overflow: hidden;
+  }
+
+  .app-viewport.desktop-layout .reveal-screen-card .result-scroll {
+    overflow: hidden;
+  }
+
+  .app-viewport.desktop-layout .reveal-screen-card [data-guide-id='result-rating'] {
+    display: none;
+  }
+
+  .app-viewport.desktop-layout .reveal-screen-card [data-guide-id='result-actions'] {
+    position: absolute;
+    left: 50%;
+    bottom: 1.35rem;
+    width: min(20rem, 34%);
+    transform: translateX(-50%);
+    z-index: 20;
+  }
+
+  .app-viewport.desktop-layout .reveal-screen-card [data-guide-id='result-actions'] button {
+    min-height: 3.6rem;
+  }
+
+  .app-viewport.desktop-layout .time-ladder-card,
+  .app-viewport.desktop-layout .hardcore-mode-card {
+    padding: clamp(1.35rem, 1.8vw, 1.8rem);
+  }
+
+  .app-viewport.desktop-layout .time-ladder-card {
+    background:
+      linear-gradient(135deg, rgb(255 255 255 / 95%), rgb(238 242 255 / 92%));
+  }
+
+  .app-viewport.desktop-layout.dark-mode .time-ladder-card {
+    background:
+      linear-gradient(135deg, rgb(15 23 42 / 72%), rgb(99 102 241 / 12%));
+  }
+
+  .app-viewport.desktop-layout .time-ladder-card [data-guide-id='ladder-scroll-lane'] {
+    height: clamp(15rem, 38vh, 24rem);
+    width: min(100%, 54rem);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow-x: visible;
+  }
+
+  .app-viewport.desktop-layout.dark-mode .time-ladder-card [data-guide-id='ladder-scroll-lane'] {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .app-viewport.desktop-layout .time-ladder-card [data-guide-id='ladder-main-button'] {
+    width: clamp(13rem, 24vh, 18rem);
+    height: clamp(13rem, 24vh, 18rem);
+    font-size: clamp(2rem, 3.2vw, 3rem);
+    box-shadow: 0 26px 70px rgb(79 70 229 / 28%);
+  }
+
+  .app-viewport.desktop-layout .time-ladder-card [data-guide-id='ladder-rung-active'],
+  .app-viewport.desktop-layout .time-ladder-card [data-guide-id='ladder-scroll-lane'] .rounded-2xl {
+    overflow: visible;
+  }
+
+  .app-viewport.desktop-layout .time-ladder-card [data-guide-id='ladder-scroll-lane'] .h-\[84px\] {
+    padding-inline: 2rem;
+  }
+
+  .app-viewport.desktop-layout .time-ladder-card [data-guide-id='ladder-scroll-lane'] .border-t {
+    position: static;
+    margin-top: 0.18rem;
+    border-top: 0;
+    padding-top: 0;
+    font-size: clamp(0.85rem, 1.1vw, 1rem);
+    line-height: 1.1;
+    white-space: normal;
+  }
+
+  .app-viewport.desktop-layout .time-ladder-card > .flex-1 {
+    justify-content: space-between;
+    gap: clamp(0.5rem, 1vh, 0.85rem);
+    padding-top: 0;
+  }
+
+  .app-viewport.desktop-layout .hardcore-mode-card {
+    overflow: hidden;
+  }
+
+  .app-viewport.desktop-layout .hardcore-mode-card > .flex-1 {
+    min-height: 0;
+  }
+
+  .app-viewport.desktop-layout .hardcore-mode-card [data-guide-id='hardcore-difficulty-grid'] > .mb-2 {
+    grid-column: 1 / -1;
+  }
+
+  .app-viewport.desktop-layout .hardcore-mode-card [data-guide-id='hardcore-difficulty-grid'] > .grid {
+    display: contents;
+  }
+
+  .app-viewport.desktop-layout .hardcore-mode-card [data-guide-id='hardcore-difficulty-grid'] button div {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .app-viewport.desktop-layout .hardcore-mode-card [data-guide-id='hardcore-difficulty-grid'] button .w-8 {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 1rem;
+  }
+
+  .app-viewport.desktop-layout .hardcore-mode-card .w-44.h-44 {
+    width: clamp(13rem, 25vh, 19rem);
+    height: clamp(13rem, 25vh, 19rem);
+    font-size: clamp(3rem, 4.4vw, 4.25rem);
+  }
+
+  .app-viewport.desktop-layout .hardcore-mode-card .app-bottom-actions:empty {
+    display: none;
+  }
+
+  .app-viewport.desktop-layout .party-setup-card,
+  .app-viewport.desktop-layout .party-guesses-card,
+  .app-viewport.desktop-layout .party-results-card,
+  .app-viewport.desktop-layout .daily-hub-card,
+  .app-viewport.desktop-layout .daily-archive-card,
+  .app-viewport.desktop-layout .stats-screen-card,
+  .app-viewport.desktop-layout .settings-screen-card,
+  .app-viewport.desktop-layout .rankings-screen-card {
+    padding: clamp(1.35rem, 1.8vw, 1.8rem);
+    background:
+      linear-gradient(135deg, rgb(255 255 255 / 96%), rgb(240 253 250 / 88%));
+  }
+
+  .app-viewport.desktop-layout.dark-mode .party-setup-card,
+  .app-viewport.desktop-layout.dark-mode .party-guesses-card,
+  .app-viewport.desktop-layout.dark-mode .party-results-card,
+  .app-viewport.desktop-layout.dark-mode .daily-hub-card,
+  .app-viewport.desktop-layout.dark-mode .daily-archive-card,
+  .app-viewport.desktop-layout.dark-mode .stats-screen-card,
+  .app-viewport.desktop-layout.dark-mode .settings-screen-card,
+  .app-viewport.desktop-layout.dark-mode .rankings-screen-card {
+    background:
+      linear-gradient(135deg, rgb(15 23 42 / 72%), rgb(20 184 166 / 9%));
+  }
+
+  .app-viewport.desktop-layout .party-setup-card [data-guide-id='party-mode-choice'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+
+  .app-viewport.desktop-layout .daily-archive-card > .mb-5 {
+    display: none;
+  }
+
+  .app-viewport.desktop-layout .rankings-screen-card {
+    overflow: visible;
+  }
+
+  .app-viewport.desktop-layout .rankings-screen-card > .flex-1 {
+    overflow: visible;
+    padding: 0.35rem 0.45rem;
+  }
+
+  .app-viewport.desktop-layout .rankings-screen-card > .flex-1 > div {
+    overflow: visible;
+  }
+
+  .app-viewport.desktop-layout .party-setup-card [data-guide-id='party-mode-choice'] button,
+  .app-viewport.desktop-layout .party-guesses-card .card-scroll > button,
+  .app-viewport.desktop-layout .party-results-card .card-scroll > div {
+    border-radius: 1.35rem;
+    box-shadow: 0 18px 42px rgb(2 6 23 / 10%);
+  }
+
+  .app-viewport.desktop-layout .hardcore-mode-card .app-bottom-actions {
+    position: absolute;
+    left: 1.1rem;
+    bottom: 1.1rem;
+    width: min(16rem, 24%);
+    margin: 0;
+    z-index: 20;
+  }
+
+  .app-viewport.desktop-layout .help-trigger {
+    position: fixed;
+    left: auto;
+    top: auto;
+    right: clamp(1rem, 1.8vw, 2rem);
+    bottom: clamp(1rem, 1.8vw, 2rem);
+    width: 3.25rem;
+    height: 3.25rem;
+    border-color: rgb(255 255 255 / 12%);
+    color: #e2e8f0;
+    background: rgb(15 23 42 / 86%);
+    box-shadow: 0 18px 44px rgb(2 6 23 / 28%);
+    backdrop-filter: blur(14px);
+  }
+
+  .desktop-home-launcher {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    color: #e2e8f0;
+  }
+
+  .desktop-game-grid {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-auto-rows: minmax(7.5rem, 1fr);
+    gap: clamp(0.75rem, 1.2vw, 1rem);
+  }
+
+  .desktop-game-card {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    overflow: hidden;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 1.3rem;
+    padding: clamp(0.85rem, 1.25vw, 1.15rem);
+    color: #fff;
+    text-align: left;
+    box-shadow: 0 24px 60px rgb(2 6 23 / 24%);
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  }
+
+  .desktop-game-card::after {
+    content: '';
+    position: absolute;
+    inset: auto -18% -35% 20%;
+    height: 58%;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 14%);
+    filter: blur(36px);
+    pointer-events: none;
+  }
+
+  .desktop-game-card:hover {
+    transform: translateY(-3px);
+    border-color: rgb(255 255 255 / 22%);
+    box-shadow: 0 30px 80px rgb(2 6 23 / 30%);
+  }
+
+  .desktop-game-card-teal {
+    background: linear-gradient(135deg, rgb(20 184 166 / 28%), rgb(99 102 241 / 18%));
+  }
+
+  .desktop-game-card-rose {
+    background: linear-gradient(135deg, rgb(244 63 94 / 30%), rgb(99 102 241 / 18%));
+  }
+
+  .desktop-game-card-emerald {
+    background: linear-gradient(135deg, rgb(16 185 129 / 28%), rgb(20 184 166 / 16%));
+  }
+
+  .desktop-game-card-indigo {
+    background: linear-gradient(135deg, rgb(99 102 241 / 28%), rgb(20 184 166 / 15%));
+  }
+
+  .desktop-game-card-red {
+    background: linear-gradient(135deg, rgb(185 28 28 / 34%), rgb(15 23 42 / 28%));
+  }
+
+  .desktop-game-card-cyan {
+    background: linear-gradient(135deg, rgb(8 145 178 / 30%), rgb(20 184 166 / 16%));
+  }
+
+  .desktop-game-card-slate {
+    background: linear-gradient(135deg, rgb(51 65 85 / 38%), rgb(15 23 42 / 24%));
+  }
+
+  .desktop-game-card {
+    grid-column: span 2;
+  }
+
+  .desktop-game-card-featured {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+
+  .desktop-game-card-disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
+  }
+
+  .desktop-game-card-disabled:hover {
+    transform: none;
+  }
+
+  .desktop-game-card-icon {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.85rem;
+    height: 2.85rem;
+    border-radius: 1rem;
+    background: rgb(255 255 255 / 18%);
+  }
+
+  .desktop-game-card-text {
+    position: relative;
+    z-index: 1;
+    display: block;
+  }
+
+  .desktop-game-card-text span,
+  .desktop-game-card-text strong,
+  .desktop-game-card-text em {
+    display: block;
+  }
+
+  .desktop-game-card-text span {
+    color: rgb(255 255 255 / 68%);
+    font-size: 0.74rem;
+    font-weight: 950;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+  }
+
+  .desktop-game-card-text strong {
+    margin-top: 0.35rem;
+    font-size: clamp(1.2rem, 1.65vw, 1.85rem);
+    line-height: 0.98;
+    font-weight: 950;
+  }
+
+  .desktop-game-card-text em {
+    max-width: 22rem;
+    margin-top: 0.5rem;
+    color: rgb(255 255 255 / 78%);
+    font-size: 0.84rem;
+    line-height: 1.25;
+    font-style: normal;
+    font-weight: 750;
+  }
+
+  .desktop-vertical-toggle {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 60;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.5rem;
+    padding: 0 0.9rem;
+    border-radius: 999px;
+    border: 1px solid rgb(148 163 184 / 24%);
+    color: #e2e8f0;
+    background: rgb(15 23 42 / 86%);
+    box-shadow: 0 16px 38px rgb(2 6 23 / 24%);
+    backdrop-filter: blur(14px);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .app-viewport.desktop-vertical-layout {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .app-viewport.desktop-vertical-layout .desktop-vertical-shell {
+    width: min(100%, 28rem);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 1280px) {
+  .app-viewport.desktop-layout .app-shell.desktop-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .menu-game-card,
   .card-starfield span,
@@ -414,6 +1258,18 @@ button {
     box-shadow:
       0 18px 38px rgb(20 184 166 / 14%),
       0 1px 0 rgb(255 255 255 / 34%) inset;
+  }
+}
+
+@keyframes desktop-context-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -706,13 +1562,15 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
-/* Keep scroll affordances visible inside fixed-height game cards. */
-
 .card-scroll {
   overflow-y: auto;
-  scrollbar-width: auto;
+  scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+.card-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .hardcore-difficulty-scroll {

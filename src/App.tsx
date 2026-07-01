@@ -29,6 +29,15 @@ import {
 import TimeLadder from './TimeLadder';
 import HardcoreMode, { type HardcoreDifficulty, type HardcoreScores } from './HardcoreMode';
 import AmbientMusic from './AmbientMusic';
+import {
+  DesktopAppShell,
+  DesktopHomeLauncher,
+  DesktopVerticalShell,
+  MobileAppShell,
+  type DesktopShellAction,
+  type DesktopShellContext,
+  type DesktopLauncherModeId,
+} from './AppShells';
 import LadderIcon from './LadderIcon';
 import HelpOverlay, { type HelpContent } from './HelpOverlay';
 import NumberKeypad from './NumberKeypad';
@@ -202,6 +211,12 @@ function isNativeOrTouchDevice() {
   return window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 }
 
+function isDesktopWebViewport() {
+  if (Capacitor.isNativePlatform()) return false;
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(min-width: 1024px) and (pointer: fine)').matches;
+}
+
 function shuffleIds(ids: string[]) {
   const shuffled = [...ids];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
@@ -213,6 +228,8 @@ function shuffleIds(ids: string[]) {
 const MAX_AVERAGE_ERROR = 100;
 const MUSIC_DEFAULT_ON_MIGRATION_KEY = 'timegames-music-default-on-migrated';
 const MUSIC_VOLUME_DEFAULT_MIGRATION_KEY = 'timegames-music-volume-default-migrated';
+const DESKTOP_VERTICAL_LAYOUT_KEY = 'timegames-desktop-vertical-layout';
+const DESKTOP_MODE_COUNTS_KEY = 'timegames-desktop-mode-counts';
 const PLAYER_ID_KEY = 'timegames-player-id';
 const ACHIEVEMENTS_KEY = 'timegames-achievements';
 const ONBOARDING_SEEN_KEY = 'timegames-onboarding-seen';
@@ -682,6 +699,56 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
   return null;
 }
 
+function getDesktopShellContext(game: GameState, rankedMode: boolean, ratingChange: number | null, clockRating: number): DesktopShellContext {
+  if (game.phase === 'settings') {
+    return { title: 'Settings', subtitle: 'Tune audio, haptics, motion and theme.', icon: 'settings', accent: 'slate' };
+  }
+  if (game.phase === 'stats') {
+    return { title: 'Stats', subtitle: 'Progress, achievements and saved performance.', icon: 'stats', accent: 'cyan' };
+  }
+  if (game.phase === 'rankings') {
+    return { title: 'Clock Ranks', subtitle: 'Your ranked Time Guesser progression.', icon: 'rankings', accent: 'yellow' };
+  }
+  if (game.phase === 'ladder') {
+    return { title: 'Time Ladder', subtitle: 'Climb 1 to 20 seconds. One miss ends the run.', icon: 'ladder', accent: 'indigo', detail: 'Pass window', detailSubtext: 'Within 0.25s of target' };
+  }
+  if (game.phase === 'hardcore') {
+    return { title: 'Hardcore', subtitle: 'Three lives. Hit each shown target to keep the run alive.', icon: 'hardcore', accent: 'red' };
+  }
+  if (game.phase === 'dailyHistory') {
+    return { title: 'Challenge Archive', subtitle: 'Review recent Daily Challenge results.', icon: 'daily', accent: 'rose' };
+  }
+  if (game.phase === 'dailyHub' || game.mode === 'challenge') {
+    return { title: 'Daily Challenge', subtitle: 'One official stop-at-target attempt each local day.', icon: 'daily', accent: 'rose' };
+  }
+  if (game.mode === 'party' || ['partySetup', 'partyGuesses', 'partyResults'].includes(game.phase)) {
+    return { title: 'Party Mode', subtitle: 'Local multiplayer timing. Closest guess wins the round.', icon: 'party', accent: 'cyan' };
+  }
+  if (game.mode === 'single' || game.phase === 'guesserHub' || game.phase === 'reveal') {
+    const rankInfo = getRank(clockRating);
+    const detail = game.phase === 'reveal' && rankedMode && ratingChange !== null
+      ? `${ratingChange >= 0 ? '+' : ''}${ratingChange} Clock Rating`
+      : rankedMode
+        ? 'Ranked'
+        : 'Casual';
+    return {
+      title: rankedMode ? 'Time Guesser Ranked' : 'Time Guesser Casual',
+      subtitle: rankedMode ? 'Guess the hidden clock. This round can change Clock Rating.' : 'Practice hidden-clock timing without rating pressure.',
+      icon: 'timer',
+      accent: rankedMode ? 'teal' : 'emerald',
+      detail,
+      detailSubtext: game.phase === 'reveal' && rankedMode && ratingChange !== null
+        ? rankInfo.next
+          ? `${rankInfo.pointsNeeded} to ${rankInfo.next.name}`
+          : 'Highest rank reached'
+        : undefined,
+      detailProgress: game.phase === 'reveal' && rankedMode && ratingChange !== null ? rankInfo.progress : undefined,
+      detailTone: ratingChange === null ? undefined : ratingChange > 0 ? 'positive' : ratingChange < 0 ? 'negative' : 'neutral',
+    };
+  }
+  return { title: 'TimeGames', subtitle: 'Master your internal clock.', icon: 'home', accent: 'teal' };
+}
+
 const defaultStats: StatsState = {
   gamesPlayed: 0,
   bestAccuracy: null,
@@ -762,6 +829,16 @@ void rankDefinitions;
 
 function App() {
   const [nativeControls] = useState(isNativeOrTouchDevice);
+  const [isDesktopWeb, setIsDesktopWeb] = useState(isDesktopWebViewport);
+  const [desktopVerticalLayout, setDesktopVerticalLayout] = useState(() => localStorage.getItem(DESKTOP_VERTICAL_LAYOUT_KEY) === 'true');
+  const [desktopModeCounts, setDesktopModeCounts] = useState<Partial<Record<DesktopLauncherModeId, number>>>(() => {
+    try {
+      const saved = localStorage.getItem(DESKTOP_MODE_COUNTS_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [game, setGame] = useState<GameState>({
     mode: 'home',
     phase: 'ready',
@@ -855,6 +932,7 @@ function App() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [standaloneTimingActive, setStandaloneTimingActive] = useState(false);
   const [hardcoreHelpVisible, setHardcoreHelpVisible] = useState(false);
+  const [desktopContextAction, setDesktopContextAction] = useState<DesktopShellAction | null>(null);
   const [playerId] = useState(getOrCreatePlayerId);
   const [dailyLeaderboard, setDailyLeaderboard] = useState<Record<string, DailyLeaderboardSummary>>({});
   const [splashPhase, setSplashPhase] = useState<SplashPhase>('waiting');
@@ -943,6 +1021,23 @@ function App() {
     localStorage.setItem(MUSIC_DEFAULT_ON_MIGRATION_KEY, 'true');
     localStorage.setItem(MUSIC_VOLUME_DEFAULT_MIGRATION_KEY, 'true');
   }, [settings]);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() || typeof window === 'undefined') return undefined;
+    const media = window.matchMedia('(min-width: 1024px) and (pointer: fine)');
+    const update = () => setIsDesktopWeb(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(DESKTOP_VERTICAL_LAYOUT_KEY, desktopVerticalLayout ? 'true' : 'false');
+  }, [desktopVerticalLayout]);
+
+  useEffect(() => {
+    localStorage.setItem(DESKTOP_MODE_COUNTS_KEY, JSON.stringify(desktopModeCounts));
+  }, [desktopModeCounts]);
 
   useEffect(() => {
     localStorage.setItem('timegames-daily-results', JSON.stringify(dailyResults));
@@ -1526,6 +1621,7 @@ function App() {
     setBestLadderLevel(0);
     setHardcoreScores(defaultHardcoreScores);
     setAchievements([]);
+    setDesktopModeCounts({});
     setSeenScreenGuides([]);
     setCompletedRevealKeys([]);
     setRankUpNotice(null);
@@ -1555,6 +1651,7 @@ function App() {
     localStorage.removeItem('timegames-ladder-best');
     localStorage.removeItem('timegames-hardcore-bests');
     localStorage.removeItem(ACHIEVEMENTS_KEY);
+    localStorage.removeItem(DESKTOP_MODE_COUNTS_KEY);
     localStorage.removeItem(ONBOARDING_SEEN_KEY);
     localStorage.removeItem(SCREEN_GUIDES_SEEN_KEY);
   }, []);
@@ -1566,6 +1663,40 @@ function App() {
       phase: 'partySetup',
     }));
   }, []);
+
+  const recordDesktopModeLaunch = useCallback((modeId: DesktopLauncherModeId) => {
+    if (!isDesktopWeb || desktopVerticalLayout) return;
+    setDesktopModeCounts(prev => ({
+      ...prev,
+      [modeId]: (prev[modeId] ?? 0) + 1,
+    }));
+  }, [desktopVerticalLayout, isDesktopWeb]);
+
+  const startDesktopSinglePlayer = useCallback((ranked: boolean) => {
+    recordDesktopModeLaunch(ranked ? 'time-guesser-ranked' : 'time-guesser-casual');
+    updateSetting('rankedMode', ranked);
+    startCountdown('single');
+  }, [recordDesktopModeLaunch, startCountdown, updateSetting]);
+
+  const openDesktopDaily = useCallback(() => {
+    recordDesktopModeLaunch('daily');
+    showDailyHistory();
+  }, [recordDesktopModeLaunch, showDailyHistory]);
+
+  const openDesktopLadder = useCallback(() => {
+    recordDesktopModeLaunch('ladder');
+    showTimeLadder();
+  }, [recordDesktopModeLaunch, showTimeLadder]);
+
+  const openDesktopHardcore = useCallback(() => {
+    recordDesktopModeLaunch('hardcore');
+    showHardcoreMode();
+  }, [recordDesktopModeLaunch, showHardcoreMode]);
+
+  const openDesktopParty = useCallback(() => {
+    recordDesktopModeLaunch('party');
+    openPartySetup();
+  }, [openPartySetup, recordDesktopModeLaunch]);
 
   const selectPartyVariant = useCallback((variant: PartyVariant) => {
     setPartyVariant(variant);
@@ -1848,24 +1979,18 @@ function App() {
       setSplashPhase('done');
     }, settings.reducedMotion ? 140 : 2200);
   }, [measureSplashIconTarget, settings.reducedMotion, splashPhase]);
+  const useDesktopShell = isDesktopWeb && !desktopVerticalLayout && game.mode !== 'tabletop';
+  const showDesktopVerticalToggle = isDesktopWeb && game.mode !== 'tabletop';
+  const desktopShellContext = getDesktopShellContext(game, settings.rankedMode, game.ratingChange, stats.clockRating);
 
-  return (
-    <div onClickCapture={handleMenuClick} className={`app-viewport bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center screen-transition-scope ${disableScreenTransition ? 'screen-transition-disabled' : ''} ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
-      <AmbientMusic enabled={settings.music} ducked={musicDucked} volume={settings.musicVolume} eager={musicEager} />
-      <CardStarField active={!disableScreenTransition && !settings.reducedMotion} />
-      <AnimatePresence>
-        {splashVisible && (
-          <SplashScreen
-            phase={splashPhase}
-            reducedMotion={settings.reducedMotion}
-            darkMode={settings.darkMode}
-            target={splashIconTarget}
-            iconRef={splashIconRef}
-            onStart={startSplash}
-          />
-        )}
-      </AnimatePresence>
-      <div className={`app-shell relative min-h-0 ${game.mode === 'tabletop' ? 'tabletop-frame' : ''}`}>
+  useEffect(() => {
+    if (!useDesktopShell || game.phase !== 'hardcore') {
+      setDesktopContextAction(null);
+    }
+  }, [game.phase, useDesktopShell]);
+
+  const shellContent = (
+    <>
         <AnimatePresence>
           {rankUpNotice && (
             <motion.div
@@ -1895,32 +2020,53 @@ function App() {
           />
         )}
         {game.mode === 'home' && game.phase === 'ready' && (
-          <HomeScreen
-            key={splashPhase === 'waiting' || splashPhase === 'launching' ? 'home-preload' : 'home-revealed'}
-            bestLadderLevel={bestLadderLevel}
-            bestHardcoreScore={Math.max(...Object.values(hardcoreScores))}
-            rankedMode={settings.rankedMode}
-            todayResult={dailyResults[todayKey] ?? null}
-            todayLeaderboard={todayLeaderboard}
-            dailyStreak={activeDailyStreak}
-            nextDailyReward={nextDailyReward}
-            dailyCountdown={dailyCountdown}
-            iconRef={homeIconRef}
-            introIconHidden={splashPhase === 'waiting' || splashPhase === 'launching'}
-            onTimeGuesser={showTimeGuesser}
-            onTimeLadder={showTimeLadder}
-            onHardcore={showHardcoreMode}
-            onDailyChallenge={showDailyHistory}
-            onStats={showStats}
-            onSettings={showSettings}
-            animateIn={splashPhase === 'revealing'}
-          />
+          useDesktopShell ? (
+            <DesktopHomeLauncher
+              bestLadderLevel={bestLadderLevel}
+              bestHardcoreScore={Math.max(...Object.values(hardcoreScores))}
+              todayResult={dailyResults[todayKey] ?? null}
+              todayLeaderboard={todayLeaderboard}
+              dailyStreak={activeDailyStreak}
+              nextDailyReward={nextDailyReward}
+              dailyCountdown={dailyCountdown}
+              modePlayCounts={desktopModeCounts}
+              iconRef={homeIconRef}
+              onRankedTimeGuesser={() => startDesktopSinglePlayer(true)}
+              onCasualTimeGuesser={() => startDesktopSinglePlayer(false)}
+              onTimeLadder={openDesktopLadder}
+              onHardcore={openDesktopHardcore}
+              onDailyChallenge={openDesktopDaily}
+              onPartyMode={openDesktopParty}
+            />
+          ) : (
+            <HomeScreen
+              key={splashPhase === 'waiting' || splashPhase === 'launching' ? 'home-preload' : 'home-revealed'}
+              bestLadderLevel={bestLadderLevel}
+              bestHardcoreScore={Math.max(...Object.values(hardcoreScores))}
+              rankedMode={settings.rankedMode}
+              todayResult={dailyResults[todayKey] ?? null}
+              todayLeaderboard={todayLeaderboard}
+              dailyStreak={activeDailyStreak}
+              nextDailyReward={nextDailyReward}
+              dailyCountdown={dailyCountdown}
+              iconRef={homeIconRef}
+              introIconHidden={splashPhase === 'waiting' || splashPhase === 'launching'}
+              onTimeGuesser={showTimeGuesser}
+              onTimeLadder={showTimeLadder}
+              onHardcore={showHardcoreMode}
+              onDailyChallenge={showDailyHistory}
+              onStats={showStats}
+              onSettings={showSettings}
+              animateIn={splashPhase === 'revealing'}
+            />
+          )
         )}
 
         {game.phase === 'guesserHub' && (
           <TimeGuesserHub
             stats={stats}
             rankedMode={settings.rankedMode}
+            desktopMode={useDesktopShell}
             reducedMotion={settings.reducedMotion}
             onRankedModeChange={(value) => updateSetting('rankedMode', value)}
             onSinglePlayer={() => startCountdown('single')}
@@ -1937,6 +2083,7 @@ function App() {
             haptics={settings.haptics}
             reducedMotion={settings.reducedMotion}
             nativeControls={nativeControls}
+            desktopMode={useDesktopShell}
             onTimingChange={setStandaloneTimingActive}
             onBestLevelChange={setBestLadderLevel}
             onSpotOn={() => recordSpotOns()}
@@ -1951,6 +2098,8 @@ function App() {
             haptics={settings.haptics}
             reducedMotion={settings.reducedMotion}
             nativeControls={nativeControls}
+            desktopMode={useDesktopShell}
+            onDesktopActionChange={setDesktopContextAction}
             onTimingChange={setStandaloneTimingActive}
             onHelpVisibilityChange={setHardcoreHelpVisible}
             onBestScoreChange={updateHardcoreBest}
@@ -1962,6 +2111,7 @@ function App() {
         {game.phase === 'rankings' && (
           <RankingsScreen
             clockRating={stats.clockRating}
+            desktopMode={useDesktopShell}
             onBack={hideRankings}
           />
         )}
@@ -1973,6 +2123,7 @@ function App() {
             dailyStreak={activeDailyStreak}
             nextDailyReward={nextDailyReward}
             dailyCountdown={dailyCountdown}
+            desktopMode={useDesktopShell}
             onPlayToday={openDailyChallenge}
             onPrevious={showPreviousDailyHistory}
             onBack={goHome}
@@ -1982,6 +2133,7 @@ function App() {
         {game.phase === 'dailyHistory' && (
           <PreviousDailyChallengesScreen
             results={dailyResults}
+            desktopMode={useDesktopShell}
             onBack={showDailyHistory}
           />
         )}
@@ -1989,6 +2141,7 @@ function App() {
         {game.phase === 'settings' && (
           <SettingsScreen
             settings={settings}
+            desktopMode={useDesktopShell}
             onChange={updateSetting}
             onTrollMode={openTrollIntro}
             onBack={hideSettings}
@@ -2009,6 +2162,7 @@ function App() {
             dailyResults={dailyResults}
             hardcoreScores={hardcoreScores}
             achievements={achievements}
+            desktopMode={useDesktopShell}
             onBack={hideStats}
             onResetStats={resetStats}
           />
@@ -2020,6 +2174,7 @@ function App() {
             newPlayerName={newPlayerName}
             partyVariant={partyVariant}
             showTabletopMode={nativeControls}
+            desktopMode={useDesktopShell}
             onNewPlayerNameChange={setNewPlayerName}
             onAddPlayer={addPartyPlayer}
             onRemovePlayer={removePartyPlayer}
@@ -2048,6 +2203,7 @@ function App() {
             partyVariant={partyVariant}
             tiebreakerIds={partyTiebreakerIds}
             guessOrderIds={partyGuessOrderIds}
+            desktopMode={useDesktopShell}
             onGuessChange={updatePartyGuess}
             onGuessBlur={formatPartyGuess}
             onShowResults={showPartyResults}
@@ -2064,6 +2220,7 @@ function App() {
             eliminatedPlayerId={lastEliminatedPlayerId}
             tiebreakerIds={partyTiebreakerIds}
             reducedMotion={settings.reducedMotion}
+            desktopMode={useDesktopShell}
             onTone={playTone}
             onHaptic={vibrate}
             onCelebrate={playCelebration}
@@ -2118,6 +2275,7 @@ function App() {
             dailyCountdown={dailyCountdown}
             dailyLeaderboard={revealDailyLeaderboard}
             reducedMotion={settings.reducedMotion}
+            desktopMode={useDesktopShell}
             revealAlreadyPlayed={activeRevealKey ? completedRevealKeys.includes(activeRevealKey) : false}
             trollPresentationLevel={game.mode === 'troll' ? trollPerfectStreak : 0}
             onRevealPlayed={() => {
@@ -2130,7 +2288,61 @@ function App() {
             onGoHome={game.mode === 'challenge' ? goHome : showTimeGuesser}
           />
         )}
-      </div>
+    </>
+  );
+
+  return (
+    <div onClickCapture={handleMenuClick} className={`app-viewport bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center screen-transition-scope ${useDesktopShell ? 'desktop-layout' : ''} ${showDesktopVerticalToggle && desktopVerticalLayout ? 'desktop-vertical-layout' : ''} ${disableScreenTransition ? 'screen-transition-disabled' : ''} ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
+      <AmbientMusic enabled={settings.music} ducked={musicDucked} volume={settings.musicVolume} eager={musicEager} />
+      <CardStarField active={!disableScreenTransition && !settings.reducedMotion} />
+      <AnimatePresence>
+        {splashVisible && (
+          <SplashScreen
+            phase={splashPhase}
+            reducedMotion={settings.reducedMotion}
+            darkMode={settings.darkMode}
+            target={splashIconTarget}
+            iconRef={splashIconRef}
+            onStart={startSplash}
+          />
+        )}
+      </AnimatePresence>
+      {showDesktopVerticalToggle && desktopVerticalLayout && (
+        <button
+          type="button"
+          onClick={() => setDesktopVerticalLayout(prev => !prev)}
+          className="desktop-vertical-toggle"
+          aria-pressed={desktopVerticalLayout}
+        >
+          <Smartphone className="w-4 h-4" />
+          Vertical Layout On
+        </button>
+      )}
+      {useDesktopShell ? (
+        <DesktopAppShell
+          clockRating={stats.clockRating}
+          desktopVerticalLayout={desktopVerticalLayout}
+          showBack={!(game.mode === 'home' && game.phase === 'ready') && game.phase !== 'rankings'}
+          context={desktopShellContext}
+          contextAction={desktopContextAction}
+          onHome={goHome}
+          onBack={goHome}
+          onRankings={showRankings}
+          onToggleVerticalLayout={() => setDesktopVerticalLayout(prev => !prev)}
+          onStats={showStats}
+          onSettings={showSettings}
+        >
+          {shellContent}
+        </DesktopAppShell>
+      ) : showDesktopVerticalToggle && desktopVerticalLayout ? (
+        <DesktopVerticalShell tabletop={game.mode === 'tabletop'}>
+          {shellContent}
+        </DesktopVerticalShell>
+      ) : (
+        <MobileAppShell tabletop={game.mode === 'tabletop'}>
+          {shellContent}
+        </MobileAppShell>
+      )}
     </div>
   );
 }
@@ -2436,6 +2648,7 @@ function GameMenuCard({ color, icon, title, description, onClick, compact = fals
 function TimeGuesserHub({
   stats,
   rankedMode,
+  desktopMode,
   reducedMotion,
   onRankedModeChange,
   onSinglePlayer,
@@ -2445,6 +2658,7 @@ function TimeGuesserHub({
 }: {
   stats: StatsState;
   rankedMode: boolean;
+  desktopMode: boolean;
   reducedMotion: boolean;
   onRankedModeChange: (value: boolean) => void;
   onSinglePlayer: () => void;
@@ -2456,7 +2670,7 @@ function TimeGuesserHub({
   const settingsMotionDuration = reducedMotion ? 0 : 0.28;
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 text-center ${CARD_HEIGHT} flex flex-col`}>
+    <div className={`time-guesser-hub-card bg-white rounded-3xl shadow-xl p-6 text-center ${CARD_HEIGHT} flex flex-col`}>
       <div className="space-y-2 mb-5 shrink-0">
         <div className="flex justify-center">
           <div className="w-14 h-14 bg-teal-500 rounded-2xl flex items-center justify-center">
@@ -2473,7 +2687,7 @@ function TimeGuesserHub({
         </p>
       </div>
 
-      <div data-guide-id="guesser-rank-card" className="rank-summary-card h-[82px] bg-slate-50 border border-slate-200 rounded-2xl flex items-stretch overflow-hidden relative mb-5 shrink-0">
+      {!desktopMode && <div data-guide-id="guesser-rank-card" className="rank-summary-card h-[82px] bg-slate-50 border border-slate-200 rounded-2xl flex items-stretch overflow-hidden relative mb-5 shrink-0">
         <div className="flex-1 min-w-0 relative overflow-hidden">
           <AnimatePresence initial={false} mode="wait">
             <motion.div
@@ -2525,9 +2739,9 @@ function TimeGuesserHub({
             <motion.div className="h-full bg-teal-500" initial={false} animate={{ width: `${rankInfo.progress}%` }} transition={{ duration: settingsMotionDuration }} />
           </div>
         )}
-      </div>
+      </div>}
 
-      <div className="space-y-2.5 shrink-0">
+      <div className="time-guesser-menu-grid space-y-2.5 shrink-0">
         <GameMenuCard guideId="guesser-single" color="teal" icon={<Timer className="w-6 h-6" />} title={`Single Player ${rankedMode ? 'Ranked' : 'Casual'}`} description={rankedMode ? 'Build rating.' : 'No rating pressure.'} onClick={onSinglePlayer} />
         <GameMenuCard guideId="guesser-party" color="rose" icon={<Users className="w-6 h-6" />} title="Party Mode" description="Compete to be closest with friends." onClick={onPartyMode} />
         <GameMenuCard disabled color="slate" icon={<Lock className="w-6 h-6" />} title="Multiplayer" description="Coming soon." onClick={() => undefined} />
@@ -2535,7 +2749,7 @@ function TimeGuesserHub({
 
       <div className="flex-1 min-h-[24px]" aria-hidden="true" />
 
-      <div className="mt-auto shrink-0">
+      {!desktopMode && <div className="mt-auto shrink-0">
         <button
           onClick={onBack}
           className="w-full app-secondary-action font-semibold py-3.5 px-4 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
@@ -2543,7 +2757,7 @@ function TimeGuesserHub({
           <ArrowLeft className="w-5 h-5" />
           <span>All Games</span>
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -2554,6 +2768,7 @@ function DailyChallengeHub({
   dailyStreak,
   nextDailyReward,
   dailyCountdown,
+  desktopMode,
   onPlayToday,
   onPrevious,
   onBack,
@@ -2563,6 +2778,7 @@ function DailyChallengeHub({
   dailyStreak: number;
   nextDailyReward: number;
   dailyCountdown: string;
+  desktopMode: boolean;
   onPlayToday: () => void;
   onPrevious: () => void;
   onBack: () => void;
@@ -2575,7 +2791,7 @@ function DailyChallengeHub({
   const tomorrowReward = todayResult ? nextDailyReward : getDailyReward(dailyStreak + 2);
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-7 text-center ${CARD_HEIGHT} flex flex-col`}>
+    <div className={`daily-hub-card bg-white rounded-3xl shadow-xl p-7 text-center ${CARD_HEIGHT} flex flex-col`}>
       <div className="space-y-1.5 mb-3 shrink-0">
         <div className="w-14 h-14 mx-auto bg-indigo-500 rounded-2xl flex items-center justify-center">
           <CalendarDays className="w-8 h-8 text-white" />
@@ -2645,10 +2861,10 @@ function DailyChallengeHub({
         <button data-guide-id="daily-archive" onClick={onPrevious} className="w-full app-secondary-action font-black py-3 rounded-2xl transition-colors">
           Challenge Archive
         </button>
-        <button onClick={onBack} className="w-full app-secondary-action font-black py-3 rounded-2xl transition-colors flex items-center justify-center gap-2">
+        {!desktopMode && <button onClick={onBack} className="w-full app-secondary-action font-black py-3 rounded-2xl transition-colors flex items-center justify-center gap-2">
           <ArrowLeft className="w-5 h-5" />
           All Games
-        </button>
+        </button>}
       </div>
     </div>
   );
@@ -2656,9 +2872,11 @@ function DailyChallengeHub({
 
 function PreviousDailyChallengesScreen({
   results,
+  desktopMode,
   onBack,
 }: {
   results: DailyResults;
+  desktopMode: boolean;
   onBack: () => void;
 }) {
   const previousDates = Array.from({ length: 14 }, (_, index) => {
@@ -2673,7 +2891,7 @@ function PreviousDailyChallengesScreen({
   }).format(new Date(`${dateKey}T12:00:00`));
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-7 text-center ${CARD_HEIGHT} flex flex-col`}>
+    <div className={`daily-archive-card bg-white rounded-3xl shadow-xl p-7 text-center ${CARD_HEIGHT} flex flex-col`}>
       <div className="mb-5">
         <div className="w-14 h-14 mx-auto bg-indigo-500 rounded-2xl flex items-center justify-center"><CalendarDays className="w-7 h-7 text-white" /></div>
         <h1 className="text-3xl font-black text-slate-800 mt-2">Challenge Archive</h1>
@@ -2709,7 +2927,7 @@ function PreviousDailyChallengesScreen({
           );
         })}
       </div>
-      <button onClick={onBack} className="mt-5 w-full shrink-0 bg-teal-500 hover:bg-teal-600 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 app-bottom-actions"><ArrowLeft className="w-5 h-5" />Daily Challenge</button>
+      {!desktopMode && <button onClick={onBack} className="mt-5 w-full shrink-0 bg-teal-500 hover:bg-teal-600 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 app-bottom-actions"><ArrowLeft className="w-5 h-5" />Daily Challenge</button>}
     </div>
   );
 }
@@ -2720,6 +2938,7 @@ function StatsScreen({
   dailyResults,
   hardcoreScores,
   achievements,
+  desktopMode,
   onBack,
   onResetStats,
 }: {
@@ -2728,6 +2947,7 @@ function StatsScreen({
   dailyResults: DailyResults;
   hardcoreScores: HardcoreScores;
   achievements: string[];
+  desktopMode: boolean;
   onBack: () => void;
   onResetStats: () => void;
 }) {
@@ -2746,7 +2966,7 @@ function StatsScreen({
   };
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
+    <div className={`stats-screen-card bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
       <div className="space-y-2 mb-5 shrink-0">
         <div className="flex justify-center">
           <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center">
@@ -2830,7 +3050,7 @@ function StatsScreen({
         </div>
       </div>
 
-      <div className="space-y-3 pt-4 shrink-0 relative z-10 app-bottom-actions">
+      {!desktopMode && <div className="space-y-3 pt-4 shrink-0 relative z-10 app-bottom-actions">
         <button
           onClick={onBack}
           className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]"
@@ -2838,7 +3058,7 @@ function StatsScreen({
           <ArrowLeft className="w-5 h-5" />
           Back
         </button>
-      </div>
+      </div>}
 
       {showResetConfirmation && createPortal(
         <div
@@ -2891,11 +3111,13 @@ function StatsScreen({
 
 function SettingsScreen({
   settings,
+  desktopMode,
   onChange,
   onTrollMode,
   onBack,
 }: {
   settings: SettingsState;
+  desktopMode: boolean;
   onChange: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void;
   onTrollMode: () => void;
   onBack: () => void;
@@ -2919,7 +3141,7 @@ function SettingsScreen({
     }`;
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 sm:p-8 ${CARD_HEIGHT} flex flex-col overflow-hidden relative`}>
+    <div className={`settings-screen-card bg-white rounded-3xl shadow-xl p-6 sm:p-8 ${CARD_HEIGHT} flex flex-col overflow-hidden relative`}>
       <div className="text-center space-y-2 mb-5 shrink-0">
         <div className="w-14 h-14 mx-auto bg-slate-800 rounded-2xl flex items-center justify-center">
           <Settings className="w-8 h-8 text-white" />
@@ -3040,12 +3262,12 @@ function SettingsScreen({
 
       </div>
 
-      <div className="pt-4 shrink-0 app-bottom-actions">
+      {!desktopMode && <div className="pt-4 shrink-0 app-bottom-actions">
         <button onClick={onBack} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25 active:scale-[0.98]">
           <ArrowLeft className="w-5 h-5" />
           Back
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -3089,15 +3311,17 @@ function TrollIntroScreen({
 
 function RankingsScreen({
   clockRating,
+  desktopMode,
   onBack,
 }: {
   clockRating: number;
+  desktopMode: boolean;
   onBack: () => void;
 }) {
   const currentRank = getRank(clockRating).rank;
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-5 ${CARD_HEIGHT} flex flex-col`}>
+    <div className={`rankings-screen-card bg-white rounded-3xl shadow-xl p-5 ${CARD_HEIGHT} flex flex-col`}>
       <div className="text-center space-y-1 mb-3 shrink-0">
         <div className="text-4xl" aria-hidden="true">{currentRank.icon}</div>
         <h1 className="text-2xl font-bold text-slate-800">Clock Ranks</h1>
@@ -3152,13 +3376,13 @@ function RankingsScreen({
         })}
       </div>
 
-      <button
+      {!desktopMode && <button
         onClick={onBack}
         className="mt-3 w-full shrink-0 bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3.5 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2 app-bottom-actions"
       >
         <ArrowLeft className="w-5 h-5" />
         Back
-      </button>
+      </button>}
     </div>
   );
 }
@@ -3168,6 +3392,7 @@ function PartySetupScreen({
   newPlayerName,
   partyVariant,
   showTabletopMode,
+  desktopMode,
   onNewPlayerNameChange,
   onAddPlayer,
   onRemovePlayer,
@@ -3180,6 +3405,7 @@ function PartySetupScreen({
   newPlayerName: string;
   partyVariant: PartyVariant;
   showTabletopMode: boolean;
+  desktopMode: boolean;
   onNewPlayerNameChange: (value: string) => void;
   onAddPlayer: () => void;
   onRemovePlayer: (id: string) => void;
@@ -3194,7 +3420,7 @@ function PartySetupScreen({
     : players.length >= 2;
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex flex-col`}>
+    <div className={`party-setup-card bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex flex-col`}>
       <div className="space-y-2 mb-5">
         <div className="flex justify-center">
           <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center">
@@ -3314,13 +3540,13 @@ function PartySetupScreen({
           {partyVariant === 'lastClockStanding' ? 'Start Elimination Round' : 'Start Round'}
         </button>
 
-        <button
+        {!desktopMode && <button
           onClick={onGoHome}
           className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
         >
           <ArrowLeft className="w-5 h-5" />
           Back
-        </button>
+        </button>}
       </div>
     </div>
   );
@@ -3449,6 +3675,7 @@ function PartyGuessesScreen({
   partyVariant,
   tiebreakerIds,
   guessOrderIds,
+  desktopMode,
   onGuessChange,
   onGuessBlur,
   onShowResults,
@@ -3458,6 +3685,7 @@ function PartyGuessesScreen({
   partyVariant: PartyVariant;
   tiebreakerIds: string[];
   guessOrderIds: string[];
+  desktopMode: boolean;
   onGuessChange: (id: string, guess: string) => void;
   onGuessBlur: (id: string, guess: string) => void;
   onShowResults: () => void;
@@ -3507,7 +3735,7 @@ function PartyGuessesScreen({
   }, [activeIndex, keypadOpen]);
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col`}>
+    <div className={`party-guesses-card bg-white rounded-3xl shadow-xl p-5 sm:p-6 text-center ${CARD_HEIGHT} flex flex-col`}>
       <div className="space-y-1.5 mb-3 shrink-0">
         <h1 className="text-3xl font-black text-slate-800">Enter Guesses</h1>
         <p className="text-sm text-slate-500">
@@ -3594,13 +3822,13 @@ function PartyGuessesScreen({
               {partyVariant === 'lastClockStanding' ? 'Reveal Elimination' : 'Show Results'}
             </button>
 
-            <button
+            {!desktopMode && <button
               onClick={onGoHome}
               className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center gap-2"
             >
               <ArrowLeft className="w-5 h-5" />
               Back
-            </button>
+            </button>}
           </>
         )}
       </div>
@@ -3716,6 +3944,7 @@ function PartyResultsScreen({
   eliminatedPlayerId,
   tiebreakerIds,
   reducedMotion,
+  desktopMode,
   onTone,
   onHaptic,
   onCelebrate,
@@ -3729,6 +3958,7 @@ function PartyResultsScreen({
   eliminatedPlayerId: string | null;
   tiebreakerIds: string[];
   reducedMotion: boolean;
+  desktopMode: boolean;
   onTone: (frequency?: number, duration?: number, volume?: number) => void;
   onHaptic: (pattern: number | number[]) => void;
   onCelebrate: () => void;
@@ -3791,7 +4021,7 @@ function PartyResultsScreen({
   }, [hasSpotOn, lastClockWinner, onCelebrate, onHaptic, revealComplete]);
 
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
+    <div className={`party-results-card bg-white rounded-3xl shadow-xl p-6 sm:p-8 text-center ${CARD_HEIGHT} flex flex-col relative overflow-hidden`}>
       {revealComplete && (hasSpotOn || lastClockWinner) && (
         <div className="confetti">{Array.from({ length: 14 }, (_, index) => <span key={index} className="confetti-piece" />)}</div>
       )}
@@ -4013,13 +4243,13 @@ function PartyResultsScreen({
           </>
         )}
 
-        <button
+        {!desktopMode && <button
           onClick={onGoHome}
           className="w-full app-secondary-action font-semibold py-4 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
         >
           <ArrowLeft className="w-5 h-5" />
           Back
-        </button>
+        </button>}
       </div>
     </div>
   );
@@ -4161,6 +4391,7 @@ function RevealScreen({
   dailyCountdown,
   dailyLeaderboard,
   reducedMotion,
+  desktopMode,
   revealAlreadyPlayed,
   trollPresentationLevel,
   onRevealPlayed,
@@ -4190,6 +4421,7 @@ function RevealScreen({
   dailyCountdown: string;
   dailyLeaderboard: DailyLeaderboardSummary | null;
   reducedMotion: boolean;
+  desktopMode: boolean;
   revealAlreadyPlayed: boolean;
   trollPresentationLevel: number;
   onRevealPlayed: () => void;
@@ -4271,7 +4503,7 @@ function RevealScreen({
   const showSpotOnCelebration = isSpotOnResult && cinematicComplete && !revealAlreadyPlayed;
 
   return (
-    <div className={`home-screen-card rounded-3xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden`}>
+    <div className={`reveal-screen-card home-screen-card rounded-3xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden`}>
       <div className="flip-scene h-full min-h-0">
         <div className={`flip-card reveal-flow-card relative h-full ${timeRevealed ? 'is-flipped' : ''}`}>
           <div className="flip-face absolute inset-0 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden">
@@ -4494,13 +4726,13 @@ function RevealScreen({
                 </button>
               )}
 
-              <button
+              {!desktopMode && <button
                 onClick={onGoHome}
                 className="w-full app-secondary-action font-semibold py-3.5 px-6 rounded-2xl text-lg transition-all duration-200 flex items-center justify-center gap-2"
               >
                 <Home className="w-5 h-5" />
                 {isChallenge ? 'Back to Home' : 'Back to Time Guesser'}
-              </button>
+              </button>}
             </div>
             )}
           </div>
