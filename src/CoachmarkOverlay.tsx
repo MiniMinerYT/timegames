@@ -80,6 +80,16 @@ export default function CoachmarkOverlay({
 
   useLayoutEffect(() => {
     const element = document.querySelector<HTMLElement>(`[data-guide-id="${step.targetId}"]`);
+    if (!element) {
+      const skipMissingTarget = window.setTimeout(() => {
+        if (document.querySelector<HTMLElement>(`[data-guide-id="${step.targetId}"]`)) return;
+        if (isLast) onComplete();
+        else setStepIndex(index => Math.min(index + 1, guide.steps.length - 1));
+      }, reducedMotion ? 0 : 220);
+
+      return () => window.clearTimeout(skipMissingTarget);
+    }
+
     element?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
 
     const update = () => setTargetRect(getTargetRect(step.targetId));
@@ -92,7 +102,7 @@ export default function CoachmarkOverlay({
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [reducedMotion, step.targetId]);
+  }, [guide.steps.length, isLast, onComplete, reducedMotion, step.targetId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

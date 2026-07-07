@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Heart, Lock, RotateCcw, ShieldAlert, Skull, Sparkles } from 'lucide-react';
 import { triggerHaptic } from './haptics';
-import { type DesktopShellAction } from './AppShells';
+import { type DesktopShellAction, type DesktopShellNotification } from './AppShells';
 
 const CARD_HEIGHT = 'app-card';
 
@@ -53,6 +53,7 @@ export default function HardcoreMode({
   nativeControls,
   desktopMode = false,
   onDesktopActionChange,
+  onDesktopNoticeChange,
   onTimingChange,
   onHelpVisibilityChange,
   onBestScoreChange,
@@ -66,6 +67,7 @@ export default function HardcoreMode({
   nativeControls: boolean;
   desktopMode?: boolean;
   onDesktopActionChange?: (action: DesktopShellAction | null) => void;
+  onDesktopNoticeChange?: (notification: DesktopShellNotification) => void;
   onTimingChange: (active: boolean) => void;
   onHelpVisibilityChange: (visible: boolean) => void;
   onBestScoreChange: (difficulty: HardcoreDifficulty, score: number) => void;
@@ -84,6 +86,7 @@ export default function HardcoreMode({
   const startRef = useRef<number | null>(null);
 
   const definition = difficulties.find(item => item.id === difficulty) ?? difficulties[0];
+  const allowHaptics = haptics && !desktopMode;
 
   const playTone = useCallback((frequency: number, duration = 0.08) => {
     if (!sounds) return;
@@ -118,7 +121,7 @@ export default function HardcoreMode({
     setPhase('playing');
     onTimingChange(true);
     playTone(760, 0.08);
-    triggerHaptic(haptics, 35);
+    triggerHaptic(allowHaptics, 35);
   };
 
   const stopTimer = () => {
@@ -146,14 +149,18 @@ export default function HardcoreMode({
       window.setTimeout(() => playTone(1120, 0.1), 90);
       window.setTimeout(() => playTone(1380, 0.18), 180);
     }
-    triggerHaptic(haptics, success ? [25, 30, 25] : [50, 35, 50]);
+    triggerHaptic(allowHaptics, success ? [25, 30, 25] : [50, 35, 50]);
 
     if (success && nextScore > bestScores[difficulty]) {
       onBestScoreChange(difficulty, nextScore);
     }
     if (success && nextScore >= 3 && bestScores[difficulty] < 3 && difficulty !== 'literal') {
       const nextName = difficulty === 'easy' ? 'Medium' : difficulty === 'medium' ? 'Hard' : difficulty === 'hard' ? 'Expert' : difficulty === 'expert' ? 'GOD' : 'LITERAL CLOCK';
-      setUnlockNotice(`${nextName} difficulty unlocked!`);
+      if (desktopMode && onDesktopNoticeChange) {
+        onDesktopNoticeChange({ eyebrow: 'New Difficulty', title: `${nextName} unlocked`, tone: 'unlock' });
+      } else {
+        setUnlockNotice(`${nextName} difficulty unlocked!`);
+      }
     }
     setPhase(nextLives === 0 ? 'gameOver' : 'result');
   };
@@ -180,10 +187,12 @@ export default function HardcoreMode({
     onDesktopActionChange({
       label: 'Change Difficulty',
       icon: 'hardcore',
+      detail: `${definition.name} - ${definition.exact ? 'perfect' : `+/-${definition.threshold.toFixed(2)}s`}`,
+      detailTone: 'negative',
       onClick: changeDifficulty,
     });
     return () => onDesktopActionChange(null);
-  }, [desktopMode, onDesktopActionChange, phase]);
+  }, [definition.exact, definition.name, definition.threshold, desktopMode, onDesktopActionChange, phase]);
 
   useEffect(() => {
     const handleSpace = (event: KeyboardEvent) => {
@@ -273,11 +282,25 @@ export default function HardcoreMode({
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col">
-          <div className="grid grid-cols-2 gap-6 px-4 mb-2">
+          <div className="hardcore-run-hud grid grid-cols-2 gap-6 px-4 mb-2">
             <div className="text-left">
               <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60">Score</p>
               <motion.p key={score} initial={reducedMotion || score === 0 ? false : { scale: 1.18 }} animate={{ scale: 1 }} transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }} className="text-4xl leading-none font-black mt-1">{score}</motion.p>
             </div>
+            {desktopMode && (
+              <div className="hardcore-hud-target text-center">
+                <p className={`text-[10px] uppercase tracking-[0.2em] font-black ${definition.accent}`}>{phase === 'gameOver' ? 'Run Over' : 'Target'}</p>
+                <motion.p
+                  key={phase === 'gameOver' ? `score-${score}` : `target-${target}`}
+                  initial={reducedMotion ? false : { opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.34, ease: [0.16, 1, 0.3, 1] }}
+                  className="text-4xl leading-none font-black mt-1"
+                >
+                  {phase === 'gameOver' ? score : `${target.toFixed(2)}s`}
+                </motion.p>
+              </div>
+            )}
             <div className="text-right">
               <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60">Lives</p>
               <div className="flex justify-end gap-1.5 mt-1" aria-label={`${lives} lives remaining`}>
@@ -303,44 +326,85 @@ export default function HardcoreMode({
           </div>
 
           {phase === 'target' && (
-            <div className="flex-1 flex flex-col items-center justify-center space-y-3">
-              <p className={`text-sm uppercase tracking-[0.25em] font-black ${definition.accent}`}>Your target</p>
-              <p className="text-5xl font-black">{target.toFixed(2)}s</p>
-              <p className="text-sm opacity-80">{nativeControls ? 'Memorise it, then tap Start.' : 'Memorise it, then press Start or use Space.'}</p>
-              <button onClick={beginTimer} className="relative z-20 pointer-events-auto w-44 h-44 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-4xl font-black shadow-2xl shadow-emerald-500/25 transition-all active:scale-95">START</button>
+            <div className="hardcore-control-zone flex-1 flex flex-col items-center justify-center space-y-3">
+              {desktopMode ? (
+                <motion.div
+                  layout
+                  className="hardcore-round-display"
+                  transition={{ duration: reducedMotion ? 0 : 0.42, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <p className={`hardcore-target-copy text-sm uppercase tracking-[0.25em] font-black ${definition.accent}`}>Your target</p>
+                  <motion.p layoutId="hardcore-round-time" className="hardcore-target-copy text-5xl font-black">{target.toFixed(2)}s</motion.p>
+                </motion.div>
+              ) : (
+                <>
+                  <p className={`text-sm uppercase tracking-[0.25em] font-black ${definition.accent}`}>Your target</p>
+                  <p className="text-5xl font-black">{target.toFixed(2)}s</p>
+                </>
+              )}
+              <p className="hardcore-control-hint text-sm opacity-80">{nativeControls ? 'Memorise it, then tap Start.' : 'Memorise it, then press Start or use Space.'}</p>
+              <button onClick={beginTimer} className={`${desktopMode ? 'hardcore-main-button ' : ''}relative z-20 pointer-events-auto w-44 h-44 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-4xl font-black shadow-2xl shadow-emerald-500/25 transition-all active:scale-95`}>START</button>
             </div>
           )}
 
           {phase === 'playing' && (
-            <div className="flex-1 flex flex-col items-center justify-center space-y-3">
-              <p className="invisible text-sm uppercase tracking-[0.25em] font-black" aria-hidden="true">Your target</p>
-              <p className="invisible text-5xl font-black" aria-hidden="true">00.00s</p>
-              <p className="font-bold opacity-80">{nativeControls ? 'Target hidden. Press STOP.' : 'Target hidden. Press STOP or Space.'}</p>
-              <button onClick={stopTimer} className="relative z-20 pointer-events-auto w-44 h-44 rounded-full bg-red-600 hover:bg-red-700 text-white text-4xl font-black shadow-2xl shadow-red-900/30 transition-all active:scale-95">STOP</button>
+            <div className="hardcore-control-zone flex-1 flex flex-col items-center justify-center space-y-3">
+              {desktopMode ? (
+                <div className="hardcore-round-display hardcore-round-display-placeholder" aria-hidden="true" />
+              ) : (
+                <>
+                  <p className="invisible text-sm uppercase tracking-[0.25em] font-black" aria-hidden="true">Your target</p>
+                  <p className="invisible text-5xl font-black" aria-hidden="true">00.00s</p>
+                </>
+              )}
+              <p className="hardcore-control-hint font-bold opacity-80">{nativeControls ? 'Target hidden. Press STOP.' : 'Target hidden. Press STOP or Space.'}</p>
+              <button onClick={stopTimer} className={`${desktopMode ? 'hardcore-main-button ' : ''}relative z-20 pointer-events-auto w-44 h-44 rounded-full bg-red-600 hover:bg-red-700 text-white text-4xl font-black shadow-2xl shadow-red-900/30 transition-all active:scale-95`}>STOP</button>
             </div>
           )}
 
           {phase === 'result' && elapsed !== null && shownError !== null && (
-            <div className="flex-1 flex flex-col justify-center space-y-3">
-              <motion.div initial={false} animate={!passed && !reducedMotion ? { x: [0, -7, 7, -4, 4, 0] } : { x: 0 }} transition={{ duration: reducedMotion ? 0 : 0.34, ease: 'easeInOut' }} className={`rounded-3xl border p-4 ${passed ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-red-500/15 border-red-500/40'}`}>
-                <p className="text-2xl font-black">{passed ? 'Passed' : 'Fail · Life lost'}</p>
-                <p className="text-5xl font-black mt-3">{elapsed.toFixed(2)}s</p>
-                <p className="font-bold opacity-70 mt-1">{shownError.toFixed(2)}s off · Target {target.toFixed(2)}s</p>
-              </motion.div>
-              <button onClick={nextRound} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl shadow-lg ring-2 ring-white/20`}>{nativeControls ? 'Next Target' : 'Next Target · Space'}</button>
+            <div className="hardcore-result-zone flex-1 flex flex-col justify-center space-y-3">
+              {desktopMode ? (
+                <>
+                  <motion.div layout initial={false} animate={!passed && !reducedMotion ? { x: [0, -7, 7, -4, 4, 0] } : { x: 0 }} transition={{ duration: reducedMotion ? 0 : 0.42, ease: [0.16, 1, 0.3, 1] }} className={`hardcore-round-display rounded-3xl border p-4 ${passed ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-red-500/15 border-red-500/40'}`}>
+                    <motion.p layout className={`hardcore-result-status text-2xl font-black ${passed ? 'text-emerald-300' : 'text-red-300'}`}>{passed ? 'Passed' : 'Fail - Life lost'}</motion.p>
+                    <motion.p layout className="hardcore-result-label text-xs uppercase tracking-[0.22em] font-black opacity-70 mt-2">Your Time</motion.p>
+                    <motion.p
+                      layoutId="hardcore-round-time"
+                      initial={reducedMotion ? false : { opacity: 0, y: 12, scale: 0.92 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: reducedMotion ? 0 : 0.38, ease: [0.16, 1, 0.3, 1] }}
+                      className="hardcore-result-time text-5xl font-black mt-3"
+                    >
+                      {elapsed.toFixed(2)}s
+                    </motion.p>
+                    <motion.p layout className="font-bold opacity-70 mt-1">{shownError.toFixed(2)}s off</motion.p>
+                  </motion.div>
+                  <button onClick={nextRound} className={`hardcore-main-button hardcore-result-button ${definition.button} text-white font-black shadow-lg ring-2 ring-white/20`}>NEXT</button>
+                </>
+              ) : (
+                <>
+                  <motion.div initial={false} animate={!passed && !reducedMotion ? { x: [0, -7, 7, -4, 4, 0] } : { x: 0 }} transition={{ duration: reducedMotion ? 0 : 0.34, ease: 'easeInOut' }} className={`rounded-3xl border p-4 ${passed ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-red-500/15 border-red-500/40'}`}>
+                    <p className="text-2xl font-black">{passed ? 'Passed' : 'Fail - Life lost'}</p>
+                    <p className="text-5xl font-black mt-3">{elapsed.toFixed(2)}s</p>
+                    <p className="font-bold opacity-70 mt-1">{shownError.toFixed(2)}s off - Target {target.toFixed(2)}s</p>
+                  </motion.div>
+                  <button onClick={nextRound} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl shadow-lg ring-2 ring-white/20`}>{nativeControls ? 'Next Target' : 'Next Target - Space'}</button>
+                </>
+              )}
             </div>
           )}
 
           {phase === 'gameOver' && elapsed !== null && shownError !== null && (
-            <div className="flex-1 flex flex-col justify-center space-y-3">
-              <div className="rounded-3xl bg-red-500/15 border border-red-500/40 p-4">
+            <div className="hardcore-result-zone hardcore-game-over-zone flex-1 flex flex-col justify-center space-y-3">
+              <div className="hardcore-game-over-panel rounded-3xl bg-red-500/15 border border-red-500/40 p-4">
                 <Skull className="w-12 h-12 mx-auto text-red-500" />
                 <h2 className="text-3xl font-black mt-2">Run Over</h2>
                 <p className={`text-6xl font-black mt-4 ${definition.accent}`}>{score}</p>
                 <p className="text-sm opacity-70">Best {definition.name} score: {bestScores[difficulty]}</p>
-                <p className="text-sm font-bold opacity-80 mt-2">Last attempt: {elapsed.toFixed(2)}s · {shownError.toFixed(2)}s off · Target {target.toFixed(2)}s</p>
+                {!desktopMode && <p className="text-sm font-bold opacity-80 mt-2">Last attempt: {elapsed.toFixed(2)}s - {shownError.toFixed(2)}s off - Target {target.toFixed(2)}s</p>}
               </div>
-              <button onClick={() => startRun(difficulty)} className={`w-full ${definition.button} text-white font-black py-3 rounded-2xl flex items-center justify-center gap-2`}><RotateCcw className="w-5 h-5" />Play Again</button>
+              <button onClick={() => startRun(difficulty)} className={desktopMode ? `hardcore-main-button hardcore-result-button ${definition.button} text-white font-black flex items-center justify-center gap-2` : `w-full ${definition.button} text-white font-black py-3 rounded-2xl flex items-center justify-center gap-2`}><RotateCcw className="w-5 h-5" />{desktopMode ? 'AGAIN' : 'Play Again'}</button>
             </div>
           )}
         </div>

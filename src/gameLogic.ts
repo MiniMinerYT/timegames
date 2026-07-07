@@ -86,7 +86,35 @@ export function getDailyTarget(dateKey: string) {
     hash = Math.imul(hash, 16777619);
   }
   const normalized = (hash >>> 0) / 4294967295;
-  return Math.round((0.5 + normalized * 9.5) * 100) / 100;
+  return Math.round((1.5 + normalized * 8.5) * 100) / 100;
+}
+
+export function getWeightedStandardTarget(random = Math.random) {
+  const roll = random();
+  let min = 4;
+  let max = 8;
+
+  if (roll < 0.48) {
+    min = 4;
+    max = 8;
+  } else if (roll < 0.68) {
+    min = 3;
+    max = 6;
+  } else if (roll < 0.88) {
+    min = 8;
+    max = 10;
+  } else if (roll < 0.96) {
+    min = 1.5;
+    max = 3;
+  } else if (roll < 0.99) {
+    min = 10;
+    max = 15;
+  } else {
+    min = 15;
+    max = 20;
+  }
+
+  return Math.round((min + random() * (max - min)) * 100) / 100;
 }
 
 export function getSimulatedDailyStanding(error: number, dateKey: string) {

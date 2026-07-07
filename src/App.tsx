@@ -36,6 +36,8 @@ import {
   MobileAppShell,
   type DesktopShellAction,
   type DesktopShellContext,
+  type DesktopShellNotification,
+  type DesktopRatingPulse,
   type DesktopLauncherModeId,
 } from './AppShells';
 import LadderIcon from './LadderIcon';
@@ -43,6 +45,7 @@ import HelpOverlay, { type HelpContent } from './HelpOverlay';
 import NumberKeypad from './NumberKeypad';
 import CoachmarkOverlay, { type CoachmarkGuide } from './CoachmarkOverlay';
 import { triggerHaptic } from './haptics';
+import { StreamerModeScreen, TwitchCallbackScreen } from './features/streamer';
 import { isSupabaseConfigured } from './supabaseClient';
 import {
   fetchDailyLeaderboard,
@@ -56,6 +59,7 @@ import {
   getLocalDateKey,
   getRank,
   getSimulatedDailyStanding,
+  getWeightedStandardTarget,
   isValidTimeInput,
   ranks,
   sanitizeTimeInput,
@@ -81,6 +85,7 @@ type GamePhase =
   | 'hardcore'
   | 'dailyHub'
   | 'dailyHistory'
+  | 'streamer'
   | 'trollIntro'
   | 'partySetup'
   | 'partyGuesses'
@@ -119,6 +124,15 @@ interface SettingsState {
   partyTimerRange: 'short' | 'standard' | 'long';
   darkMode: boolean;
 }
+
+type QueuedShellNotification = DesktopShellNotification & {
+  id: string;
+};
+
+type PendingRankNotice = {
+  pulse: DesktopRatingPulse;
+  toast: DesktopShellNotification | null;
+};
 
 type ToggleSettingKey =
   | 'sounds'
@@ -239,22 +253,22 @@ function getHelpContent(game: GameState): HelpContent {
   if (game.phase === 'ladder') return {
     title: 'Time Ladder',
     intro: 'Climb from 1 to 20 seconds. One miss ends the run.',
-    items: ['Tap the big circle to start and stop.', 'Get within 0.25s to climb.', 'Ladder does not affect Clock Rating.'],
+    items: ['Read the rung target before you start.', 'Tap START, count in your head, then tap STOP.', 'Get within 0.25s to climb.'],
   };
   if (game.phase === 'hardcore') return {
     title: 'Hardcore Mode',
     intro: 'An endless three-life timing challenge.',
-    items: ['Choose a difficulty and hit the shown target.', 'Pass to score. Miss to lose a heart.', 'Score 3 to unlock the next difficulty.'],
+    items: ['Choose a difficulty and read the target.', 'Start the hidden clock, count in your head, then stop.', 'Pass to score. Miss to lose a heart.'],
   };
   if (game.phase === 'guesserHub') return {
     title: 'Time Guesser',
     intro: 'Guess how long the hidden clock ran.',
-    items: ['Ranked changes Clock Rating.', 'Casual is practice.', 'Party Mode is local fun with friends.'],
+    items: ['Ranked changes Clock Rating.', 'Casual is practice with no rating risk.', 'Party Mode lets friends guess the same hidden clock.'],
   };
   if (game.phase === 'dailyHub') return {
     title: 'Daily Challenge',
     intro: 'One official stop-at-target challenge each day.',
-    items: ['Hit today’s target as closely as possible.', 'Complete it to protect your streak.', 'A new challenge arrives at midnight.'],
+    items: ['Memorise today\'s target before you start.', 'Count in your head and stop as close as possible.', 'Complete it to protect your streak.'],
   };
   if (game.phase === 'dailyHistory') return {
     title: 'Challenge Archive',
@@ -269,7 +283,7 @@ function getHelpContent(game: GameState): HelpContent {
   if (game.phase === 'stats') return {
     title: 'Statistics',
     intro: 'Your progress across TimeGames.',
-    items: ['See rank, streaks, best scores and achievements.', 'Reset lives here if you want a fresh start.'],
+    items: ['See rank, streaks, best scores and achievements.', 'Use achievements as small goals for each mode.', 'Reset only when you want a fresh start.'],
   };
   if (game.phase === 'settings') return {
     title: 'Settings',
@@ -279,22 +293,22 @@ function getHelpContent(game: GameState): HelpContent {
   if (game.mode === 'party' || ['partySetup', 'partyGuesses', 'partyResults'].includes(game.phase)) return {
     title: 'Party Mode',
     intro: 'Pass the device around and play one hidden timer together.',
-    items: ['Standard scores the closest guesses.', 'Last Clock Standing eliminates the worst guess.', 'Ties go to sudden death.'],
+    items: ['Add players, then run one hidden clock.', 'Everyone guesses how long it ran.', 'Standard scores points; Last Clock Standing removes the worst guess.'],
   };
   if (game.mode === 'challenge') return {
     title: 'Daily Challenge Attempt',
-    intro: 'Hit today’s shown target as closely as possible.',
-    items: ['Wait for the countdown.', 'Tap STOP when the target time has passed.', 'Your placement is based on the error.'],
+    intro: 'Hit today\'s shown target as closely as possible.',
+    items: ['Use the countdown to get ready.', 'Count in your head once the clock starts.', 'Tap STOP when the target time has passed.'],
   };
   if (game.mode === 'single') return {
     title: 'Single Player',
     intro: 'Guess the hidden duration.',
-    items: ['Count internally while the clock is hidden.', 'Enter your guess in seconds.', 'Ranked rounds change Clock Rating.'],
+    items: ['Use the countdown to prepare.', 'Count in your head while the clock is hidden.', 'Enter your guess in seconds after STOP.'],
   };
   return {
     title: 'Welcome to TimeGames',
     intro: 'Train your internal clock through quick timing games.',
-    items: ['Pick a game and trust your sense of time.', 'Ranked Time Guesser is the main Clock Rating mode.'],
+    items: ['Pick a game, watch for START, then count without seeing the timer.', 'Ranked Time Guesser is the main Clock Rating mode.'],
   };
 }
 
@@ -303,13 +317,13 @@ void getHelpContent;
 function getGuideContent(game: GameState): HelpContent {
   if (game.phase === 'ladder') return {
     title: 'Time Ladder',
-    intro: 'A focused climb from 1.00 seconds to 20.00 seconds. This is about consistency, not rating pressure.',
-    objective: 'Clear as many levels as possible. One miss ends the run.',
+    intro: 'A focused climb from 1.00 seconds to 20.00 seconds. The pass window is shown in the mode header on desktop and in the game card on mobile.',
+    objective: 'Clear as many levels as possible. You must stop within 0.25 seconds, and one miss ends the run.',
     items: [],
     steps: [
       { title: 'Look at the highlighted rung', body: 'That rung shows your current level and target time.' },
-      { title: 'Tap START', body: 'The timer begins. Count internally until you believe the target time has passed.' },
-      { title: 'Tap STOP', body: 'If you are within 0.25 seconds, the ladder moves up to the next level.' },
+      { title: 'Use the circle', body: 'The same large circular control starts, stops and begins a new run.' },
+      { title: 'Aim for the pass window', body: 'If you are within 0.25 seconds, the ladder moves up to the next level.' },
       { title: 'Review your climb', body: 'During or after the run, scroll the ladder to compare previous levels and results.' },
     ],
     tips: ['Time Ladder never changes Clock Rating.', 'Spot Ons trigger a special celebration and count in global stats.'],
@@ -322,8 +336,8 @@ function getGuideContent(game: GameState): HelpContent {
     items: [],
     steps: [
       { title: 'Pick a difficulty', body: 'Harder difficulties require tighter timing and unlock one after another.' },
-      { title: 'Read the target', body: 'Each round shows the exact time you need to hit before the timer starts.' },
-      { title: 'Start, then stop', body: 'Tap START, count internally, then tap STOP when you think the target has passed.' },
+      { title: 'Read the target', body: 'Each round shows the exact time you need to hit. On desktop it sits in the top HUD with score and lives.' },
+      { title: 'Use the circle', body: 'Tap START, count in your head, then tap STOP when you think the target has passed. Result actions stay circular too.' },
       { title: 'Survive', body: 'A pass adds 1 score. A miss costs 1 heart. At 0 hearts, the run is over.' },
     ],
     tips: ['Hardcore is a high-score mode and does not affect Clock Rating.', 'Score 3 on a difficulty to unlock the next tier.'],
@@ -336,8 +350,8 @@ function getGuideContent(game: GameState): HelpContent {
     items: [],
     steps: [
       { title: 'Choose Ranked or Casual', body: 'Ranked changes Clock Rating. Casual lets you practise safely.' },
-      { title: 'Watch the countdown', body: 'After the countdown, the clock runs secretly.' },
-      { title: 'Estimate the duration', body: 'When the clock stops, enter your guess in seconds using the keypad.' },
+      { title: 'Watch the countdown', body: 'The countdown is your cue to get ready. Start counting when the timer hides.' },
+      { title: 'Estimate the duration', body: 'When STOP appears, enter how many seconds you think passed using the keypad.' },
       { title: 'Read the result', body: 'You will see the true time, your error and any rating change.' },
     ],
     tips: ['Lower error means more rating in Ranked.', 'Party Mode is for friends and never changes Clock Rating.'],
@@ -350,7 +364,7 @@ function getGuideContent(game: GameState): HelpContent {
     items: [],
     steps: [
       { title: 'Read today’s target', body: 'The card shows the exact time you need to hit before you start.' },
-      { title: 'Stop carefully', body: 'After the countdown, tap STOP when you think the target time has passed.' },
+      { title: 'Stop carefully', body: 'After the countdown, count in your head and tap STOP when the target time has passed.' },
       { title: 'Claim the streak bonus', body: 'Finishing awards the displayed Clock Rating bonus once per day.' },
       { title: 'Check the archive', body: 'Past days are view-only, so you can review results without replaying known answers.' },
     ],
@@ -398,12 +412,12 @@ function getGuideContent(game: GameState): HelpContent {
   if (game.phase === 'settings') return {
     title: 'Settings',
     intro: 'Make the game feel comfortable on your device.',
-    objective: 'Tune audio, haptics, motion and appearance.',
+    objective: 'Tune audio, motion, appearance and device feedback where available.',
     items: [],
     steps: [
       { title: 'Audio feedback', body: 'Toggle sound effects, theme music and music volume separately.' },
       { title: 'Comfort options', body: 'Reduced Motion simplifies movement effects for a calmer experience.' },
-      { title: 'Device feel', body: 'Light Mode, haptics and Party timer range are saved on this device.' },
+      { title: 'Device feel', body: 'Light Mode, available feedback options and Party timer range are saved on this device.' },
     ],
   };
 
@@ -414,7 +428,7 @@ function getGuideContent(game: GameState): HelpContent {
     items: [],
     steps: [
       { title: 'Add players', body: 'Standard and Last Clock Standing need at least two named players.' },
-      { title: 'Run one shared timer', body: 'Everyone watches the same hidden-clock round.' },
+      { title: 'Run one shared timer', body: 'Everyone counts through the same hidden-clock round.' },
       { title: 'Enter guesses quickly', body: 'Tap a guess box, use the keypad and Save & Next to move through the group.' },
       { title: 'Score or survive', body: 'Standard awards points. Last Clock Standing eliminates the worst guess each round.' },
     ],
@@ -428,7 +442,7 @@ function getGuideContent(game: GameState): HelpContent {
     items: [],
     steps: [
       { title: 'Remember the target', body: 'The target time was shown before you started.' },
-      { title: 'Stop once', body: 'Tap STOP when you think the target time has passed.' },
+      { title: 'Stop once', body: 'Count in your head, then tap STOP when you think the target time has passed.' },
       { title: 'See the full result', body: 'The result shows your error, placement, streak and Clock Rating bonus.' },
     ],
     tips: ['The current Daily Challenge cannot be replayed after submission.'],
@@ -440,8 +454,8 @@ function getGuideContent(game: GameState): HelpContent {
     objective: 'Guess the hidden duration as accurately as possible.',
     items: [],
     steps: [
-      { title: 'Prepare on countdown', body: 'Use the countdown to get ready before the hidden timer starts.' },
-      { title: 'Count internally', body: 'The clock runs invisibly, so rely on your sense of elapsed time.' },
+      { title: 'Prepare on countdown', body: 'Use the countdown to get ready. Start counting when the timer hides.' },
+      { title: 'Count in your head', body: 'The clock runs invisibly, so rely on your sense of elapsed time.' },
       { title: 'Submit a guess', body: 'Use up to two decimals. The keypad keeps the input clean.' },
       { title: 'Learn from the result', body: 'Compare the secret time, your guess and the error to improve next round.' },
     ],
@@ -459,7 +473,7 @@ function getGuideContent(game: GameState): HelpContent {
       { title: 'Time Ladder', body: 'Climb from 1 to 20 seconds. One miss ends the run.' },
       { title: 'Hardcore Mode', body: 'Three lives, endless score-chasing and unlockable difficulties.' },
     ],
-    tips: ['Use the question mark on menu screens whenever you want a quick refresher.'],
+    tips: ['Use the question mark on menu screens whenever you want a quick refresher.', 'On desktop, the top bar carries navigation, rank and status notifications.'],
   };
 }
 
@@ -574,8 +588,8 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
         },
         {
           targetId: 'ladder-main-button',
-          title: 'Start and stop',
-          body: 'Tap once to start. Tap again when you think the target time has passed.',
+          title: 'Main control',
+          body: 'This circle starts, stops, advances and starts a new run. The label changes with the current state.',
         },
         {
           targetId: 'ladder-scroll-lane',
@@ -602,9 +616,9 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
           body: 'Easy gives the widest timing window and is unlocked by default.',
         },
         {
-          targetId: 'hardcore-all-games',
+          targetId: 'hardcore-difficulty-grid',
           title: 'High-score mode',
-          body: 'Hardcore has its own scores. It does not affect Clock Rating.',
+          body: 'Hardcore has its own scores, circular start/stop controls and unlock notifications. It does not affect Clock Rating.',
         },
       ],
     };
@@ -682,16 +696,6 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
           title: 'Your stopped time',
           body: 'This is the time you actually stopped on. Your result is based on how close it was to today’s target.',
         },
-        {
-          targetId: 'daily-result-score',
-          title: 'Your result',
-          body: 'Your Daily Challenge rank is based on how close your stop was.',
-        },
-        {
-          targetId: 'daily-result-bonus',
-          title: 'Streak bonus',
-          body: 'Completing the Daily Challenge awards this Clock Rating bonus once today.',
-        },
       ],
     };
   }
@@ -699,9 +703,9 @@ function getScreenGuide(game: GameState): CoachmarkGuide | null {
   return null;
 }
 
-function getDesktopShellContext(game: GameState, rankedMode: boolean, ratingChange: number | null, clockRating: number): DesktopShellContext {
+function getDesktopShellContext(game: GameState, rankedMode: boolean): DesktopShellContext {
   if (game.phase === 'settings') {
-    return { title: 'Settings', subtitle: 'Tune audio, haptics, motion and theme.', icon: 'settings', accent: 'slate' };
+    return { title: 'Settings', subtitle: 'Tune audio, motion and theme.', icon: 'settings', accent: 'slate' };
   }
   if (game.phase === 'stats') {
     return { title: 'Stats', subtitle: 'Progress, achievements and saved performance.', icon: 'stats', accent: 'cyan' };
@@ -709,8 +713,11 @@ function getDesktopShellContext(game: GameState, rankedMode: boolean, ratingChan
   if (game.phase === 'rankings') {
     return { title: 'Clock Ranks', subtitle: 'Your ranked Time Guesser progression.', icon: 'rankings', accent: 'yellow' };
   }
+  if (game.phase === 'streamer') {
+    return { title: 'Streamer Mode', subtitle: 'Live viewer guesses through provider-based chat integration.', icon: 'streamer', accent: 'cyan' };
+  }
   if (game.phase === 'ladder') {
-    return { title: 'Time Ladder', subtitle: 'Climb 1 to 20 seconds. One miss ends the run.', icon: 'ladder', accent: 'indigo', detail: 'Pass window', detailSubtext: 'Within 0.25s of target' };
+    return { title: 'Time Ladder', subtitle: 'Climb 1 to 20 seconds. Pass within 0.25s or the run ends.', icon: 'ladder', accent: 'indigo' };
   }
   if (game.phase === 'hardcore') {
     return { title: 'Hardcore', subtitle: 'Three lives. Hit each shown target to keep the run alive.', icon: 'hardcore', accent: 'red' };
@@ -725,25 +732,11 @@ function getDesktopShellContext(game: GameState, rankedMode: boolean, ratingChan
     return { title: 'Party Mode', subtitle: 'Local multiplayer timing. Closest guess wins the round.', icon: 'party', accent: 'cyan' };
   }
   if (game.mode === 'single' || game.phase === 'guesserHub' || game.phase === 'reveal') {
-    const rankInfo = getRank(clockRating);
-    const detail = game.phase === 'reveal' && rankedMode && ratingChange !== null
-      ? `${ratingChange >= 0 ? '+' : ''}${ratingChange} Clock Rating`
-      : rankedMode
-        ? 'Ranked'
-        : 'Casual';
     return {
       title: rankedMode ? 'Time Guesser Ranked' : 'Time Guesser Casual',
       subtitle: rankedMode ? 'Guess the hidden clock. This round can change Clock Rating.' : 'Practice hidden-clock timing without rating pressure.',
       icon: 'timer',
       accent: rankedMode ? 'teal' : 'emerald',
-      detail,
-      detailSubtext: game.phase === 'reveal' && rankedMode && ratingChange !== null
-        ? rankInfo.next
-          ? `${rankInfo.pointsNeeded} to ${rankInfo.next.name}`
-          : 'Highest rank reached'
-        : undefined,
-      detailProgress: game.phase === 'reveal' && rankedMode && ratingChange !== null ? rankInfo.progress : undefined,
-      detailTone: ratingChange === null ? undefined : ratingChange > 0 ? 'positive' : ratingChange < 0 ? 'negative' : 'neutral',
     };
   }
   return { title: 'TimeGames', subtitle: 'Master your internal clock.', icon: 'home', accent: 'teal' };
@@ -827,7 +820,7 @@ const rankDefinitions = [
 
 void rankDefinitions;
 
-function App() {
+function AppContent() {
   const [nativeControls] = useState(isNativeOrTouchDevice);
   const [isDesktopWeb, setIsDesktopWeb] = useState(isDesktopWebViewport);
   const [desktopVerticalLayout, setDesktopVerticalLayout] = useState(() => localStorage.getItem(DESKTOP_VERTICAL_LAYOUT_KEY) === 'true');
@@ -850,6 +843,9 @@ function App() {
     dailyOfficial: false,
     ratingChange: null,
   });
+  const desktopSettingsReturnRef = useRef<GameState | null>(null);
+  const desktopStatsReturnRef = useRef<GameState | null>(null);
+  const desktopLastScreenRef = useRef<GameState | null>(null);
 
   const [stats, setStats] = useState<StatsState>(() => {
     try {
@@ -872,6 +868,7 @@ function App() {
       return defaultStats;
     }
   });
+  const [desktopDisplayedClockRating, setDesktopDisplayedClockRating] = useState(stats.clockRating);
 
   const [settings, setSettings] = useState<SettingsState>(() => {
     try {
@@ -931,6 +928,8 @@ function App() {
 
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [standaloneTimingActive, setStandaloneTimingActive] = useState(false);
+  const [streamerTimingActive, setStreamerTimingActive] = useState(false);
+  const [streamerBackRequest, setStreamerBackRequest] = useState(0);
   const [hardcoreHelpVisible, setHardcoreHelpVisible] = useState(false);
   const [desktopContextAction, setDesktopContextAction] = useState<DesktopShellAction | null>(null);
   const [playerId] = useState(getOrCreatePlayerId);
@@ -984,7 +983,12 @@ function App() {
     }
   });
 
-  const [rankUpNotice, setRankUpNotice] = useState<string | null>(null);
+  const [pendingRankNotice, setPendingRankNotice] = useState<PendingRankNotice | null>(null);
+  const [pendingAchievementNotice, setPendingAchievementNotice] = useState<string | null>(null);
+  const [notificationQueue, setNotificationQueue] = useState<QueuedShellNotification[]>([]);
+  const [activeNotification, setActiveNotification] = useState<QueuedShellNotification | null>(null);
+  const [desktopRatingPulse, setDesktopRatingPulse] = useState<DesktopRatingPulse | null>(null);
+  const [desktopDailyTransitioning, setDesktopDailyTransitioning] = useState(false);
   const [rankingsBackTarget, setRankingsBackTarget] = useState<'guesser' | 'result'>('guesser');
   const [trollPerfectStreak, setTrollPerfectStreak] = useState(0);
   const [completedRevealKeys, setCompletedRevealKeys] = useState<string[]>([]);
@@ -1000,6 +1004,8 @@ function App() {
   const timerRef = useRef<number | null>(null);
   const activeTimerStartedAtRef = useRef<number | null>(null);
   const dailySubmissionRef = useRef<string | null>(null);
+  const submitLockRef = useRef(false);
+  const notificationSerialRef = useRef(0);
   const todayKey = getLocalDateKey(currentTime);
   const yesterday = new Date(currentTime);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -1011,6 +1017,12 @@ function App() {
   const dailyCountdown = getTimeUntilNextDay(currentTime);
 
   const todayLeaderboard = dailyLeaderboard[todayKey] ?? null;
+
+  useEffect(() => {
+    if (!isDesktopWeb || desktopVerticalLayout) return;
+    if (game.phase === 'settings' || game.phase === 'stats') return;
+    desktopLastScreenRef.current = game;
+  }, [desktopVerticalLayout, game, isDesktopWeb]);
 
   useEffect(() => {
     localStorage.setItem('timegames-stats', JSON.stringify(stats));
@@ -1059,6 +1071,11 @@ function App() {
       const merged = new Set(prev);
       unlocked.forEach(id => merged.add(id));
       if (merged.size === prev.length) return prev;
+      const firstNewId = Array.from(unlocked).find(id => !prev.includes(id));
+      const firstNewAchievement = achievementDefinitions.find(achievement => achievement.id === firstNewId);
+      if (firstNewAchievement) {
+        setPendingAchievementNotice(firstNewAchievement.title);
+      }
       const next = achievementDefinitions
         .map(achievement => achievement.id)
         .filter(id => merged.has(id));
@@ -1177,14 +1194,24 @@ function App() {
   }, [settings.sounds]);
 
   const vibrate = useCallback((pattern: number | number[]) => {
+    if (isDesktopWeb) return;
     triggerHaptic(settings.haptics, pattern);
-  }, [settings.haptics]);
+  }, [isDesktopWeb, settings.haptics]);
 
   const playCelebration = useCallback(() => {
     playTone(880, 0.1);
     window.setTimeout(() => playTone(1100, 0.1), 90);
     window.setTimeout(() => playTone(1320, 0.18), 180);
   }, [playTone]);
+
+  const enqueueNotification = useCallback((notification: DesktopShellNotification) => {
+    notificationSerialRef.current += 1;
+    const queued: QueuedShellNotification = {
+      ...notification,
+      id: `${notification.eyebrow}-${notification.title}-${notificationSerialRef.current}`,
+    };
+    setNotificationQueue(prev => [...prev, queued]);
+  }, []);
 
   const generateTargetTime = useCallback((mode: GameMode) => {
     if ((mode === 'party' || mode === 'tabletop') && settings.partyTimerRange !== 'standard') {
@@ -1194,31 +1221,7 @@ function App() {
       return Math.round((min + Math.random() * (max - min)) * 100) / 100;
     }
 
-    const roll = Math.random();
-
-    let min: number;
-    let max: number;
-
-    if (roll < 0.5) {
-      min = 4;
-      max = 8;
-    } else if (roll < 0.8) {
-      if (Math.random() < 0.5) {
-        min = 2;
-        max = 4;
-      } else {
-        min = 8;
-        max = 10;
-      }
-    } else if (roll < 0.95) {
-      min = 10;
-      max = 20;
-    } else {
-      min = 0.3;
-      max = 2;
-    }
-
-    return Math.round((min + Math.random() * (max - min)) * 100) / 100;
+    return getWeightedStandardTarget();
   }, [settings.partyTimerRange]);
 
   const clearGameTimer = useCallback(() => {
@@ -1235,6 +1238,7 @@ function App() {
     dailyOfficial = false
   ) => {
     clearGameTimer();
+    submitLockRef.current = false;
 
     setGame({
       mode,
@@ -1353,18 +1357,26 @@ function App() {
   }, []);
 
   const submitGuess = useCallback((guessOverride?: string) => {
+    if (submitLockRef.current || game.timeRevealed) return;
     const submittedGuessText = guessOverride ?? game.playerGuess;
     const submittedGuess = parseFloat(submittedGuessText);
     const distance = Math.abs(submittedGuess - game.targetTime);
     if (!Number.isFinite(distance)) return;
+    if (game.mode === 'challenge' && game.phase !== 'playing') return;
+    if ((game.mode === 'single' || game.mode === 'troll') && game.phase !== 'reveal') return;
+    submitLockRef.current = true;
     if (game.dailyOfficial && game.challengeDate) {
       if (dailyResults[game.challengeDate] || dailySubmissionRef.current === game.challengeDate) return;
       dailySubmissionRef.current = game.challengeDate;
     }
 
     const startingRating = stats.clockRating;
+    if (game.mode === 'single' && settings.rankedMode) {
+      setDesktopDisplayedClockRating(startingRating);
+    }
     let projectedRating = startingRating;
-    const startingRankName = getRank(startingRating).rank.name;
+    const startingRank = getRank(startingRating).rank;
+    const startingRankName = startingRank.name;
     const ratingChange = game.mode === 'single' && settings.rankedMode
       ? calculateRatingChange(distance, stats.clockRating)
       : null;
@@ -1448,13 +1460,23 @@ function App() {
         clockRating: Math.max(0, prev.clockRating + ratingChange),
       }));
     }
-    const newRankName = getRank(projectedRating).rank.name;
-    if (newRankName !== startingRankName) {
-      setRankUpNotice(newRankName);
-      playTone(740, 0.08, 0.075);
-      window.setTimeout(() => playTone(930, 0.1, 0.08), 90);
-      window.setTimeout(() => playTone(1180, 0.16, 0.085), 210);
-      window.setTimeout(() => setRankUpNotice(current => current === newRankName ? null : current), 4200);
+    if (ratingChange !== null) {
+      const nextRankInfo = getRank(projectedRating);
+      const newRankName = nextRankInfo.rank.name;
+      const rankChanged = newRankName !== startingRankName;
+      const direction = ratingChange >= 0 ? 'positive' : 'negative';
+      setPendingRankNotice({
+        pulse: {
+          tone: direction,
+        },
+        toast: rankChanged
+          ? {
+              eyebrow: direction === 'positive' ? 'Rank Up' : 'Rank Down',
+              title: newRankName,
+              tone: direction === 'positive' ? 'rank' : 'rank-down',
+            }
+          : null,
+      });
     }
     playTone(520, 0.045, 0.045);
 
@@ -1526,6 +1548,12 @@ function App() {
     setGame(prev => ({ ...prev, mode: 'home', phase: 'dailyHistory' }));
   }, []);
 
+  const showStreamerMode = useCallback(() => {
+    if (!isDesktopWeb || desktopVerticalLayout) return;
+    clearGameTimer();
+    setGame(prev => ({ ...prev, mode: 'home', phase: 'streamer' }));
+  }, [clearGameTimer, desktopVerticalLayout, isDesktopWeb]);
+
   const showTimeLadder = useCallback(() => {
     clearGameTimer();
     setGame(prev => ({ ...prev, mode: 'home', phase: 'ladder' }));
@@ -1541,28 +1569,54 @@ function App() {
   }, []);
 
   const showStats = useCallback(() => {
-    setGame(prev => ({
-      ...prev,
-      mode: 'home',
-      phase: 'stats',
-    }));
-  }, []);
+    setGame(prev => {
+      if (isDesktopWeb && !desktopVerticalLayout && prev.phase !== 'stats') {
+        desktopStatsReturnRef.current = prev;
+      }
+      return {
+        ...prev,
+        mode: 'home',
+        phase: 'stats',
+      };
+    });
+  }, [desktopVerticalLayout, isDesktopWeb]);
 
   const hideStats = useCallback(() => {
-    setGame(prev => ({
-      ...prev,
-      mode: 'home',
-      phase: 'ready',
-    }));
-  }, []);
+    setGame(prev => {
+      const desktopTarget = desktopStatsReturnRef.current ?? desktopLastScreenRef.current;
+      if (isDesktopWeb && !desktopVerticalLayout && desktopTarget) {
+        const target = desktopTarget;
+        desktopStatsReturnRef.current = null;
+        return target;
+      }
+      return {
+        ...prev,
+        mode: 'home',
+        phase: 'ready',
+      };
+    });
+  }, [desktopVerticalLayout, isDesktopWeb]);
 
   const showSettings = useCallback(() => {
-    setGame(prev => ({ ...prev, mode: 'home', phase: 'settings' }));
-  }, []);
+    setGame(prev => {
+      if (isDesktopWeb && !desktopVerticalLayout && prev.phase !== 'settings') {
+        desktopSettingsReturnRef.current = prev;
+      }
+      return { ...prev, mode: 'home', phase: 'settings' };
+    });
+  }, [desktopVerticalLayout, isDesktopWeb]);
 
   const hideSettings = useCallback(() => {
-    setGame(prev => ({ ...prev, mode: 'home', phase: 'ready' }));
-  }, []);
+    setGame(prev => {
+      const desktopTarget = desktopSettingsReturnRef.current ?? desktopLastScreenRef.current;
+      if (isDesktopWeb && !desktopVerticalLayout && desktopTarget) {
+        const target = desktopTarget;
+        desktopSettingsReturnRef.current = null;
+        return target;
+      }
+      return { ...prev, mode: 'home', phase: 'ready' };
+    });
+  }, [desktopVerticalLayout, isDesktopWeb]);
 
   const openTrollIntro = useCallback(() => {
     clearGameTimer();
@@ -1608,10 +1662,10 @@ function App() {
     value: SettingsState[K]
   ) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    if (key === 'haptics' && value === true) {
+    if (key === 'haptics' && value === true && !isDesktopWeb) {
       triggerHaptic(true, 35);
     }
-  }, []);
+  }, [isDesktopWeb]);
 
   const resetStats = useCallback(() => {
     setStats(defaultStats);
@@ -1624,7 +1678,12 @@ function App() {
     setDesktopModeCounts({});
     setSeenScreenGuides([]);
     setCompletedRevealKeys([]);
-    setRankUpNotice(null);
+    setPendingRankNotice(null);
+    setPendingAchievementNotice(null);
+    setNotificationQueue([]);
+    setActiveNotification(null);
+    setDesktopRatingPulse(null);
+    setDesktopDisplayedClockRating(defaultStats.clockRating);
     setTrollPerfectStreak(0);
     setPartyVariant('standard');
     setPartyRoundNumber(0);
@@ -1645,6 +1704,7 @@ function App() {
       ratingChange: null,
     });
     setSplashPhase('done');
+    submitLockRef.current = false;
     dailySubmissionRef.current = null;
     localStorage.removeItem('timegames-daily-results');
     localStorage.removeItem('timegames-daily-retention');
@@ -1697,6 +1757,11 @@ function App() {
     recordDesktopModeLaunch('party');
     openPartySetup();
   }, [openPartySetup, recordDesktopModeLaunch]);
+
+  const openDesktopStreamer = useCallback(() => {
+    recordDesktopModeLaunch('streamer');
+    showStreamerMode();
+  }, [recordDesktopModeLaunch, showStreamerMode]);
 
   const selectPartyVariant = useCallback((variant: PartyVariant) => {
     setPartyVariant(variant);
@@ -1936,10 +2001,12 @@ function App() {
   const musicDucked =
     ['countdown', 'playing', 'stopped'].includes(game.phase) ||
     (game.phase === 'reveal' && !game.timeRevealed) ||
-    standaloneTimingActive;
+    standaloneTimingActive ||
+    streamerTimingActive;
   const musicEager =
-    game.mode === 'home' &&
-    ['ready', 'guesserHub', 'dailyHub', 'partySetup', 'stats', 'settings', 'rankings'].includes(game.phase);
+    (game.mode === 'home' &&
+      ['ready', 'guesserHub', 'dailyHub', 'partySetup', 'stats', 'settings', 'rankings'].includes(game.phase)) ||
+    (game.phase === 'streamer' && !streamerTimingActive);
   const disableScreenTransition =
     settings.reducedMotion ||
     standaloneTimingActive ||
@@ -1967,7 +2034,14 @@ function App() {
       return next;
     });
   }, [activeCoachmarkGuide]);
-  const splashVisible = splashPhase !== 'done';
+  const desktopSplashSkipped = isDesktopWeb && game.mode !== 'tabletop';
+  const splashVisible = splashPhase !== 'done' && !desktopSplashSkipped;
+
+  useEffect(() => {
+    if (!desktopSplashSkipped || splashPhase === 'done') return;
+    setSplashPhase('done');
+  }, [desktopSplashSkipped, splashPhase]);
+
   const startSplash = useCallback(() => {
     if (splashPhase !== 'waiting') return;
     measureSplashIconTarget();
@@ -1981,7 +2055,7 @@ function App() {
   }, [measureSplashIconTarget, settings.reducedMotion, splashPhase]);
   const useDesktopShell = isDesktopWeb && !desktopVerticalLayout && game.mode !== 'tabletop';
   const showDesktopVerticalToggle = isDesktopWeb && game.mode !== 'tabletop';
-  const desktopShellContext = getDesktopShellContext(game, settings.rankedMode, game.ratingChange, stats.clockRating);
+  const desktopShellContext = getDesktopShellContext(game, settings.rankedMode);
 
   useEffect(() => {
     if (!useDesktopShell || game.phase !== 'hardcore') {
@@ -1989,26 +2063,111 @@ function App() {
     }
   }, [game.phase, useDesktopShell]);
 
+  useEffect(() => {
+    if (!useDesktopShell || game.mode !== 'challenge' || game.phase !== 'reveal' || !game.timeRevealed) return undefined;
+    if (activeRevealKey && !completedRevealKeys.includes(activeRevealKey) && !settings.reducedMotion) return undefined;
+    const timer = window.setTimeout(() => {
+      if (settings.reducedMotion) {
+        setGame(prev => {
+          if (prev.mode !== 'challenge' || prev.phase !== 'reveal') return prev;
+          return { ...prev, mode: 'home', phase: 'dailyHub', timeRevealed: true };
+        });
+        return;
+      }
+      setDesktopDailyTransitioning(true);
+      window.setTimeout(() => {
+        setGame(prev => {
+          if (prev.mode !== 'challenge' || prev.phase !== 'reveal') return prev;
+          return { ...prev, mode: 'home', phase: 'dailyHub', timeRevealed: true };
+        });
+        window.setTimeout(() => setDesktopDailyTransitioning(false), 80);
+      }, 340);
+    }, settings.reducedMotion ? 2500 : 3800);
+    return () => window.clearTimeout(timer);
+  }, [activeRevealKey, completedRevealKeys, game.mode, game.phase, game.timeRevealed, settings.reducedMotion, useDesktopShell]);
+
+  const revealNotificationBlocked = game.phase === 'reveal' && activeRevealKey !== null && !completedRevealKeys.includes(activeRevealKey);
+
+  useEffect(() => {
+    if (!pendingRankNotice || revealNotificationBlocked) return;
+    const notice = pendingRankNotice;
+    setPendingRankNotice(null);
+    setDesktopDisplayedClockRating(stats.clockRating);
+    setDesktopRatingPulse(notice.pulse);
+    if (!useDesktopShell && notice.toast) {
+      enqueueNotification(notice.toast);
+    }
+    if (notice.toast) {
+      playTone(notice.toast.tone === 'rank-down' ? 260 : 740, 0.08, 0.075);
+      window.setTimeout(() => playTone(notice.toast?.tone === 'rank-down' ? 210 : 930, 0.1, 0.08), 90);
+      window.setTimeout(() => playTone(notice.toast?.tone === 'rank-down' ? 160 : 1180, 0.16, 0.085), 210);
+    }
+  }, [enqueueNotification, pendingRankNotice, playTone, revealNotificationBlocked, stats.clockRating, useDesktopShell]);
+
+  useEffect(() => {
+    if (pendingRankNotice || revealNotificationBlocked) return;
+    setDesktopDisplayedClockRating(stats.clockRating);
+  }, [pendingRankNotice, revealNotificationBlocked, stats.clockRating]);
+
+  useEffect(() => {
+    if (!pendingAchievementNotice || revealNotificationBlocked) return;
+    const notice = pendingAchievementNotice;
+    setPendingAchievementNotice(null);
+    enqueueNotification({ eyebrow: 'Achievement', title: notice, tone: 'achievement' });
+  }, [enqueueNotification, pendingAchievementNotice, revealNotificationBlocked]);
+
+  useEffect(() => {
+    if (activeNotification || notificationQueue.length === 0) return;
+    const [next, ...rest] = notificationQueue;
+    setActiveNotification(next);
+    setNotificationQueue(rest);
+  }, [activeNotification, notificationQueue]);
+
+  useEffect(() => {
+    if (!activeNotification) return undefined;
+    const timer = window.setTimeout(() => setActiveNotification(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [activeNotification]);
+
+  useEffect(() => {
+    if (!desktopRatingPulse) return undefined;
+    const timer = window.setTimeout(() => setDesktopRatingPulse(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [desktopRatingPulse]);
+
+  useEffect(() => {
+    if (game.phase !== 'streamer') setStreamerTimingActive(false);
+  }, [game.phase]);
+
+  const desktopShellNotification: DesktopShellNotification | null = activeNotification && !['rank', 'rank-down'].includes(activeNotification.tone ?? '')
+    ? activeNotification
+    : null;
+
   const shellContent = (
     <>
         <AnimatePresence>
-          {rankUpNotice && (
+          {!useDesktopShell && activeNotification && (
             <motion.div
+              key={activeNotification.id}
               initial={settings.reducedMotion ? { opacity: 0 } : { y: -18, opacity: 0, scale: 0.96 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={settings.reducedMotion ? { opacity: 0 } : { y: -18, opacity: 0, scale: 0.96 }}
               transition={{ duration: settings.reducedMotion ? 0 : 0.34, ease: 'easeOut' }}
-              className="safe-top-toast absolute inset-x-4 z-50 rounded-2xl border border-yellow-300/80 bg-slate-950/95 text-white shadow-2xl shadow-yellow-500/20 px-4 py-3 text-center"
+              className={`safe-top-toast absolute inset-x-4 z-50 rounded-2xl border bg-slate-950/95 text-white shadow-2xl px-4 py-3 text-center ${
+                activeNotification.tone === 'rank-down'
+                  ? 'border-red-300/80 shadow-red-500/20'
+                  : 'border-yellow-300/80 shadow-yellow-500/20'
+              }`}
             >
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-yellow-300">Rank Up</p>
-              <p className="text-lg font-black mt-0.5">{rankUpNotice}</p>
+              <p className={`text-[10px] font-black uppercase tracking-[0.28em] ${activeNotification.tone === 'rank-down' ? 'text-red-300' : 'text-yellow-300'}`}>{activeNotification.eyebrow}</p>
+              <p className="text-lg font-black mt-0.5">{activeNotification.title}</p>
             </motion.div>
           )}
         </AnimatePresence>
         {showHelp && (
           <HelpOverlay
             content={helpContent}
-            triggerVisible={!(game.mode === 'home' && game.phase === 'ready' && (splashPhase === 'waiting' || splashPhase === 'launching'))}
+            triggerVisible={desktopSplashSkipped || !(game.mode === 'home' && game.phase === 'ready' && (splashPhase === 'waiting' || splashPhase === 'launching'))}
           />
         )}
         {activeCoachmarkGuide && (
@@ -2037,10 +2196,11 @@ function App() {
               onHardcore={openDesktopHardcore}
               onDailyChallenge={openDesktopDaily}
               onPartyMode={openDesktopParty}
+              onStreamerMode={openDesktopStreamer}
             />
           ) : (
             <HomeScreen
-              key={splashPhase === 'waiting' || splashPhase === 'launching' ? 'home-preload' : 'home-revealed'}
+              key={!desktopSplashSkipped && (splashPhase === 'waiting' || splashPhase === 'launching') ? 'home-preload' : 'home-revealed'}
               bestLadderLevel={bestLadderLevel}
               bestHardcoreScore={Math.max(...Object.values(hardcoreScores))}
               rankedMode={settings.rankedMode}
@@ -2050,7 +2210,7 @@ function App() {
               nextDailyReward={nextDailyReward}
               dailyCountdown={dailyCountdown}
               iconRef={homeIconRef}
-              introIconHidden={splashPhase === 'waiting' || splashPhase === 'launching'}
+              introIconHidden={!desktopSplashSkipped && (splashPhase === 'waiting' || splashPhase === 'launching')}
               onTimeGuesser={showTimeGuesser}
               onTimeLadder={showTimeLadder}
               onHardcore={showHardcoreMode}
@@ -2080,7 +2240,7 @@ function App() {
           <TimeLadder
             bestLevel={bestLadderLevel}
             sounds={settings.sounds}
-            haptics={settings.haptics}
+            haptics={settings.haptics && !isDesktopWeb}
             reducedMotion={settings.reducedMotion}
             nativeControls={nativeControls}
             desktopMode={useDesktopShell}
@@ -2095,11 +2255,12 @@ function App() {
           <HardcoreMode
             bestScores={hardcoreScores}
             sounds={settings.sounds}
-            haptics={settings.haptics}
+            haptics={settings.haptics && !isDesktopWeb}
             reducedMotion={settings.reducedMotion}
             nativeControls={nativeControls}
             desktopMode={useDesktopShell}
             onDesktopActionChange={setDesktopContextAction}
+            onDesktopNoticeChange={enqueueNotification}
             onTimingChange={setStandaloneTimingActive}
             onHelpVisibilityChange={setHardcoreHelpVisible}
             onBestScoreChange={updateHardcoreBest}
@@ -2135,6 +2296,14 @@ function App() {
             results={dailyResults}
             desktopMode={useDesktopShell}
             onBack={showDailyHistory}
+          />
+        )}
+
+        {useDesktopShell && game.phase === 'streamer' && (
+          <StreamerModeScreen
+            backRequest={streamerBackRequest}
+            onExit={goHome}
+            onTimingChange={setStreamerTimingActive}
           />
         )}
 
@@ -2290,9 +2459,12 @@ function App() {
         )}
     </>
   );
+  const openDesktopRankings = game.phase === 'reveal' && game.mode === 'single' && game.timeRevealed
+    ? showResultRankings
+    : showRankings;
 
   return (
-    <div onClickCapture={handleMenuClick} className={`app-viewport bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center screen-transition-scope ${useDesktopShell ? 'desktop-layout' : ''} ${showDesktopVerticalToggle && desktopVerticalLayout ? 'desktop-vertical-layout' : ''} ${disableScreenTransition ? 'screen-transition-disabled' : ''} ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
+    <div onClickCapture={handleMenuClick} className={`app-viewport bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center screen-transition-scope ${useDesktopShell ? 'desktop-layout' : ''} ${desktopDailyTransitioning ? 'desktop-daily-transitioning' : ''} ${showDesktopVerticalToggle && desktopVerticalLayout ? 'desktop-vertical-layout' : ''} ${disableScreenTransition ? 'screen-transition-disabled' : ''} ${settings.reducedMotion ? '[&_*]:!animate-none [&_*]:!transition-none' : ''} ${settings.darkMode ? 'dark-mode' : ''}`}>
       <AmbientMusic enabled={settings.music} ducked={musicDucked} volume={settings.musicVolume} eager={musicEager} />
       <CardStarField active={!disableScreenTransition && !settings.reducedMotion} />
       <AnimatePresence>
@@ -2320,17 +2492,44 @@ function App() {
       )}
       {useDesktopShell ? (
         <DesktopAppShell
-          clockRating={stats.clockRating}
+          clockRating={desktopDisplayedClockRating}
           desktopVerticalLayout={desktopVerticalLayout}
-          showBack={!(game.mode === 'home' && game.phase === 'ready') && game.phase !== 'rankings'}
+          showBack={!(game.mode === 'home' && game.phase === 'ready')}
           context={desktopShellContext}
           contextAction={desktopContextAction}
+          notification={desktopShellNotification}
+          ratingPulse={desktopRatingPulse}
           onHome={goHome}
-          onBack={goHome}
-          onRankings={showRankings}
-          onToggleVerticalLayout={() => setDesktopVerticalLayout(prev => !prev)}
+          onBack={() => {
+            if (game.phase === 'settings') {
+              hideSettings();
+              return;
+            }
+            if (game.phase === 'stats') {
+              hideStats();
+              return;
+            }
+            if (game.phase === 'rankings') {
+              hideRankings();
+              return;
+            }
+            if (game.phase === 'streamer') {
+              setStreamerBackRequest(previous => previous + 1);
+              return;
+            }
+            goHome();
+          }}
+          onRankings={openDesktopRankings}
+          onToggleVerticalLayout={() => {
+            if (game.phase === 'streamer') {
+              goHome();
+              setDesktopVerticalLayout(true);
+              return;
+            }
+            setDesktopVerticalLayout(prev => !prev);
+          }}
           onStats={showStats}
-          onSettings={showSettings}
+          onSettings={game.phase === 'settings' ? hideSettings : showSettings}
         >
           {shellContent}
         </DesktopAppShell>
@@ -2824,7 +3023,7 @@ function DailyChallengeHub({
       )}
 
       {!todayResult && (
-        <div className="w-full max-w-[16.75rem] mx-auto mt-1 mb-2">
+        <div className={`w-full mx-auto mt-1 mb-2 ${desktopMode ? 'desktop-daily-play-wrap' : 'max-w-[16.75rem]'}`}>
           <button data-guide-id="daily-play" onClick={onPlayToday} className="w-full min-h-[10.5rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 hover:from-emerald-300 hover:via-teal-400 hover:to-cyan-500 text-white rounded-[1.75rem] px-5 py-5 transition-all shadow-2xl shadow-teal-500/40 ring-4 ring-teal-200/70 active:scale-[0.97] flex flex-col items-center justify-center gap-2">
             <span className="text-xs font-black uppercase tracking-[0.16em] text-white/90">Stop at exactly</span>
             <span className="text-4xl font-black leading-none">{todayTarget.toFixed(2)}s</span>
@@ -3151,7 +3350,7 @@ function SettingsScreen({
       </div>
 
       <div data-guide-id="settings-feedback" className="flex-1 min-h-0 overflow-y-auto card-scroll scroll-content-with-actions space-y-3 pr-1">
-        {options.map(option => {
+        {options.filter(option => !desktopMode || option.key !== 'haptics').map(option => {
           const Icon = option.icon;
           const enabled = option.key === 'darkMode' ? !settings.darkMode : settings[option.key];
           return (
@@ -3554,13 +3753,18 @@ function PartySetupScreen({
 
 function CountdownScreen({ value, tabletop = false }: { value: number; tabletop?: boolean }) {
   const display = value === 0 ? '' : value.toString();
+  const prompt = 'Start counting in';
 
   if (tabletop) {
     return (
       <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
         <div className="tabletop-landscape-shell">
           <div className="tabletop-landscape-surface tabletop-plain-surface text-slate-800 p-5 flex items-center justify-center">
-            <div className="tabletop-countdown font-black leading-none text-teal-600">{display}</div>
+            <div>
+              <p className="text-3xl font-black text-slate-700 leading-none mb-3">{prompt}</p>
+              <div className="tabletop-countdown font-black leading-none text-teal-600">{display}</div>
+              <p className="text-xl text-teal-600 font-bold mt-3">Count in your head when it hides</p>
+            </div>
           </div>
         </div>
       </div>
@@ -3569,8 +3773,12 @@ function CountdownScreen({ value, tabletop = false }: { value: number; tabletop?
 
   return (
     <div className={`bg-white rounded-3xl shadow-xl p-8 text-center ${CARD_HEIGHT} flex items-center justify-center`}>
-      <div className="text-8xl font-black text-slate-800 transition-all duration-150">
-        {display}
+      <div className="space-y-4">
+        <p className="text-sm uppercase tracking-[0.24em] font-black text-teal-600">{prompt}</p>
+        <div className="text-8xl font-black text-slate-800 transition-all duration-150 leading-none">
+          {display}
+        </div>
+        <p className="text-sm font-bold text-slate-500">Count in your head when the timer hides</p>
       </div>
     </div>
   );
@@ -3582,9 +3790,9 @@ function PlayingScreen({ tabletop = false }: { tabletop?: boolean }) {
       <div className={`tabletop-card bg-white rounded-3xl shadow-xl p-4 sm:p-6 text-center ${CARD_HEIGHT} overflow-hidden flex flex-col`}>
         <div className="tabletop-landscape-shell">
           <div className="tabletop-landscape-surface tabletop-plain-surface text-slate-800 p-5 flex items-center justify-center">
-            <div>
-              <p className="text-7xl font-black leading-none">Stay Ready</p>
-              <p className="text-2xl text-teal-600 font-bold mt-4">The hidden timer is running</p>
+          <div>
+              <p className="text-7xl font-black leading-none">Hidden clock running</p>
+              <p className="text-2xl text-teal-600 font-bold mt-4">Keep counting until it stops</p>
             </div>
           </div>
         </div>
@@ -3607,11 +3815,11 @@ function PlayingScreen({ tabletop = false }: { tabletop?: boolean }) {
 
         <div>
           <p className="text-slate-800 text-2xl font-bold">
-            Stay Ready
+            Hidden clock running
           </p>
 
           <p className="text-slate-400 text-sm mt-2">
-            The timer is hidden
+            Keep counting until it stops
           </p>
         </div>
       </div>
@@ -3621,7 +3829,7 @@ function PlayingScreen({ tabletop = false }: { tabletop?: boolean }) {
 
 function DailyStopScreen({ targetTime, onStop }: { targetTime: number; onStop: () => void }) {
   return (
-    <div className={`bg-white rounded-3xl shadow-xl p-6 text-center ${CARD_HEIGHT} overflow-hidden relative flex flex-col items-center justify-center`}>
+    <div className={`daily-stop-card bg-white rounded-3xl shadow-xl p-6 text-center ${CARD_HEIGHT} overflow-hidden relative flex flex-col items-center justify-center`}>
       <div className="absolute inset-0 overflow-hidden">
         <div className="shimmer-blob shimmer-blob-1" />
         <div className="shimmer-blob shimmer-blob-2" />
@@ -3634,7 +3842,7 @@ function DailyStopScreen({ targetTime, onStop }: { targetTime: number; onStop: (
           <p className="text-5xl font-black text-teal-700 leading-none mt-1">{targetTime.toFixed(2)}s</p>
         </div>
         <p className="max-w-xs text-sm font-bold text-slate-500">
-          Stop the timer when you think the target time has passed.
+          Count in your head, then stop when you think the target time has passed.
         </p>
         <button
           type="button"
@@ -4002,7 +4210,6 @@ function PartyResultsScreen({
     }
     return b.score - a.score;
   });
-
   useEffect(() => {
     setRevealComplete(reducedMotion);
     partySpotOnCelebratedRef.current = false;
@@ -4511,6 +4718,11 @@ function RevealScreen({
               <div className="flex-1 min-h-0 flex flex-col justify-end">
                 <div className="flex-1 min-h-0 flex items-center justify-center px-3 py-2">
                   <div className="text-center">
+                    {!isChallenge && (
+                      <p className="mb-3 text-sm sm:text-base font-black text-slate-700 tg-theme-strong">
+                        Guess how long the hidden clock ran
+                      </p>
+                    )}
                     <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 tg-theme-muted">
                       {guessEntryLabel}
                     </p>
@@ -4599,7 +4811,7 @@ function RevealScreen({
                     </>
                   )}
 
-              {mode === 'single' && (
+              {mode === 'single' && !desktopMode && (
                 <div className="space-y-2">
                   {hasGuess && guessDistance !== null ? (
                     <>
@@ -4677,7 +4889,7 @@ function RevealScreen({
                 </div>
               )}
 
-              {mode === 'challenge' && guessDistance !== null && (
+              {mode === 'challenge' && guessDistance !== null && !desktopMode && (
                 <div className="space-y-3">
                   {dailyOfficial && dailyRank != null && (
                     <div data-guide-id="daily-result-score" className="bg-white border border-indigo-200 rounded-2xl p-3 space-y-2 text-left">
@@ -4686,7 +4898,7 @@ function RevealScreen({
                       {dailyLeaderboard?.topTen.length ? (
                         <div className="pt-2 border-t border-indigo-100">
                           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 mb-2">Top Today</p>
-                          <div className="space-y-1">
+                          <div className="daily-result-top-list space-y-1">
                             {dailyLeaderboard.topTen.slice(0, 3).map((entry, index) => (
                               <div key={entry.id} className="flex items-center justify-between text-xs">
                                 <span className="font-black text-slate-600">#{index + 1}</span>
@@ -4716,6 +4928,45 @@ function RevealScreen({
             </div>
             {(!showCinematic || cinematicComplete) && (
             <div data-guide-id="result-actions" className="space-y-2.5 pt-2 relative z-10 shrink-0">
+              {desktopMode && mode === 'single' && hasGuess && guessDistance !== null && (
+                rankedMode && ratingChange !== null ? (
+                  <button
+                    type="button"
+                    onClick={onRankings}
+                    className={`desktop-result-rank-panel desktop-result-rank-panel-${ratingChange > 0 ? 'positive' : ratingChange < 0 ? 'negative' : 'neutral'}`}
+                    aria-label="View Clock Ranks"
+                  >
+                    <span className="desktop-result-rank-main">
+                      <span className="desktop-result-rank-icon" aria-hidden="true">{resultRankInfo.rank.icon}</span>
+                      <span>
+                        <strong>{ratingChange >= 0 ? '+' : ''}{ratingChange} Clock Rating</strong>
+                        <em>{resultRankInfo.next ? `${resultRankInfo.pointsNeeded} to ${resultRankInfo.next.name}` : 'Highest rank reached'}</em>
+                      </span>
+                      <span className="desktop-result-rank-score">{clockRating}</span>
+                    </span>
+                    <span className="desktop-result-rank-progress" aria-hidden="true">
+                      <span style={{ width: `${resultRankInfo.progress}%` }} />
+                    </span>
+                  </button>
+                ) : (
+                  <div className="desktop-result-rank-panel desktop-result-rank-panel-neutral">
+                    <span className="desktop-result-rank-main">
+                      <span className="desktop-result-rank-icon" aria-hidden="true">{resultRankInfo.rank.icon}</span>
+                      <span>
+                        <strong>Make this count?</strong>
+                        <em>Turn on Ranked for the next Time Guesser round.</em>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={onEnableRanked}
+                        className="desktop-result-rank-enable"
+                      >
+                        Enable
+                      </button>
+                    </span>
+                  </div>
+                )
+              )}
               {!isChallenge && (
                 <button
                   onClick={onPlayAgain}
@@ -5035,6 +5286,14 @@ function ResultRow({
       </span>
     </div>
   );
+}
+
+function App() {
+  if (window.location.pathname === '/twitch/callback') {
+    return <TwitchCallbackScreen />;
+  }
+
+  return <AppContent />;
 }
 
 export default App;

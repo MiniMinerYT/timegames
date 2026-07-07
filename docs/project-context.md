@@ -95,7 +95,7 @@ Party target ranges:
 
 ### Daily Challenge
 
-Each local calendar date has a deterministic target between 0.5 and 10 seconds. A player receives one official attempt for the current date. The target is shown before play, then after the normal 3-second countdown the player must stop the hidden timer as close to that target as possible. Official results persist and the UI encourages the player to return tomorrow.
+Each local calendar date has a deterministic target between 1.5 and 10 seconds. A player receives one official attempt for the current date. The target is shown before play, then after the normal 3-second countdown the player must stop the hidden timer as close to that target as possible. Official results persist and the UI encourages the player to return tomorrow.
 
 After completing today's challenge, the Daily screen shows:
 - Stop time, target and error
@@ -132,12 +132,13 @@ The active streak, last completed date and claimed dates persist locally. Missin
 
 ### Standard Target Generation
 
-Single Player and standard Party rounds use these weighted ranges:
-- 50%: 4–8 seconds
-- 15%: 2–4 seconds
-- 15%: 8–10 seconds
-- 15%: 10–20 seconds
-- 5%: 0.3–2 seconds
+Single Player, standard Party rounds and Streamer Mode hidden-clock rounds use these weighted ranges:
+- 48%: 4–8 seconds
+- 20%: 3–6 seconds
+- 20%: 8–10 seconds
+- 8%: 1.5–3 seconds
+- 3%: 10–15 seconds
+- 1%: 15–20 seconds
 
 Targets are rounded to two decimal places.
 
@@ -277,12 +278,20 @@ Stats reset clears all local progress after confirmation, including Time Guesser
 Current achievements are intentionally lightweight local milestones:
 - First Tick: complete a Time Guesser round
 - Sharp Clock: finish within 0.10 seconds in a tracked guess
+- Quarter Sense: finish within 0.25 seconds in a tracked guess
 - Spot On: record at least one perfect result
+- Warming Up: complete 10 tracked Time Guesser rounds
 - Daily Habit: complete a Daily Challenge
+- Clocking In: reach a 3 day Daily streak
 - One Week Hot: reach a 7 day Daily streak
+- Regular Ritual: complete 10 Daily Challenges
 - Getting Higher: clear Level 5 in Time Ladder
+- Halfway Up: clear Level 10 in Time Ladder
 - Top of Time: complete the full Time Ladder
-- Godlike Nerve: unlock GOD difficulty in Hardcore Mode
+- New Pressure: unlock the first extra Hardcore difficulty
+- Ten Lives Later: score 10 in any Hardcore difficulty
+- ???: unlock the hidden Hardcore tier
+- Silver Timing: reach Silver Clock in Ranked Time Guesser
 - Chrono Master: reach 3000 Clock Rating
 
 ## Persistence

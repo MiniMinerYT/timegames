@@ -18,6 +18,7 @@ return {
   calculateRatingChange,
   getDailyReward,
   getDailyTarget,
+  getWeightedStandardTarget,
   sanitizeTimeInput,
   isValidTimeInput,
 };`);
@@ -44,8 +45,16 @@ test('daily targets are deterministic and within the allowed range', () => {
   const first = logic.getDailyTarget('2026-06-30');
   const second = logic.getDailyTarget('2026-06-30');
   assert.equal(first, second);
-  assert.ok(first >= 0.5);
+  assert.ok(first >= 1.5);
   assert.ok(first <= 10);
+});
+
+test('standard targets strongly favour the 3 to 10 second range', () => {
+  assert.equal(logic.getWeightedStandardTarget(() => 0), 4);
+  assert.equal(logic.getWeightedStandardTarget(() => 0.5), 4.5);
+  assert.equal(logic.getWeightedStandardTarget(() => 0.7), 9.4);
+  assert.equal(logic.getWeightedStandardTarget(() => 0.97), 14.85);
+  assert.equal(logic.getWeightedStandardTarget(() => 0.995), 19.98);
 });
 
 test('time input is keypad-safe and capped to two decimals', () => {

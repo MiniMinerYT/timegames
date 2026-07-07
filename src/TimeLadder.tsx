@@ -308,8 +308,8 @@ export default function TimeLadder({
           animate={bestCelebration && phase === 'result' && !reducedMotion ? { scale: [1, 1.04, 1] } : { scale: 1 }}
           transition={{ duration: 0.5, ease: 'easeInOut' }}
         >
-          {phase === 'ready' ? 'START' : phase === 'playing' ? 'STOP' : success ? level === FINAL_LEVEL ? 'FINISH' : 'NEXT' : 'START'}
-          {phase === 'result' && !success && <span className="block text-xs tracking-wider mt-0.5">NEW RUN</span>}
+          {phase === 'ready' ? 'START' : phase === 'playing' ? 'STOP' : success ? level === FINAL_LEVEL ? 'FINISH' : 'NEXT' : desktopMode ? 'NEW RUN' : 'START'}
+          {phase === 'result' && !success && !desktopMode && <span className="block text-xs tracking-wider mt-0.5">NEW RUN</span>}
           <span className="block text-[10px] tracking-wider mt-1 opacity-80">{nativeControls ? 'TAP WHEN READY' : 'OR SPACE'}</span>
         </motion.button>
       </div>

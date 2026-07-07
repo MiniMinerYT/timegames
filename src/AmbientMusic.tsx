@@ -82,6 +82,27 @@ export default function AmbientMusic({ enabled, ducked, volume, eager = false }:
     audioRef.current = audio;
     audio.load();
 
+    if (enabledRef.current) {
+      const attemptInitialPlayback = () => {
+        audio.muted = false;
+        void audio.play().catch(() => undefined);
+      };
+
+      attemptInitialPlayback();
+      const frame = window.requestAnimationFrame(attemptInitialPlayback);
+      const timer = window.setTimeout(attemptInitialPlayback, 300);
+
+      return () => {
+        window.cancelAnimationFrame(frame);
+        window.clearTimeout(timer);
+        audio.pause();
+        void audioContextRef.current?.close().catch(() => undefined);
+        audioRef.current = null;
+        audioContextRef.current = null;
+        gainRef.current = null;
+      };
+    }
+
     return () => {
       audio.pause();
       void audioContextRef.current?.close().catch(() => undefined);

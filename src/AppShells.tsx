@@ -1,16 +1,18 @@
 import { type ComponentType, type ReactNode, type RefObject } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
   BarChart3,
   CalendarDays,
   Clock,
+  Gamepad2,
   HelpCircle,
   Radio,
   Settings,
   Skull,
   Smartphone,
   Timer,
+  Trophy,
   Users,
 } from 'lucide-react';
 import LadderIcon from './LadderIcon';
@@ -28,6 +30,8 @@ type DesktopShellProps = {
   showBack: boolean;
   context: DesktopShellContext;
   contextAction?: DesktopShellAction | null;
+  notification?: DesktopShellNotification | null;
+  ratingPulse?: DesktopRatingPulse | null;
   onHome: () => void;
   onBack: () => void;
   onRankings: () => void;
@@ -51,6 +55,19 @@ export type DesktopShellAction = {
   label: string;
   onClick: () => void;
   icon?: 'settings' | 'hardcore' | 'rankings' | 'help';
+  detail?: string;
+  detailSubtext?: string;
+  detailTone?: 'positive' | 'negative' | 'neutral';
+};
+
+export type DesktopShellNotification = {
+  eyebrow: string;
+  title: string;
+  tone?: 'rank' | 'rank-down' | 'achievement' | 'unlock';
+};
+
+export type DesktopRatingPulse = {
+  tone: 'positive' | 'negative' | 'neutral';
 };
 
 export type DesktopLauncherModeId =
@@ -84,6 +101,7 @@ type DesktopHomeLauncherProps = {
   onHardcore: () => void;
   onDailyChallenge: () => void;
   onPartyMode: () => void;
+  onStreamerMode: () => void;
 };
 
 export function MobileAppShell({ children, tabletop = false }: ShellProps) {
@@ -109,6 +127,8 @@ export function DesktopAppShell({
   showBack,
   context,
   contextAction,
+  notification,
+  ratingPulse,
   onHome,
   onBack,
   onRankings,
@@ -116,7 +136,8 @@ export function DesktopAppShell({
   onStats,
   onSettings,
 }: DesktopShellProps) {
-  const rank = getRank(clockRating).rank;
+  const rankInfo = getRank(clockRating);
+  const { rank } = rankInfo;
   const hasLeftContext = Boolean(context.detail || contextAction);
   const ContextIcon = {
     home: Clock,
@@ -144,28 +165,48 @@ export function DesktopAppShell({
       <header className="desktop-topbar">
         <div className="desktop-topbar-left">
           {showBack ? (
-            <button type="button" onClick={onBack} className="desktop-back-button" aria-label="Back to all games">
+            <button type="button" onClick={onBack} className="desktop-back-button" aria-label="Back">
               <ArrowLeft className="w-5 h-5" />
-              All Games
+              Back
             </button>
           ) : (
-            <span className="desktop-back-placeholder" aria-hidden="true" />
+            <div className="desktop-store-links" aria-label="Download app links coming soon">
+              <button type="button" disabled className="desktop-store-button">
+                <Smartphone className="w-4 h-4" />
+                iOS App
+              </button>
+              <button type="button" disabled className="desktop-store-button">
+                <Smartphone className="w-4 h-4" />
+                Android
+              </button>
+            </div>
           )}
           {hasLeftContext && (
             <div className="desktop-topbar-context-group">
               {context.detail && (
-                <div className={`desktop-context-detail desktop-context-detail-${context.detailTone ?? 'neutral'}`}>
+                <div className={`desktop-context-detail desktop-context-detail-${context.detailTone ?? 'neutral'} ${context.detailSubtext ? 'desktop-context-detail-rotating' : ''}`}>
                   <div className="desktop-context-detail-text">
-                    <motion.span
-                      key={context.detail}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.22, ease: 'easeOut' }}
-                    >
-                      {context.detail}
-                    </motion.span>
-                    {context.detailSubtext && (
-                      <span>{context.detailSubtext}</span>
+                    {context.detailSubtext ? (
+                      <div className="desktop-context-ticker">
+                        <motion.span
+                          key={context.detail}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.22, ease: 'easeOut' }}
+                        >
+                          {context.detail}
+                        </motion.span>
+                        <span>{context.detailSubtext}</span>
+                      </div>
+                    ) : (
+                      <motion.span
+                        key={context.detail}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.22, ease: 'easeOut' }}
+                      >
+                        {context.detail}
+                      </motion.span>
                     )}
                   </div>
                   {typeof context.detailProgress === 'number' && (
@@ -185,31 +226,68 @@ export function DesktopAppShell({
                   {contextAction.label}
                 </button>
               )}
+              {contextAction?.detail && (
+                <div className={`desktop-context-detail desktop-context-detail-compact desktop-context-detail-${contextAction.detailTone ?? 'neutral'}`}>
+                  <div className="desktop-context-detail-text">
+                    <span>{contextAction.detail}</span>
+                    {contextAction.detailSubtext && <span>{contextAction.detailSubtext}</span>}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         <button type="button" onClick={onHome} className={`desktop-topbar-brand desktop-topbar-brand-${context.accent ?? 'teal'}`} aria-label="Back to TimeGames home">
-          <div className="desktop-topbar-logo">
-            <ContextIcon className="w-6 h-6 text-white" />
-          </div>
-          <div className="min-w-0">
-            <p className="desktop-topbar-title">{context.title}</p>
-            <p className="desktop-topbar-subtitle">{context.subtitle}</p>
-          </div>
+          <motion.div
+            className={`desktop-topbar-brand-content ${notification ? 'desktop-topbar-brand-content-muted' : ''}`}
+            animate={notification ? { y: -10, opacity: 0 } : { y: 0, opacity: 1 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="desktop-topbar-logo">
+              <ContextIcon className="w-6 h-6 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="desktop-topbar-title">{context.title}</p>
+              <p className="desktop-topbar-subtitle">{context.subtitle}</p>
+            </div>
+          </motion.div>
+          <AnimatePresence mode="wait">
+            {notification && (
+              <motion.div
+                key={`${notification.eyebrow}-${notification.title}`}
+                className={`desktop-dynamic-island desktop-dynamic-island-${notification.tone ?? 'rank'}`}
+                initial={{ y: 18, opacity: 0, scale: 0.94, rotateX: -72 }}
+                animate={{ y: 0, opacity: 1, scale: 1, rotateX: 0 }}
+                exit={{ y: -18, opacity: 0, scale: 0.94, rotateX: 72 }}
+                transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <span>{notification.eyebrow}</span>
+                <strong>{notification.title}</strong>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </button>
 
         <div className="desktop-topbar-actions">
           <button
             type="button"
             onClick={onRankings}
-            className="desktop-rating-pill"
+            data-guide-id="result-rating"
+            className={`desktop-rating-pill ${ratingPulse ? `desktop-rating-pill-flash desktop-rating-pill-${ratingPulse.tone}` : ''}`}
             aria-label={`View Clock Ranks. Current rating ${clockRating}, ${rank.name}`}
           >
             <span className="desktop-rating-icon" aria-hidden="true">{rank.icon}</span>
-            <span>
+            <span className="desktop-rating-copy">
               <strong>{clockRating}</strong>
               <span>{rank.name}</span>
+            </span>
+            <span className="desktop-rating-progress" aria-hidden="true">
+              <motion.span
+                initial={false}
+                animate={{ width: `${rankInfo.progress}%` }}
+                transition={{ duration: 0.58, ease: [0.16, 1, 0.3, 1] }}
+              />
             </span>
           </button>
           <button
@@ -245,7 +323,6 @@ export function DesktopHomeLauncher({
   todayLeaderboard,
   dailyStreak,
   nextDailyReward,
-  dailyCountdown,
   modePlayCounts,
   iconRef,
   onRankedTimeGuesser,
@@ -254,6 +331,7 @@ export function DesktopHomeLauncher({
   onHardcore,
   onDailyChallenge,
   onPartyMode,
+  onStreamerMode,
 }: DesktopHomeLauncherProps) {
   const dailyRank = todayLeaderboard?.playerRank ?? todayResult?.globalRank ?? todayResult?.simulatedRank;
   const cards: Array<{
@@ -274,7 +352,7 @@ export function DesktopHomeLauncher({
       title: 'Time Guesser Ranked',
       eyebrow: 'Clock Rating on',
       description: 'Build rank by guessing hidden time.',
-      icon: Timer,
+      icon: Trophy,
       accent: 'teal',
       onClick: onRankedTimeGuesser,
       basePriority: 88,
@@ -293,8 +371,8 @@ export function DesktopHomeLauncher({
       id: 'daily',
       guideId: 'home-daily',
       title: 'Daily Challenge',
-      eyebrow: todayResult ? 'Completed today' : `+${nextDailyReward} rating`,
-      description: todayResult ? `${dailyRank ? `Rank #${dailyRank}. ` : ''}Next in ${dailyCountdown}.` : `${dailyStreak > 0 ? `${dailyStreak} day streak. ` : ''}One official stop each day.`,
+      eyebrow: todayResult ? 'Completed today' : 'Daily target',
+      description: todayResult ? (dailyRank ? `Rank #${dailyRank}. Come back tomorrow.` : 'Come back tomorrow.') : 'One official stop each day.',
       icon: CalendarDays,
       accent: 'rose',
       onClick: onDailyChallenge,
@@ -338,7 +416,7 @@ export function DesktopHomeLauncher({
       title: 'Multiplayer',
       eyebrow: 'Coming soon',
       description: 'Online head-to-head timing is not live yet.',
-      icon: Users,
+      icon: Gamepad2,
       accent: 'slate',
       onClick: () => undefined,
       disabled: true,
@@ -347,18 +425,17 @@ export function DesktopHomeLauncher({
     {
       id: 'streamer',
       title: 'Streamer Mode',
-      eyebrow: 'Coming later',
-      description: 'A stream-ready mode icon for future Twitch play.',
+      eyebrow: 'Twitch chat',
+      description: 'Run live viewer guesses through connected chat.',
       icon: Radio,
-      accent: 'slate',
-      onClick: () => undefined,
-      disabled: true,
-      basePriority: 12,
+      accent: 'cyan',
+      onClick: onStreamerMode,
+      basePriority: 46,
     },
   ];
   const sortedCards = [...cards].sort((a, b) => {
-    const aScore = a.basePriority + (modePlayCounts[a.id] ?? 0) * 8;
-    const bScore = b.basePriority + (modePlayCounts[b.id] ?? 0) * 8;
+    const aScore = a.basePriority + (modePlayCounts[a.id] ?? 0) * 8 + (a.id === 'daily' && !todayResult ? 1000 : 0);
+    const bScore = b.basePriority + (modePlayCounts[b.id] ?? 0) * 8 + (b.id === 'daily' && !todayResult ? 1000 : 0);
     return bScore - aScore;
   });
 
@@ -378,10 +455,30 @@ export function DesktopHomeLauncher({
             <span ref={id === 'time-guesser-ranked' ? iconRef : undefined} className="desktop-game-card-icon">
               <Icon className="w-8 h-8" />
             </span>
+            <span className="desktop-game-card-art" aria-hidden="true">
+              <Icon className="w-full h-full" />
+            </span>
             <span className="desktop-game-card-text">
               <span>{eyebrow}</span>
               <strong>{title}</strong>
               <em>{description}</em>
+              {id === 'daily' && !todayResult && (
+                <span className="desktop-daily-metrics">
+                  <b>+{nextDailyReward} rating</b>
+                </span>
+              )}
+              {id === 'daily' && todayResult && (
+                <span className="desktop-daily-metrics desktop-daily-metrics-complete">
+                  <b>Completed</b>
+                </span>
+              )}
+              {id === 'daily' && !todayResult && (
+                <span className="desktop-daily-nudge">
+                  {dailyStreak > 0
+                    ? `${dailyStreak} day streak on the line. Land today's stop before midnight.`
+                    : "Start your streak with today's one-shot challenge."}
+                </span>
+              )}
             </span>
           </button>
         ))}
