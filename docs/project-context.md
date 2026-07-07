@@ -328,7 +328,7 @@ Party players and scores remain in React state only.
 - Time Guesser's reveal card flips horizontally from right to left.
 - Preserve reduced-motion and dark-mode support.
 - Avoid clipped fixed-card overflow; mobile screens may scroll cleanly inside the app viewport when needed.
-- Native Android builds are locked to portrait orientation via the Android manifest. Native iOS builds are locked to vertical orientations via `Info.plist`. Tabletop Mode keeps that portrait lock and uses an internal horizontal board-style layout rather than OS-level landscape.
+- Native Android builds are locked to portrait orientation via the Android manifest. Native iPhone builds are locked to portrait via `Info.plist`, while native iPad declares all required interface orientations for App Store validation and multitasking compatibility; the app UI remains portrait-first. Tabletop Mode keeps the portrait-first app layout and uses an internal horizontal board-style layout rather than relying on OS-level landscape.
 
 ## Technical Stack
 
