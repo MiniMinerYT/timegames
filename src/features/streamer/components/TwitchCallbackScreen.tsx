@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2, Radio, XCircle } from 'lucide-react';
 import { completeTwitchCallback } from '../services/twitchAuthService';
 import type { TwitchUserProfile } from '../types/twitchAuth';
+import { openStreamerModeAfterTwitchAuthKey } from '../utils/streamerNavigation';
 
 type CallbackState =
   | { status: 'loading'; profile: null; error: null }
@@ -20,8 +21,10 @@ export function TwitchCallbackScreen() {
     void completeTwitchCallback(new URL(window.location.href))
       .then(auth => {
         if (cancelled) return;
-        window.history.replaceState({}, document.title, '/twitch/callback');
+        sessionStorage.setItem(openStreamerModeAfterTwitchAuthKey, 'true');
+        window.history.replaceState({}, document.title, '/');
         setState({ status: 'success', profile: auth.profile, error: null });
+        window.location.replace('/');
       })
       .catch(error => {
         if (cancelled) return;
@@ -62,7 +65,7 @@ export function TwitchCallbackScreen() {
                 <em>@{state.profile.login}</em>
               </span>
             </div>
-            <a href="/">Return to TimeGames</a>
+            <a href="/">Opening Streamer Mode...</a>
           </>
         )}
         {state.status === 'error' && (

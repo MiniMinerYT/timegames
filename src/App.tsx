@@ -46,6 +46,7 @@ import NumberKeypad from './NumberKeypad';
 import CoachmarkOverlay, { type CoachmarkGuide } from './CoachmarkOverlay';
 import { triggerHaptic } from './haptics';
 import { StreamerModeScreen, TwitchCallbackScreen } from './features/streamer';
+import { openStreamerModeAfterTwitchAuthKey } from './features/streamer/utils/streamerNavigation';
 import { isSupabaseConfigured } from './supabaseClient';
 import {
   fetchDailyLeaderboard,
@@ -4220,6 +4221,12 @@ function PartyResultsScreen({
     }
     return b.score - a.score;
   });
+
+  useEffect(() => {
+    if (sessionStorage.getItem(openStreamerModeAfterTwitchAuthKey) !== 'true') return;
+    sessionStorage.removeItem(openStreamerModeAfterTwitchAuthKey);
+    setGame(prev => ({ ...prev, mode: 'home', phase: 'streamer' }));
+  }, []);
   useEffect(() => {
     setRevealComplete(reducedMotion);
     partySpotOnCelebratedRef.current = false;
