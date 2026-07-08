@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BarChart3, Clock, Crown, Maximize2, Minimize2, Radio, RefreshCw, Settings, ShieldAlert, Timer, Trophy, Zap } from 'lucide-react';
 import { useStreamerSession } from '../hooks/useStreamerSession';
 import { useTwitchAuth } from '../hooks/useTwitchAuth';
+import { readStoredTwitchAuth } from '../services/twitchAuthService';
 import type { Guess, Viewer } from '../types';
 import { getStreamerRank, getStreamerRankDelta } from '../utils/streamerRanks';
 import { getWeightedStandardTarget } from '../../../gameLogic';
@@ -34,6 +35,11 @@ type PodiumEntry = {
   score: number;
   rankPoints: number;
 };
+
+function hasStoredTwitchConnection() {
+  const auth = readStoredTwitchAuth();
+  return Boolean(auth?.accessToken && auth.profile);
+}
 
 function getPlacementLabel(position: number) {
   if (position === 1) return 'first';
@@ -220,7 +226,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
   const twitchAuth = useTwitchAuth();
   const streamerDisplayName = twitchAuth.profile?.displayName || twitchAuth.profile?.login || 'Streamer';
   const [mode, setMode] = useState<StreamerGameMode>('standard');
-  const [phase, setPhase] = useState<StreamerGamePhase>('link');
+  const [phase, setPhase] = useState<StreamerGamePhase>(() => hasStoredTwitchConnection() ? 'select' : 'link');
   const [boardView, setBoardView] = useState<StreamerBoardView>('round');
   const [revealStage, setRevealStage] = useState<RevealStage>('final');
   const [guessWindow, setGuessWindow] = useState(30);

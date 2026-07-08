@@ -209,9 +209,10 @@ export async function completeTwitchCallback(url: URL) {
   clearLoginState();
 
   const profile = await fetchTwitchProfile(accessToken);
+  const safeExpiresIn = Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600;
   const auth: TwitchStoredAuth = {
     accessToken,
-    expiresAt: Date.now() + Math.max(expiresIn, 0) * 1000,
+    expiresAt: Date.now() + safeExpiresIn * 1000,
     scope,
     profile,
   };
@@ -223,10 +224,6 @@ export async function restoreTwitchAuth() {
   const saved = readStoredTwitchAuth();
   const clientId = getClientId();
   if (!saved || !clientId) return null;
-  if (saved.expiresAt <= Date.now()) {
-    clearStoredTwitchAuth();
-    return null;
-  }
 
   const response = await fetch(`${twitchAuthBaseUrl}/validate`, {
     headers: {

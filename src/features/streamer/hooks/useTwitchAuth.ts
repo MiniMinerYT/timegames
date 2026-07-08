@@ -11,7 +11,7 @@ import type { TwitchAuthState } from '../types/twitchAuth';
 export function useTwitchAuth() {
   const initialConfig = getTwitchAuthConfigStatus();
   const initialStoredAuth = initialConfig.isConfigured ? readStoredTwitchAuth() : null;
-  const hasUsableStoredAuth = Boolean(initialStoredAuth && initialStoredAuth.expiresAt > Date.now());
+  const hasUsableStoredAuth = Boolean(initialStoredAuth?.accessToken && initialStoredAuth.profile);
   const [state, setState] = useState<TwitchAuthState>({
     status: hasUsableStoredAuth ? 'authenticated' : 'idle',
     profile: hasUsableStoredAuth ? initialStoredAuth?.profile ?? null : null,
