@@ -266,9 +266,9 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
   const viewerMap = useMemo(() => new Map(viewers.map(viewer => [viewer.id, viewer])), [viewers]);
 
   useEffect(() => {
-    if (phase !== 'link' || twitchAuth.status !== 'authenticated') return;
+    if (phase !== 'link' || (twitchAuth.status !== 'authenticated' && !twitchAuth.profile)) return;
     setPhase('select');
-  }, [phase, twitchAuth.status]);
+  }, [phase, twitchAuth.profile, twitchAuth.status]);
 
   useEffect(() => {
     setKnownViewerNames(previous => {
@@ -1168,7 +1168,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
                         : twitchAuth.status === 'authenticated'
                           ? connected
                             ? 'Continue with Twitch'
-                            : 'Connect Twitch Chat'
+                            : 'Choose Streamer Game'
                           : 'Connect Twitch'}
                   </strong>
                   {twitchAuth.profile ? (

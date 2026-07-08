@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   clearStoredTwitchAuth,
   getTwitchAuthConfigStatus,
+  readStoredTwitchAuth,
   restoreTwitchAuth,
   startTwitchLogin,
 } from '../services/twitchAuthService';
@@ -9,9 +10,11 @@ import type { TwitchAuthState } from '../types/twitchAuth';
 
 export function useTwitchAuth() {
   const initialConfig = getTwitchAuthConfigStatus();
+  const initialStoredAuth = initialConfig.isConfigured ? readStoredTwitchAuth() : null;
+  const hasUsableStoredAuth = Boolean(initialStoredAuth && initialStoredAuth.expiresAt > Date.now());
   const [state, setState] = useState<TwitchAuthState>({
-    status: 'idle',
-    profile: null,
+    status: hasUsableStoredAuth ? 'authenticated' : 'idle',
+    profile: hasUsableStoredAuth ? initialStoredAuth?.profile ?? null : null,
     error: initialConfig.isConfigured ? null : initialConfig.message,
     isConfigured: initialConfig.isConfigured,
     configMessage: initialConfig.message,
@@ -31,7 +34,11 @@ export function useTwitchAuth() {
       return undefined;
     }
 
-    setState(previous => ({ ...previous, status: 'loading', error: null }));
+    setState(previous => ({
+      ...previous,
+      status: previous.profile ? 'authenticated' : 'loading',
+      error: null,
+    }));
     void restoreTwitchAuth()
       .then(auth => {
         if (cancelled) return;
