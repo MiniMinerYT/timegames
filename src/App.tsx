@@ -1270,22 +1270,32 @@ function AppContent() {
         playTone(420, 0.06, game.mode === 'tabletop' ? 0.22 : 0.08);
 
         const timer = setTimeout(() => {
-          setGame(prev => ({
-            ...prev,
-            countdownValue: prev.countdownValue - 1,
-          }));
+          if (game.countdownValue <= 1) {
+            playTone(720, 0.1, game.mode === 'tabletop' ? 0.28 : 0.08);
+            vibrate(40);
+
+            setGame(prev => prev.phase === 'countdown'
+              ? {
+                  ...prev,
+                  phase: 'playing',
+                  countdownValue: 0,
+                }
+              : prev
+            );
+            return;
+          }
+
+          setGame(prev => prev.phase === 'countdown'
+            ? {
+                ...prev,
+                countdownValue: Math.max(1, prev.countdownValue - 1),
+              }
+            : prev
+          );
         }, 1000);
 
         return () => clearTimeout(timer);
       }
-
-      playTone(720, 0.1, game.mode === 'tabletop' ? 0.28 : 0.08);
-      vibrate(40);
-
-      setGame(prev => ({
-        ...prev,
-        phase: 'playing',
-      }));
     }
   }, [game.phase, game.countdownValue, game.mode, playTone, vibrate]);
 
