@@ -7,17 +7,9 @@ const twitchAuthStorageKey = 'timegames-streamer-twitch-auth';
 const twitchPkceStorageKey = 'timegames-streamer-twitch-pkce';
 const defaultTwitchClientId = 'foqenqxlakgg9a2uibydiyg8m7i5qf';
 
-interface TwitchPkceState {
-  codeVerifier: string;
+interface TwitchLoginState {
   state: string;
   createdAt: number;
-}
-
-interface TwitchTokenResponse {
-  access_token: string;
-  expires_in: number;
-  scope?: string[];
-  token_type: string;
 }
 
 interface TwitchValidateResponse {
@@ -120,26 +112,20 @@ function randomToken(byteLength = 32) {
   return base64UrlEncode(bytes);
 }
 
-async function createCodeChallenge(codeVerifier: string) {
-  const encoded = new TextEncoder().encode(codeVerifier);
-  const digest = await crypto.subtle.digest('SHA-256', encoded);
-  return base64UrlEncode(new Uint8Array(digest));
-}
-
-function savePkceState(state: TwitchPkceState) {
+function saveLoginState(state: TwitchLoginState) {
   sessionStorage.setItem(twitchPkceStorageKey, JSON.stringify(state));
 }
 
-function readPkceState() {
+function readLoginState() {
   try {
     const saved = sessionStorage.getItem(twitchPkceStorageKey);
-    return saved ? JSON.parse(saved) as TwitchPkceState : null;
+    return saved ? JSON.parse(saved) as TwitchLoginState : null;
   } catch {
     return null;
   }
 }
 
-function clearPkceState() {
+function clearLoginState() {
   sessionStorage.removeItem(twitchPkceStorageKey);
 }
 
@@ -167,19 +153,15 @@ export async function startTwitchLogin() {
     throw new Error(config.message ?? 'Twitch auth is not configured.');
   }
 
-  const codeVerifier = randomToken(48);
   const state = randomToken(24);
-  const codeChallenge = await createCodeChallenge(codeVerifier);
-  savePkceState({ codeVerifier, state, createdAt: Date.now() });
+  saveLoginState({ state, createdAt: Date.now() });
 
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    response_type: 'code',
+    response_type: 'token',
     scope: twitchScope,
     state,
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
   });
 
   window.location.assign(`${twitchAuthBaseUrl}/authorize?${params.toString()}`);
@@ -210,42 +192,27 @@ async function fetchTwitchProfile(accessToken: string) {
 }
 
 export async function completeTwitchCallback(url: URL) {
-  const clientId = getClientId();
-  const redirectUri = getRedirectUri();
-  const code = url.searchParams.get('code');
-  const state = url.searchParams.get('state');
+  const fragmentParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const accessToken = fragmentParams.get('access_token');
+  const expiresIn = Number(fragmentParams.get('expires_in') ?? '0');
+  const returnedState = fragmentParams.get('state');
+  const scope = fragmentParams.get('scope')?.split(' ').filter(Boolean) ?? [twitchScope];
   const error = url.searchParams.get('error_description') ?? url.searchParams.get('error');
-  const pkceState = readPkceState();
+  const loginState = readLoginState();
 
   if (error) throw new Error(error);
-  if (!clientId || !redirectUri) throw new Error('Twitch auth is not configured.');
-  if (!code || !state) throw new Error('Twitch did not return an authorization code.');
-  if (!pkceState || pkceState.state !== state) throw new Error('Twitch login state did not match.');
+  if (!accessToken) throw new Error('Twitch did not return an access token.');
+  if (!returnedState || !loginState || loginState.state !== returnedState) {
+    throw new Error('Twitch login state did not match. Please try connecting again.');
+  }
 
-  const body = new URLSearchParams({
-    client_id: clientId,
-    code,
-    code_verifier: pkceState.codeVerifier,
-    grant_type: 'authorization_code',
-    redirect_uri: redirectUri,
-  });
+  clearLoginState();
 
-  const response = await fetch(`${twitchAuthBaseUrl}/token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-  });
-  clearPkceState();
-  if (!response.ok) throw new Error('Could not complete Twitch login.');
-
-  const token = await response.json() as TwitchTokenResponse;
-  const profile = await fetchTwitchProfile(token.access_token);
+  const profile = await fetchTwitchProfile(accessToken);
   const auth: TwitchStoredAuth = {
-    accessToken: token.access_token,
-    expiresAt: Date.now() + token.expires_in * 1000,
-    scope: token.scope ?? [twitchScope],
+    accessToken,
+    expiresAt: Date.now() + Math.max(expiresIn, 0) * 1000,
+    scope,
     profile,
   };
   saveTwitchAuth(auth);
