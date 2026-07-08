@@ -229,7 +229,7 @@ function isNativeOrTouchDevice() {
 function isDesktopWebViewport() {
   if (Capacitor.isNativePlatform()) return false;
   if (typeof window === 'undefined') return false;
-  return window.matchMedia('(min-width: 1024px) and (pointer: fine)').matches;
+  return window.matchMedia('(min-width: 1024px)').matches;
 }
 
 function shuffleIds(ids: string[]) {
@@ -844,6 +844,14 @@ function AppContent() {
     dailyOfficial: false,
     ratingChange: null,
   });
+
+  useEffect(() => {
+    if (sessionStorage.getItem(openStreamerModeAfterTwitchAuthKey) !== 'true') return;
+    sessionStorage.removeItem(openStreamerModeAfterTwitchAuthKey);
+    setDesktopVerticalLayout(false);
+    setGame(prev => ({ ...prev, mode: 'home', phase: 'streamer' }));
+  }, []);
+
   const desktopSettingsReturnRef = useRef<GameState | null>(null);
   const desktopStatsReturnRef = useRef<GameState | null>(null);
   const desktopLastScreenRef = useRef<GameState | null>(null);
@@ -1037,7 +1045,7 @@ function AppContent() {
 
   useEffect(() => {
     if (Capacitor.isNativePlatform() || typeof window === 'undefined') return undefined;
-    const media = window.matchMedia('(min-width: 1024px) and (pointer: fine)');
+    const media = window.matchMedia('(min-width: 1024px)');
     const update = () => setIsDesktopWeb(media.matches);
     update();
     media.addEventListener('change', update);
@@ -1560,10 +1568,11 @@ function AppContent() {
   }, []);
 
   const showStreamerMode = useCallback(() => {
-    if (!isDesktopWeb || desktopVerticalLayout) return;
+    if (!isDesktopWeb) return;
     clearGameTimer();
+    setDesktopVerticalLayout(false);
     setGame(prev => ({ ...prev, mode: 'home', phase: 'streamer' }));
-  }, [clearGameTimer, desktopVerticalLayout, isDesktopWeb]);
+  }, [clearGameTimer, isDesktopWeb]);
 
   const showTimeLadder = useCallback(() => {
     clearGameTimer();
@@ -4222,11 +4231,6 @@ function PartyResultsScreen({
     return b.score - a.score;
   });
 
-  useEffect(() => {
-    if (sessionStorage.getItem(openStreamerModeAfterTwitchAuthKey) !== 'true') return;
-    sessionStorage.removeItem(openStreamerModeAfterTwitchAuthKey);
-    setGame(prev => ({ ...prev, mode: 'home', phase: 'streamer' }));
-  }, []);
   useEffect(() => {
     setRevealComplete(reducedMotion);
     partySpotOnCelebratedRef.current = false;
