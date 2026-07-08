@@ -1197,12 +1197,6 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
               {twitchAuth.status === 'error' && twitchAuth.error && (
                 <p className="streamer-twitch-error">{twitchAuth.error}</p>
               )}
-              {twitchAuth.isConfigured && twitchAuth.status !== 'authenticated' && (
-                <p className="streamer-twitch-error">
-                  If Twitch says invalid client, confirm the Client ID belongs to this Twitch app, the OAuth
-                  Redirect URL exactly matches VITE_TWITCH_REDIRECT_URI, then restart the Vite dev server.
-                </p>
-              )}
             </div>
           </main>
         )}
