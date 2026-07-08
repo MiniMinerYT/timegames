@@ -266,6 +266,11 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
   const viewerMap = useMemo(() => new Map(viewers.map(viewer => [viewer.id, viewer])), [viewers]);
 
   useEffect(() => {
+    if (phase !== 'link' || twitchAuth.status !== 'authenticated') return;
+    setPhase('select');
+  }, [phase, twitchAuth.status]);
+
+  useEffect(() => {
     setKnownViewerNames(previous => {
       const next: Record<string, string> = { ...previous, streamer: streamerDisplayName };
       viewers.forEach(viewer => {
@@ -643,10 +648,6 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     if (twitchAuth.status !== 'authenticated') {
       await twitchAuth.login();
       return;
-    }
-    if (!connected) {
-      const didConnect = await connect();
-      if (!didConnect) return;
     }
     setPhase('select');
   };
