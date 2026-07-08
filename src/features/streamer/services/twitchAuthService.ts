@@ -5,6 +5,7 @@ const twitchApiBaseUrl = 'https://api.twitch.tv/helix';
 const twitchScope = 'chat:read';
 const twitchAuthStorageKey = 'timegames-streamer-twitch-auth';
 const twitchPkceStorageKey = 'timegames-streamer-twitch-pkce';
+const defaultTwitchClientId = 'foqenqxlakgg9a2uibydiyg8m7i5qf';
 
 interface TwitchPkceState {
   codeVerifier: string;
@@ -46,9 +47,14 @@ function normaliseEnvValue(value: string | undefined) {
   return trimmed;
 }
 
+function getDefaultRedirectUri() {
+  if (typeof window === 'undefined') return null;
+  return `${window.location.origin}/twitch/callback`;
+}
+
 export function getTwitchAuthConfigStatus(): TwitchAuthConfigStatus {
-  const clientId = normaliseEnvValue(import.meta.env.VITE_TWITCH_CLIENT_ID as string | undefined);
-  const redirectUri = normaliseEnvValue(import.meta.env.VITE_TWITCH_REDIRECT_URI as string | undefined);
+  const clientId = normaliseEnvValue(import.meta.env.VITE_TWITCH_CLIENT_ID as string | undefined) ?? defaultTwitchClientId;
+  const redirectUri = normaliseEnvValue(import.meta.env.VITE_TWITCH_REDIRECT_URI as string | undefined) ?? getDefaultRedirectUri();
 
   if (!clientId) {
     return {
