@@ -1,4 +1,4 @@
-import { readStoredTwitchAuth } from '../services/twitchAuthService';
+import { getTwitchAuthConfigStatus, readStoredTwitchAuth } from '../services/twitchAuthService';
 import { buildLeaderboard } from '../utils/leaderboard';
 import type {
   Guess,
@@ -35,6 +35,23 @@ function parseGuessValue(message: string) {
   return Number(value.toFixed(2));
 }
 
+async function fetchTwitchViewerCount(accessToken: string, clientId: string, login: string) {
+  try {
+    const response = await fetch(`https://api.twitch.tv/helix/streams?user_login=${encodeURIComponent(login)}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Client-Id': clientId,
+      },
+    });
+    if (!response.ok) return null;
+    const body = await response.json() as { data?: Array<{ viewer_count?: number }> };
+    const viewerCount = body.data?.[0]?.viewer_count;
+    return typeof viewerCount === 'number' && Number.isFinite(viewerCount) ? viewerCount : 0;
+  } catch {
+    return null;
+  }
+}
+
 export class TwitchGuessProvider implements GuessProvider {
   readonly id = 'twitch' as const;
   readonly name = 'Twitch';
@@ -45,6 +62,10 @@ export class TwitchGuessProvider implements GuessProvider {
   private viewers: Viewer[] = [];
   private guesses: Guess[] = [];
   private currentRound: Round | null = null;
+  private broadcaster: { id: string; login: string; displayName: string } | null = null;
+  private auth: { accessToken: string; clientId: string; login: string } | null = null;
+  private liveViewerCount: number | null = null;
+  private viewerCountTimer: number | null = null;
 
   constructor() {
     const now = Date.now();
@@ -66,6 +87,20 @@ export class TwitchGuessProvider implements GuessProvider {
     const auth = readStoredTwitchAuth();
     if (!auth) {
       throw new Error('Connect Twitch before opening Streamer Mode.');
+    }
+    this.broadcaster = {
+      id: auth.profile.id,
+      login: auth.profile.login,
+      displayName: auth.profile.displayName,
+    };
+    this.auth = {
+      accessToken: auth.accessToken,
+      clientId: getTwitchAuthConfigStatus().clientId ?? '',
+      login: auth.profile.login,
+    };
+    if (this.auth.clientId) {
+      void this.refreshLiveViewerCount();
+      this.startViewerCountPolling();
     }
 
     this.setConnectionStatus('connecting');
@@ -129,6 +164,10 @@ export class TwitchGuessProvider implements GuessProvider {
   async disconnect() {
     this.socket?.close();
     this.socket = null;
+    this.broadcaster = null;
+    this.auth = null;
+    this.liveViewerCount = null;
+    this.stopViewerCountPolling();
     this.currentRound = null;
     this.guesses = [];
     this.setConnectionStatus('not-connected');
@@ -193,7 +232,7 @@ export class TwitchGuessProvider implements GuessProvider {
 
   getSnapshot(): StreamerProviderSnapshot {
     return {
-      session: { ...this.session, viewerCount: this.viewers.length },
+      session: { ...this.session, viewerCount: this.liveViewerCount ?? this.viewers.length },
       viewers: [...this.viewers],
       guesses: [...this.guesses],
       currentRound: this.currentRound ? { ...this.currentRound } : null,
@@ -234,18 +273,30 @@ export class TwitchGuessProvider implements GuessProvider {
 
     const value = parseGuessValue(message);
     if (value === null) return;
+    const broadcaster = this.broadcaster;
+    const isBroadcaster = Boolean(
+      broadcaster && (
+        userId === broadcaster.id
+        || displayName.toLowerCase() === broadcaster.displayName.toLowerCase()
+        || displayName.toLowerCase() === broadcaster.login.toLowerCase()
+      )
+    );
+    const guessViewerId = isBroadcaster ? 'streamer' : userId;
+    const guessViewerName = isBroadcaster ? broadcaster?.displayName ?? displayName : displayName;
 
-    const viewer: Viewer = {
-      id: userId,
-      displayName,
-      joinedAt: Date.now(),
-    };
-    this.upsertViewer(viewer);
+    if (!isBroadcaster) {
+      const viewer: Viewer = {
+        id: userId,
+        displayName,
+        joinedAt: Date.now(),
+      };
+      this.upsertViewer(viewer);
+    }
 
     const guess: Guess = {
       id: createId('twitch-guess'),
-      viewerId: userId,
-      viewerName: displayName,
+      viewerId: guessViewerId,
+      viewerName: guessViewerName,
       value,
       roundId: this.currentRound.id,
       receivedAt: Date.now(),
@@ -278,10 +329,33 @@ export class TwitchGuessProvider implements GuessProvider {
     this.session = {
       ...this.session,
       connectionStatus,
-      viewerCount: this.viewers.length,
+      viewerCount: this.liveViewerCount ?? this.viewers.length,
       updatedAt: Date.now(),
     };
     this.emit({ type: 'connection-change', snapshot: this.getSnapshot() });
+  }
+
+  private async refreshLiveViewerCount() {
+    const auth = this.auth;
+    if (!auth?.clientId) return;
+    const viewerCount = await fetchTwitchViewerCount(auth.accessToken, auth.clientId, auth.login);
+    if (viewerCount === null) return;
+    this.liveViewerCount = viewerCount;
+    this.session = { ...this.session, viewerCount, updatedAt: Date.now() };
+    this.emit({ type: 'connection-change', snapshot: this.getSnapshot() });
+  }
+
+  private startViewerCountPolling() {
+    this.stopViewerCountPolling();
+    this.viewerCountTimer = window.setInterval(() => {
+      void this.refreshLiveViewerCount();
+    }, 60000);
+  }
+
+  private stopViewerCountPolling() {
+    if (this.viewerCountTimer === null) return;
+    window.clearInterval(this.viewerCountTimer);
+    this.viewerCountTimer = null;
   }
 
   private emit(event: StreamerProviderEvent) {

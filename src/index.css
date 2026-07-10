@@ -3346,6 +3346,17 @@ button {
     font-weight: 950;
   }
 
+  .streamer-podium-card strong em {
+    display: inline-block;
+    min-width: 100%;
+    font-style: normal;
+  }
+
+  .streamer-podium-card strong em.needs-marquee {
+    width: max-content;
+    animation: streamerNameMarquee 9s ease-in-out infinite alternate;
+  }
+
   .streamer-podium-card em {
     color: #64748b;
     font-size: 0.78rem;
@@ -3355,6 +3366,12 @@ button {
 
   .app-viewport.desktop-layout.dark-mode .streamer-podium-card em {
     color: #cbd5e1;
+  }
+
+  .streamer-podium-card strong em {
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
   }
 
   .streamer-podium-card.place-1 {

@@ -53,6 +53,11 @@ function getPlacementLabel(position: number) {
   return `${position}${suffix}`;
 }
 
+function podiumNameNeedsMarquee(name: string, place: number) {
+  const limit = place === 1 ? 18 : place === 2 ? 15 : 13;
+  return name.length > limit;
+}
+
 function getCloseRaceBattle(rows: PodiumEntry[], maxGap = 5) {
   if (rows.length < 2) return null;
   for (let index = 0; index < rows.length - 1; index += 1) {
@@ -265,7 +270,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
   const connecting = session.connectionStatus === 'connecting';
   const twitchAccountConnected = Boolean(twitchAuth.profile);
   const streamerConnectionLabel = connected
-    ? `Chat Connected - ${viewers.length} ${viewers.length === 1 ? 'chatter' : 'chatters'} seen`
+    ? `Chat Connected - ${session.viewerCount} ${session.viewerCount === 1 ? 'viewer' : 'viewers'}`
     : connecting
       ? 'Connecting Twitch Chat'
       : twitchAccountConnected
@@ -341,9 +346,15 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     const active = new Set(activeViewerIds);
     return guesses.filter(guess => active.has(guess.viewerId) && (!currentRound || guess.roundId === currentRound.id));
   }, [activeViewerIds, currentRound, guesses]);
+  const streamerChatGuess = useMemo(
+    () => guesses.find(guess => guess.viewerId === 'streamer' && (!currentRound || guess.roundId === currentRound.id)) ?? null,
+    [currentRound, guesses]
+  );
+  const effectiveStreamerGuess = streamerGuess ?? streamerChatGuess;
+  const effectiveStreamerGuessValue = streamerGuessValue ?? streamerChatGuess?.value ?? null;
   const roundGuesses = useMemo(
-    () => streamerGuess ? [...chatRoundGuesses, streamerGuess] : chatRoundGuesses,
-    [chatRoundGuesses, streamerGuess]
+    () => effectiveStreamerGuess ? [...chatRoundGuesses, effectiveStreamerGuess] : chatRoundGuesses,
+    [chatRoundGuesses, effectiveStreamerGuess]
   );
   const rankedGuesses = useMemo(
     () => getRankedGuesses(roundGuesses, finalTime, revealStage),
@@ -409,7 +420,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     return [...rows.values()].sort((a, b) => b.score - a.score || b.rankPoints - a.rankPoints || a.viewerName.localeCompare(b.viewerName));
   }, [knownViewerNames, streamerDisplayName, viewerMap, viewerRankPoints, viewerScores, viewers]);
   const parsedStreamerGuess = Number(streamerGuessInput);
-  const canSaveStreamerGuess = Number.isFinite(parsedStreamerGuess) && parsedStreamerGuess >= 0;
+  const canSaveStreamerGuess = effectiveStreamerGuessValue === null && Number.isFinite(parsedStreamerGuess) && parsedStreamerGuess >= 0;
   const canReveal = Boolean(currentRound);
   const updateEliminationRounds = useCallback((value: string) => {
     const nextValue = Number(value);
@@ -754,8 +765,8 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     if (currentRound.status !== 'ended') {
       await endRound({ targetTime: finalTime ?? targetTime ?? undefined });
     }
-    const nextStreamerValue = streamerGuessValue ?? (canSaveStreamerGuess ? Number(parsedStreamerGuess.toFixed(2)) : null);
-    const nextStreamerGuess = streamerGuess ?? (nextStreamerValue === null ? null : makeStreamerGuess(nextStreamerValue, currentRound.id, streamerDisplayName));
+    const nextStreamerValue = effectiveStreamerGuessValue ?? (canSaveStreamerGuess ? Number(parsedStreamerGuess.toFixed(2)) : null);
+    const nextStreamerGuess = effectiveStreamerGuess ?? (nextStreamerValue === null ? null : makeStreamerGuess(nextStreamerValue, currentRound.id, streamerDisplayName));
     const nextGuesses = nextStreamerGuess ? [...chatRoundGuesses, nextStreamerGuess] : chatRoundGuesses;
     const nextRankedGuesses = getRankedGuesses(nextGuesses, finalTime, 'final');
     setStreamerGuessValue(nextStreamerValue);
@@ -781,7 +792,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     setRevealStage('seconds');
     setShowEliminationBoard(false);
     setPhase('revealed');
-  }, [activeViewerIds.length, canSaveStreamerGuess, chatRoundGuesses, clearRunTimeout, currentRound, endRound, finalTime, parsedStreamerGuess, streamerDisplayName, streamerGuess, streamerGuessValue, targetTime]);
+  }, [activeViewerIds.length, canSaveStreamerGuess, chatRoundGuesses, clearRunTimeout, currentRound, effectiveStreamerGuess, effectiveStreamerGuessValue, endRound, finalTime, parsedStreamerGuess, streamerDisplayName, targetTime]);
 
   useEffect(() => {
     if (phase !== 'guessing') return undefined;
@@ -914,6 +925,36 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     }
   }, [finalOverallLeaderboardOpen, nextRound, resetGame, standardRoundResultsOpen]);
 
+  const restartAutoRunGame = useCallback(async () => {
+    playStreamerTone(620, 0.045, 0.06);
+    clearRunTimeout();
+    const latestViewers = await provider.getViewers();
+    setSettingsOpen(false);
+    setLeaderboardFullscreen(false);
+    setBoardView('round');
+    setRoundNumber(1);
+    setActiveViewerIds(latestViewers.map(viewer => viewer.id));
+    setEliminatedViewerIds([]);
+    setEliminationRosterLocked(false);
+    setStreamerEliminated(false);
+    setEliminationLog([]);
+    setShowEliminationBoard(false);
+    setFinalTime(null);
+    setTargetTime(null);
+    setCountdownValue(3);
+    setGuessSecondsLeft(guessWindow);
+    setStreamerGuessInput('');
+    setStreamerGuessValue(null);
+    setStreamerGuess(null);
+    setViewerScores({ streamer: 0 });
+    setViewerRankPoints({ streamer: 0 });
+    setRoundLeaderboardSeen(false);
+    setShowPodiumIntro(false);
+    setPodiumStage(0);
+    await clearGuesses();
+    setPhase('lobby');
+  }, [clearGuesses, clearRunTimeout, guessWindow, provider]);
+
   const advancePodium = useCallback(() => {
     if (phase !== 'closed' || leaderboardFullscreen) return;
     if (!showPodiumIntro) {
@@ -923,6 +964,10 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
       return;
     }
     if (podiumStage >= 3) {
+      if (autoRunEnabled) {
+        void restartAutoRunGame();
+        return;
+      }
       if (mode === 'elimination' && activeViewerIds.length > 1) {
         void beginRound();
         return;
@@ -943,7 +988,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
       }
       return next;
     });
-  }, [activeViewerIds.length, beginRound, leaderboardFullscreen, mode, phase, podiumStage, showPodiumIntro]);
+  }, [activeViewerIds.length, autoRunEnabled, beginRound, leaderboardFullscreen, mode, phase, podiumStage, restartAutoRunGame, showPodiumIntro]);
 
   useEffect(() => {
     if (autoRunTimerRef.current !== null) {
@@ -1098,7 +1143,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
         return;
       }
 
-      if ((phase === 'guessing' || phase === 'streamer-guess') && streamerGuessValue !== null && canReveal) {
+      if ((phase === 'guessing' || phase === 'streamer-guess') && effectiveStreamerGuessValue !== null && canReveal) {
         event.preventDefault();
         void revealResults();
         return;
@@ -1113,7 +1158,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [advanceFromRevealedRound, advancePodium, beginRound, canReveal, closeLeaderboard, connected, finalOverallLeaderboardOpen, leaderboardFullscreen, phase, revealResults, revealStage, settingsOpen, standardRoundResultsOpen, streamerGuessValue]);
+  }, [advanceFromRevealedRound, advancePodium, beginRound, canReveal, closeLeaderboard, connected, effectiveStreamerGuessValue, finalOverallLeaderboardOpen, leaderboardFullscreen, phase, revealResults, revealStage, settingsOpen, standardRoundResultsOpen]);
 
   useEffect(() => {
     const handleGuessKeyDown = (event: KeyboardEvent) => {
@@ -1121,7 +1166,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
         && !settingsOpen
         && !leaderboardFullscreen
         && !streamerEliminated
-        && streamerGuessValue === null;
+        && effectiveStreamerGuessValue === null;
       if (!guessEntryActive) return;
 
       const target = event.target as HTMLElement | null;
@@ -1159,7 +1204,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
 
     window.addEventListener('keydown', handleGuessKeyDown);
     return () => window.removeEventListener('keydown', handleGuessKeyDown);
-  }, [leaderboardFullscreen, phase, saveStreamerGuess, settingsOpen, streamerEliminated, streamerGuessValue]);
+  }, [effectiveStreamerGuessValue, leaderboardFullscreen, phase, saveStreamerGuess, settingsOpen, streamerEliminated]);
 
   const displayTime = phase === 'revealed'
     ? getRevealedTime(finalTime, revealStage)
@@ -1357,7 +1402,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
                         className="streamer-reveal-reference"
                       >
                         <p>Your Guess</p>
-                        <strong>{streamerGuessValue !== null ? formatSeconds(streamerGuessValue) : '--.--s'}</strong>
+                        <strong>{effectiveStreamerGuessValue !== null ? formatSeconds(effectiveStreamerGuessValue) : '--.--s'}</strong>
                       </motion.div>
                       <div className="streamer-reveal-number-wrap">
                         <p>Actual Time</p>
@@ -1408,7 +1453,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
                               transition={{ duration: 0.45, ease: 'easeOut' }}
                             >
                               <span>#{place}</span>
-                              <strong>{entry.viewerName}</strong>
+                              <strong><em className={podiumNameNeedsMarquee(entry.viewerName, place) ? 'needs-marquee' : ''}>{entry.viewerName}</em></strong>
                               <em>{getPodiumResult(entry, finalGuess, finalTime, mode)}</em>
                             </motion.div>
                           );
@@ -1500,16 +1545,16 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
                       <label className="streamer-guess-field">
                         <span>Streamer guess</span>
                         <input
-                          value={streamerGuessInput}
+                          value={effectiveStreamerGuessValue !== null && streamerGuessValue === null ? effectiveStreamerGuessValue.toFixed(2) : streamerGuessInput}
                           onChange={event => setStreamerGuessInput(event.target.value)}
                           inputMode="decimal"
                           placeholder="0.00"
                           aria-label="Streamer guess"
-                          disabled={streamerGuessValue !== null}
+                          disabled={effectiveStreamerGuessValue !== null}
                         />
                       </label>
-                      <button type="button" onClick={saveStreamerGuess} disabled={!canSaveStreamerGuess || streamerGuessValue !== null}>
-                        {streamerGuessValue === null ? 'Lock' : 'Locked'}
+                      <button type="button" onClick={saveStreamerGuess} disabled={!canSaveStreamerGuess || effectiveStreamerGuessValue !== null}>
+                        {effectiveStreamerGuessValue === null ? 'Lock' : 'Locked'}
                       </button>
                       <button type="button" onClick={() => void revealResults()} disabled={!canReveal}>
                         Reveal
@@ -2013,7 +2058,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
                               >
                                 <Trophy className="w-9 h-9" />
                                 <span>#{place}</span>
-                                <strong><em className={entry && entry.viewerName.length > 16 ? 'needs-marquee' : ''}>{entry?.viewerName ?? 'Waiting'}</em></strong>
+                                <strong><em className={entry && podiumNameNeedsMarquee(entry.viewerName, place) ? 'needs-marquee' : ''}>{entry?.viewerName ?? 'Waiting'}</em></strong>
                                 <b>{entry ? getPodiumResult(entry, finalGuess, finalTime, mode) : '--'}</b>
                               </motion.div>
                             );
