@@ -68,13 +68,6 @@ function getCloseRaceBattle(rows: PodiumEntry[], maxGap = 5) {
   return null;
 }
 
-function formatStatus(status: string) {
-  return status
-    .split('-')
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 function formatSeconds(value: number) {
   return `${value.toFixed(2)}s`;
 }
@@ -218,6 +211,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     snapshot,
     error,
     connect,
+    disconnect,
     startRound,
     endRound,
     clearGuesses,
@@ -269,12 +263,25 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
   const spotOnCelebratedRoundRef = useRef<string | null>(null);
   const connected = session.connectionStatus === 'connected';
   const connecting = session.connectionStatus === 'connecting';
+  const twitchAccountConnected = Boolean(twitchAuth.profile);
+  const streamerConnectionLabel = connected
+    ? `Chat Connected - ${viewers.length} ${viewers.length === 1 ? 'chatter' : 'chatters'} seen`
+    : connecting
+      ? 'Connecting Twitch Chat'
+      : twitchAccountConnected
+        ? 'Twitch Connected - waiting for chat'
+        : 'Not Connected';
   const viewerMap = useMemo(() => new Map(viewers.map(viewer => [viewer.id, viewer])), [viewers]);
 
   useEffect(() => {
     if (phase !== 'link' || (twitchAuth.status !== 'authenticated' && !twitchAuth.profile)) return;
     setPhase('select');
   }, [phase, twitchAuth.profile, twitchAuth.status]);
+
+  useEffect(() => {
+    if (phase !== 'select' || !twitchAuth.profile || connected || connecting) return;
+    void connect();
+  }, [connect, connected, connecting, phase, twitchAuth.profile]);
 
   useEffect(() => {
     setKnownViewerNames(previous => {
@@ -305,6 +312,26 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
       stopTransitionRef.current = null;
     }
   }, []);
+
+  const disconnectTwitch = useCallback(async () => {
+    playStreamerTone(420, 0.055, 0.06);
+    clearRunTimeout();
+    await disconnect();
+    twitchAuth.logout();
+    setSettingsOpen(false);
+    setLeaderboardFullscreen(false);
+    setRoundLeaderboardSeen(false);
+    setShowEliminationBoard(false);
+    setEliminationRosterLocked(false);
+    setActiveViewerIds([]);
+    setEliminatedViewerIds([]);
+    setViewerScores({ streamer: 0 });
+    setViewerRankPoints({ streamer: 0 });
+    setStreamerGuessInput('');
+    setStreamerGuessValue(null);
+    setStreamerGuess(null);
+    setPhase('link');
+  }, [clearRunTimeout, disconnect, twitchAuth]);
 
   const activeViewers = useMemo(
     () => activeViewerIds.map(id => viewerMap.get(id)).filter((viewer): viewer is Viewer => Boolean(viewer)),
@@ -1030,7 +1057,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     }
 
     if (phase === 'select') {
-      setPhase('link');
+      onExit?.();
       return;
     }
 
@@ -1214,9 +1241,21 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
               <span className={`streamer-status-light streamer-status-${session.connectionStatus}`} />
               <div>
                 <p>{session.providerName} Provider</p>
-                <strong>{formatStatus(session.connectionStatus)} - {viewers.length} viewers ready</strong>
+                <strong>{streamerConnectionLabel}</strong>
               </div>
             </div>
+            {twitchAuth.profile && (
+              <div className="streamer-connected-account">
+                <img src={twitchAuth.profile.profileImageUrl} alt="" />
+                <span>
+                  <strong>{twitchAuth.profile.displayName}</strong>
+                  <em>@{twitchAuth.profile.login}</em>
+                </span>
+                <button type="button" onClick={() => void disconnectTwitch()}>
+                  Disconnect Twitch
+                </button>
+              </div>
+            )}
             <div className="streamer-mode-grid">
               <button type="button" onClick={() => { playStreamerTone(620, 0.045, 0.06); setMode('standard'); }} className={mode === 'standard' ? 'active' : ''} aria-pressed={mode === 'standard'}>
                 <Timer className="w-8 h-8" />
@@ -1551,7 +1590,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
                         <span className={`streamer-status-light streamer-status-${session.connectionStatus}`} />
                         <div>
                           <p>{session.providerName} Provider</p>
-                          <strong>{formatStatus(session.connectionStatus)} - {viewers.length} viewers</strong>
+                          <strong>{streamerConnectionLabel}</strong>
                         </div>
                       </div>
 

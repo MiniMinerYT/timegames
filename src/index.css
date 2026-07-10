@@ -2101,6 +2101,72 @@ button {
     font-weight: 950;
   }
 
+  .streamer-connected-account {
+    width: min(100%, 46rem);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.8rem;
+    border: 1px solid rgb(20 184 166 / 22%);
+    border-radius: 1.1rem;
+    padding: 0.8rem 0.9rem;
+    color: #0f172a;
+    background: rgb(255 255 255 / 78%);
+    box-shadow: 0 18px 42px rgb(15 23 42 / 8%);
+  }
+
+  .app-viewport.desktop-layout.dark-mode .streamer-connected-account {
+    color: #f8fafc;
+    background: rgb(15 23 42 / 70%);
+    box-shadow: 0 18px 42px rgb(0 0 0 / 18%);
+  }
+
+  .streamer-connected-account img {
+    width: 2.8rem;
+    aspect-ratio: 1;
+    border-radius: 999px;
+    object-fit: cover;
+    box-shadow: 0 0 0 3px rgb(145 70 255 / 22%);
+  }
+
+  .streamer-connected-account strong,
+  .streamer-connected-account em {
+    display: block;
+    line-height: 1.05;
+  }
+
+  .streamer-connected-account strong {
+    font-weight: 950;
+  }
+
+  .streamer-connected-account em {
+    margin-top: 0.25rem;
+    color: #64748b;
+    font-size: 0.8rem;
+    font-style: normal;
+    font-weight: 850;
+  }
+
+  .app-viewport.desktop-layout.dark-mode .streamer-connected-account em {
+    color: #cbd5e1;
+  }
+
+  .streamer-connected-account button {
+    border: 1px solid rgb(244 63 94 / 35%);
+    border-radius: 999px;
+    padding: 0.65rem 0.9rem;
+    color: #fecdd3;
+    background: rgb(190 18 60 / 86%);
+    font-size: 0.8rem;
+    font-weight: 950;
+    transition: transform 180ms ease, background 180ms ease;
+  }
+
+  .streamer-connected-account button:hover {
+    transform: translateY(-1px);
+    background: #be123c;
+  }
+
   .streamer-twitch-error {
     margin: 0;
     border-radius: 0.9rem;
