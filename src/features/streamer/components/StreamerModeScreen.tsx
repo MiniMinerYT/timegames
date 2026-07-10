@@ -77,6 +77,13 @@ function formatSeconds(value: number) {
   return `${value.toFixed(2)}s`;
 }
 
+function parseStreamerGuessInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 function generateStreamerTargetTime() {
   return getWeightedStandardTarget();
 }
@@ -419,8 +426,8 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     });
     return [...rows.values()].sort((a, b) => b.score - a.score || b.rankPoints - a.rankPoints || a.viewerName.localeCompare(b.viewerName));
   }, [knownViewerNames, streamerDisplayName, viewerMap, viewerRankPoints, viewerScores, viewers]);
-  const parsedStreamerGuess = Number(streamerGuessInput);
-  const canSaveStreamerGuess = effectiveStreamerGuessValue === null && Number.isFinite(parsedStreamerGuess) && parsedStreamerGuess >= 0;
+  const parsedStreamerGuess = parseStreamerGuessInput(streamerGuessInput);
+  const canSaveStreamerGuess = effectiveStreamerGuessValue === null && parsedStreamerGuess !== null;
   const canReveal = Boolean(currentRound);
   const updateEliminationRounds = useCallback((value: string) => {
     const nextValue = Number(value);
@@ -747,7 +754,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
   }, [activeViewerIds, clearGuesses, clearRunTimeout, eliminationRosterLocked, guessWindow, mode]);
 
   const saveStreamerGuess = useCallback(() => {
-    if (!canSaveStreamerGuess) return;
+    if (!canSaveStreamerGuess || parsedStreamerGuess === null) return;
     const nextValue = Number(parsedStreamerGuess.toFixed(2));
     setStreamerGuessValue(nextValue);
     if (currentRound) {
@@ -765,7 +772,7 @@ export function StreamerModeScreen({ backRequest = 0, onExit, onTimingChange }: 
     if (currentRound.status !== 'ended') {
       await endRound({ targetTime: finalTime ?? targetTime ?? undefined });
     }
-    const nextStreamerValue = effectiveStreamerGuessValue ?? (canSaveStreamerGuess ? Number(parsedStreamerGuess.toFixed(2)) : null);
+    const nextStreamerValue = effectiveStreamerGuessValue ?? (parsedStreamerGuess === null ? null : Number(parsedStreamerGuess.toFixed(2)));
     const nextStreamerGuess = effectiveStreamerGuess ?? (nextStreamerValue === null ? null : makeStreamerGuess(nextStreamerValue, currentRound.id, streamerDisplayName));
     const nextGuesses = nextStreamerGuess ? [...chatRoundGuesses, nextStreamerGuess] : chatRoundGuesses;
     const nextRankedGuesses = getRankedGuesses(nextGuesses, finalTime, 'final');

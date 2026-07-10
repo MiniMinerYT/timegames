@@ -715,7 +715,7 @@ function getDesktopShellContext(game: GameState, rankedMode: boolean): DesktopSh
     return { title: 'Clock Ranks', subtitle: 'Your ranked Time Guesser progression.', icon: 'rankings', accent: 'yellow' };
   }
   if (game.phase === 'streamer') {
-    return { title: 'Streamer Mode', subtitle: 'Live viewer guesses through provider-based chat integration.', icon: 'streamer', accent: 'cyan' };
+    return { title: 'TimeGames', subtitle: 'Available on the App Store and Android.', icon: 'home', accent: 'teal' };
   }
   if (game.phase === 'ladder') {
     return { title: 'Time Ladder', subtitle: 'Climb 1 to 20 seconds. Pass within 0.25s or the run ends.', icon: 'ladder', accent: 'indigo' };
