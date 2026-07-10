@@ -854,6 +854,7 @@ function AppContent() {
 
   const desktopSettingsReturnRef = useRef<GameState | null>(null);
   const desktopStatsReturnRef = useRef<GameState | null>(null);
+  const desktopRankingsReturnRef = useRef<GameState | null>(null);
   const desktopLastScreenRef = useRef<GameState | null>(null);
 
   const [stats, setStats] = useState<StatsState>(() => {
@@ -1029,7 +1030,7 @@ function AppContent() {
 
   useEffect(() => {
     if (!isDesktopWeb || desktopVerticalLayout) return;
-    if (game.phase === 'settings' || game.phase === 'stats') return;
+    if (game.phase === 'settings' || game.phase === 'stats' || game.phase === 'rankings') return;
     desktopLastScreenRef.current = game;
   }, [desktopVerticalLayout, game, isDesktopWeb]);
 
@@ -1656,8 +1657,13 @@ function AppContent() {
 
   const showRankings = useCallback((backTarget: 'guesser' | 'result' = 'guesser') => {
     setRankingsBackTarget(backTarget);
-    setGame(prev => ({ ...prev, mode: 'home', phase: 'rankings' }));
-  }, []);
+    setGame(prev => {
+      if (isDesktopWeb && !desktopVerticalLayout && prev.phase !== 'rankings') {
+        desktopRankingsReturnRef.current = prev;
+      }
+      return { ...prev, mode: 'home', phase: 'rankings' };
+    });
+  }, [desktopVerticalLayout, isDesktopWeb]);
 
   const showResultRankings = useCallback(() => {
     setRankingsBackTarget('result');
@@ -1674,8 +1680,21 @@ function AppContent() {
       return;
     }
 
+    setGame(prev => {
+      const desktopTarget = desktopRankingsReturnRef.current ?? desktopLastScreenRef.current;
+      if (isDesktopWeb && !desktopVerticalLayout && desktopTarget) {
+        const target = desktopTarget;
+        desktopRankingsReturnRef.current = null;
+        return target;
+      }
+      return { ...prev, mode: 'home', phase: 'ready' };
+    });
+    if (isDesktopWeb && !desktopVerticalLayout) {
+      return;
+    }
+
     showTimeGuesser();
-  }, [rankingsBackTarget, showTimeGuesser]);
+  }, [desktopVerticalLayout, isDesktopWeb, rankingsBackTarget, showTimeGuesser]);
 
   const updateSetting = useCallback(<K extends keyof SettingsState,>(
     key: K,
